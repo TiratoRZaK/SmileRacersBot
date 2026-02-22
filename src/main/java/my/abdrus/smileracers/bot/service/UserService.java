@@ -1,6 +1,6 @@
 package my.abdrus.smileracers.bot.service;
 
-import my.abdrus.smileracers.bot.PaymentBot;
+import my.abdrus.smileracers.bot.SmileRacersBot;
 import my.abdrus.smileracers.bot.entity.BotUser;
 import my.abdrus.smileracers.bot.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +15,7 @@ public class UserService {
     @Autowired
     private UserRepository userRepository;
 
-    public boolean isAdminOrCreatorForChannel(String channelId, Long userChatId, PaymentBot bot) {
+    public boolean isAdminOrCreatorForChannel(String channelId, Long userChatId, SmileRacersBot bot) {
         GetChatMember getChatMember = new GetChatMember(channelId, userChatId);
         ChatMember chatMember = bot.execute(getChatMember);
         String status = chatMember.getStatus();

@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-import my.abdrus.smileracers.bot.PaymentBot;
+import my.abdrus.smileracers.bot.SmileRacersBot;
 import my.abdrus.smileracers.bot.entity.BotUser;
 import my.abdrus.smileracers.bot.entity.PaymentRequest;
 import my.abdrus.smileracers.bot.entity.Player;
@@ -62,7 +62,7 @@ public class ClientChannelService extends ChannelService {
     private String helpLink;
 
     @Override
-    public void updateProcess(Update update, PaymentBot bot) {
+    public void updateProcess(Update update, SmileRacersBot bot) {
         if (update.hasMessage()) {
             Message message = update.getMessage();
             Long chatId = message.getChatId();
@@ -96,7 +96,7 @@ public class ClientChannelService extends ChannelService {
         }
     }
 
-    private void contactProcess(Message message, Long chatId, PaymentBot bot) {
+    private void contactProcess(Message message, Long chatId, SmileRacersBot bot) {
         bot.deleteMessage(chatId, message.getMessageId());
         Contact contact = message.getContact();
         boolean isAdmin = userService.isAdmin(chatId);
@@ -112,7 +112,7 @@ public class ClientChannelService extends ChannelService {
         bot.deleteMessageScheduled(message.getFrom().getId(), messageId);
     }
 
-    private void textProcess(Message message, Long chatId, PaymentBot bot) {
+    private void textProcess(Message message, Long chatId, SmileRacersBot bot) {
         String text = message.getText();
         Integer messageId = message.getMessageId();
         bot.deleteMessage(chatId, messageId);
@@ -203,7 +203,7 @@ public class ClientChannelService extends ChannelService {
     }
 
     @Override
-    public boolean callbackQueryProcess(CallbackQuery callbackQuery, PaymentBot bot) {
+    public boolean callbackQueryProcess(CallbackQuery callbackQuery, SmileRacersBot bot) {
         boolean isProcessed = super.callbackQueryProcess(callbackQuery, bot);
         if (isProcessed) {
             return true;
@@ -347,14 +347,14 @@ public class ClientChannelService extends ChannelService {
         return answer;
     }
 
-    protected void preCallbackQueryProcess(PreCheckoutQuery preCheckoutQuery, PaymentBot bot) {
+    protected void preCallbackQueryProcess(PreCheckoutQuery preCheckoutQuery, SmileRacersBot bot) {
         String payload = preCheckoutQuery.getInvoicePayload();
         if (payload.startsWith("deposit_")) {
             bot.execute(new AnswerPreCheckoutQuery(preCheckoutQuery.getId(), true));
         }
     }
 
-    public void sendPersistentKeyboard(Long chatId, PaymentBot bot) {
+    public void sendPersistentKeyboard(Long chatId, SmileRacersBot bot) {
         List<KeyboardRow> rows = new ArrayList<>();
 
         KeyboardRow row1 = new KeyboardRow();

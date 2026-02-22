@@ -1,6 +1,6 @@
 package my.abdrus.smileracers.config;
 
-import my.abdrus.smileracers.bot.PaymentBot;
+import my.abdrus.smileracers.bot.SmileRacersBot;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.TaskScheduler;
@@ -13,9 +13,9 @@ import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 public class BotConfig {
 
     @Bean
-    public TelegramBotsApi telegramBotsApi(PaymentBot paymentBot) throws Exception {
+    public TelegramBotsApi telegramBotsApi(SmileRacersBot smileRacersBot) throws Exception {
         TelegramBotsApi botsApi = new TelegramBotsApi(DefaultBotSession.class);
-        botsApi.registerBot(paymentBot);
+        botsApi.registerBot(smileRacersBot);
         return botsApi;
     }
 

@@ -2,7 +2,7 @@ package my.abdrus.smileracers.bot.service;
 
 import java.util.List;
 
-import my.abdrus.smileracers.bot.PaymentBot;
+import my.abdrus.smileracers.bot.SmileRacersBot;
 import my.abdrus.smileracers.bot.entity.Match;
 import my.abdrus.smileracers.bot.entity.MatchPlayer;
 import my.abdrus.smileracers.bot.entity.PaymentRequest;
@@ -41,9 +41,9 @@ public abstract class ChannelService {
     @Autowired
     private UserService userService;
 
-    public abstract void updateProcess(Update update, PaymentBot bot);
+    public abstract void updateProcess(Update update, SmileRacersBot bot);
 
-    public boolean callbackQueryProcess(CallbackQuery callbackQuery, PaymentBot bot) {
+    public boolean callbackQueryProcess(CallbackQuery callbackQuery, SmileRacersBot bot) {
         String query = callbackQuery.getData();
         Long userChatId = callbackQuery.getFrom().getId();
 
@@ -89,7 +89,7 @@ public abstract class ChannelService {
         return false;
     }
 
-    private void busterPaymentProcess(CallbackQuery callbackQuery, Integer playerNumber, AnswerCallbackQuery answer, BusterType busterType, PaymentBot bot) {
+    private void busterPaymentProcess(CallbackQuery callbackQuery, Integer playerNumber, AnswerCallbackQuery answer, BusterType busterType, SmileRacersBot bot) {
         Long userChatId = callbackQuery.getFrom().getId();
         String chatId = callbackQuery.getMessage().getChatId().toString();
 
@@ -111,7 +111,7 @@ public abstract class ChannelService {
         }
     }
 
-    public Integer sendStarsRequest(Long userChatId, MatchPlayer matchPlayer, PaymentBot bot) {
+    public Integer sendStarsRequest(Long userChatId, MatchPlayer matchPlayer, SmileRacersBot bot) {
         var message = new SendMessage();
         Match match = matchPlayer.getMatch();
         Player player = matchPlayer.getPlayer();

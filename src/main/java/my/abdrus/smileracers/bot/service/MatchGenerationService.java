@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import lombok.extern.slf4j.Slf4j;
-import my.abdrus.smileracers.bot.PaymentBot;
+import my.abdrus.smileracers.bot.SmileRacersBot;
 import my.abdrus.smileracers.bot.entity.Player;
 import my.abdrus.smileracers.bot.repository.PlayerRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +40,7 @@ public class MatchGenerationService {
         return players.subList(0, Math.min(count, players.size()));
     }
 
-    public void startGeneration(Long chatId, PaymentBot bot) {
+    public void startGeneration(Long chatId, SmileRacersBot bot) {
         taskScheduler.scheduleWithFixedDelay(() -> {
             log.info("Запуск генерации матча");
             List<Player> queuedPlayers = new ArrayList<>();

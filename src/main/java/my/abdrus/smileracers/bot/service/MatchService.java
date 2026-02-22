@@ -11,7 +11,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
-import my.abdrus.smileracers.bot.PaymentBot;
+import my.abdrus.smileracers.bot.SmileRacersBot;
 import my.abdrus.smileracers.bot.entity.Match;
 import my.abdrus.smileracers.bot.entity.MatchPlayer;
 import my.abdrus.smileracers.bot.entity.PaymentRequest;
@@ -36,6 +36,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.webapp.WebAppInfo;
 
 @Slf4j
 @Service
@@ -102,7 +103,7 @@ public class MatchService {
         return matchRepository.save(match);
     }
 
-    public Integer sendLineByActiveMatch(Long chatId, boolean isMainChannel, PaymentBot bot) {
+    public Integer sendLineByActiveMatch(Long chatId, boolean isMainChannel, SmileRacersBot bot) {
         var match = matchRepository.findLatestActiveMatchWithPlayers(Arrays.asList(MatchStatus.values()));
         if (match == null) {
             return null;
@@ -209,7 +210,7 @@ public class MatchService {
         return markup;
     }
 
-    public void startLiveByActiveMatch(Long mainChannelChatId, PaymentBot bot) {
+    public void startLiveByActiveMatch(Long mainChannelChatId, SmileRacersBot bot) {
         var match = completeLineVotes(bot);
         if (match == null) {
             return;
@@ -245,7 +246,7 @@ public class MatchService {
         raceService.startRace(race);
     }
 
-    private void winnerProcess(Match match, PaymentBot bot) {
+    private void winnerProcess(Match match, SmileRacersBot bot) {
         Integer winnerNumber = match.getWinner();
         MatchPlayer winner = match.getPlayerByNumber(winnerNumber);
 
@@ -294,7 +295,7 @@ public class MatchService {
         });
     }
 
-    private Integer printRace(Long mainChannelChatId, PaymentBot bot, Race race) {
+    private Integer printRace(Long mainChannelChatId, SmileRacersBot bot, Race race) {
         SendMessage message = new SendMessage();
         message.setChatId(mainChannelChatId);
         message.setText(race.paintRace());
@@ -332,7 +333,7 @@ public class MatchService {
         return button;
     }
 
-    public Match completeLineVotes(PaymentBot bot) {
+    public Match completeLineVotes(SmileRacersBot bot) {
         var match = matchRepository.findLatestActiveMatchWithPlayers(List.of(MatchStatus.CREATED, MatchStatus.LIVE));
         if (match == null) {
             return null;
@@ -365,10 +366,9 @@ public class MatchService {
     }
 
     public InlineKeyboardButton createMatchLinkButton(Match match) {
-        String messageLink = channelLink + match.getChannelTimerMessageId();
         return InlineKeyboardButton.builder()
                 .text("📢 Перейти к матчу")
-                .url(messageLink)
+                .webApp(new WebAppInfo("https://smile-racers-ui.vercel.app/"))
                 .build();
     }
 

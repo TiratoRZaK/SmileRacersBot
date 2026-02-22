@@ -21,9 +21,9 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 @Service
-public class PaymentBot extends TelegramLongPollingBot {
+public class SmileRacersBot extends TelegramLongPollingBot {
 
-    private static final Logger log = LoggerFactory.getLogger(PaymentBot.class);
+    private static final Logger log = LoggerFactory.getLogger(SmileRacersBot.class);
 
     @Autowired
     private TaskScheduler scheduler;

@@ -1,6 +1,6 @@
 package my.abdrus.smileracers.bot.service;
 
-import my.abdrus.smileracers.bot.PaymentBot;
+import my.abdrus.smileracers.bot.SmileRacersBot;
 import my.abdrus.smileracers.bot.entity.Jackpot;
 import my.abdrus.smileracers.bot.entity.Match;
 import my.abdrus.smileracers.bot.entity.MatchPlayer;
@@ -22,7 +22,7 @@ public class JackpotService {
     @Value("${telegram.bot.channel.main.chatId}")
     private String mainChannelChatId;
 
-    public void createIfNeedToChannel(PaymentBot bot) {
+    public void createIfNeedToChannel(SmileRacersBot bot) {
         Jackpot jackpot = jackpotRepository.findTopByIsPayedFalseOrderByCreatedDateDesc().orElseGet(() -> jackpotRepository.save(new Jackpot()));
         if (jackpot.getChannelTimerMessageId() == null) {
             SendMessage message = new SendMessage();
@@ -44,7 +44,7 @@ public class JackpotService {
         }
     }
 
-    public void update(Match match, PaymentBot bot) {
+    public void update(Match match, SmileRacersBot bot) {
         long sum = match.getMatchPlayers().stream().mapToLong(MatchPlayer::getScore).sum();
         if (sum == 0) {
             return;

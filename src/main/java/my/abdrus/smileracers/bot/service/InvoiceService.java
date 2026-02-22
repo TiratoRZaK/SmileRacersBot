@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import my.abdrus.smileracers.bot.PaymentBot;
+import my.abdrus.smileracers.bot.SmileRacersBot;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,7 +17,7 @@ public class InvoiceService {
     @Autowired
     private RestTemplate restTemplate;
 
-    public Integer sendDepositInvoice(Long chatId, Long amount, PaymentBot bot) throws HttpClientErrorException {
+    public Integer sendDepositInvoice(Long chatId, Long amount, SmileRacersBot bot) throws HttpClientErrorException {
         String url = "https://api.telegram.org/bot" + bot.getBotToken() + "/sendInvoice";
 
         Map<String, Object> request = new HashMap<>();

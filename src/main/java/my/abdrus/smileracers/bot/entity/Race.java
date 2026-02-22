@@ -197,4 +197,8 @@ public class Race {
                 .append("\n");
         return text.toString();
     }
+
+    public Double getScoreByNumber(Integer number) {
+        return playerScores.get(number - 1).doubleValue();
+    }
 }

@@ -1,7 +1,7 @@
 package my.abdrus.smileracers.bot.service;
 
 import jakarta.validation.constraints.NotNull;
-import my.abdrus.smileracers.bot.PaymentBot;
+import my.abdrus.smileracers.bot.SmileRacersBot;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
@@ -26,14 +26,14 @@ public class MainChannelService extends ChannelService {
     }
 
     @Override
-    public void updateProcess(Update update, PaymentBot bot) {
+    public void updateProcess(Update update, SmileRacersBot bot) {
         if (update.hasCallbackQuery()) {
             callbackQueryProcess(update.getCallbackQuery(), bot);
         }
     }
 
     @Override
-    public boolean callbackQueryProcess(CallbackQuery callbackQuery, PaymentBot bot) {
+    public boolean callbackQueryProcess(CallbackQuery callbackQuery, SmileRacersBot bot) {
         boolean isProcessed = super.callbackQueryProcess(callbackQuery, bot);
         if (isProcessed) {
             return true;

@@ -38,4 +38,8 @@ public class RaceService {
             activeRace.addBusterForPlayer(playerNumber, busterType);
         }
     }
+
+    public Race getActiveRace() {
+        return activeRace;
+    }
 }
