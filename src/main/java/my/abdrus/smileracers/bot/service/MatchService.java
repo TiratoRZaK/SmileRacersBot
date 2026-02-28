@@ -11,6 +11,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
+import my.abdrus.smileracers.bot.entity.Account;
 import my.abdrus.smileracers.bot.SmileRacersBot;
 import my.abdrus.smileracers.bot.entity.Match;
 import my.abdrus.smileracers.bot.entity.MatchPlayer;
@@ -21,6 +22,7 @@ import my.abdrus.smileracers.bot.entity.ScoreMessage;
 import my.abdrus.smileracers.bot.enumeration.BusterType;
 import my.abdrus.smileracers.bot.enumeration.MatchStatus;
 import my.abdrus.smileracers.bot.enumeration.PaymentRequestStatus;
+import my.abdrus.smileracers.bot.repository.AccountRepository;
 import my.abdrus.smileracers.bot.repository.MatchPlayerRepository;
 import my.abdrus.smileracers.bot.repository.MatchRepository;
 import my.abdrus.smileracers.bot.repository.PaymentRequestRepository;
@@ -36,7 +38,6 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
-import org.telegram.telegrambots.meta.api.objects.webapp.WebAppInfo;
 
 @Slf4j
 @Service
@@ -56,6 +57,8 @@ public class MatchService {
     private JackpotService jackpotService;
     @Autowired
     private PaymentRequestRepository paymentRequestRepository;
+    @Autowired
+    private AccountRepository accountRepository;
     @Autowired
     private UserService userService;
     @Autowired
@@ -270,11 +273,24 @@ public class MatchService {
                 ));
 
         result.forEach((userId, sum) -> {
+            boolean addFreeBust = false;
+            Player favoritePlayer = userService.createIfNeed(userId).getFavoritePlayer();
+            if (favoritePlayer != null && favoritePlayer.equals(winner.getPlayer())) {
+                Account account = accountService.getByUserId(userId);
+                account.setFreeBustCount(account.getFreeBustCount() + 1);
+                accountRepository.save(account);
+                addFreeBust = true;
+            }
+
             if (accountService.addBalance(userId, sum * 2)) {
-                SendMessage message = new SendMessage(userId.toString(),
-                        "Поздравляю с победой!\n\n" +
-                                "Баланс успешно пополнен на " + sum + " ⭐.\n\n\uD83C\uDF40 " +
-                                "Удача любит смелых! Скорее возвращайтесь в новых битвах!");
+                String text = "Поздравляю с победой!\n\n" +
+                        "Баланс успешно пополнен на " + sum + " ⭐.\n\n\uD83C\uDF40 " +
+                        "Удача любит смелых! Скорее возвращайтесь в новых битвах!";
+                if (addFreeBust) {
+                    text += "\n\n\nВаш любимый смайл " + favoritePlayer.getName() + " победил! Вам начислен один бесплатный бустер!\n" +
+                            "Можете использовать его в любой следующей битве!";
+                }
+                SendMessage message = new SendMessage(userId.toString(), text);
                 message.setReplyMarkup(InlineKeyboardMarkup.builder().keyboard(List.of(List.of(createMatchLinkButton(match)))).build());
                 bot.execute(message);
 
@@ -284,10 +300,14 @@ public class MatchService {
                         .toList();
                 paymentRequestRepository.saveAll(completedRequests);
             } else {
-                SendMessage message = new SendMessage(userId.toString(),
-                        "Поздравляю с победой!\n\n" +
-                                "Произошла ошибка с пополнением баланса на " + sum + " ⭐.\n\n" +
-                                "\uD83C\uDF40 Обратитесь за помощью по кнопке ниже. \uD83C\uDF40");
+                String text = "Поздравляю с победой!\n\n" +
+                        "Произошла ошибка с пополнением баланса на " + sum + " ⭐.\n\n" +
+                        "\uD83C\uDF40 Обратитесь за помощью по кнопке ниже. \uD83C\uDF40";
+                if (addFreeBust) {
+                    text += "\n\n\nВаш любимый смайл " + favoritePlayer.getName() + " победил! Вам начислен один бесплатный бустер!\n" +
+                            "Можете использовать его в любой следующей битве!";
+                }
+                SendMessage message = new SendMessage(userId.toString(), text);
                 message.setReplyMarkup(InlineKeyboardMarkup.builder().keyboard(List.of(List.of(createMatchLinkButton(match)))).build());
                 bot.execute(message);
 
@@ -366,9 +386,11 @@ public class MatchService {
     }
 
     public InlineKeyboardButton createMatchLinkButton(Match match) {
+        String messageLink = channelLink + match.getChannelTimerMessageId();
         return InlineKeyboardButton.builder()
                 .text("📢 Перейти к матчу")
-                .webApp(new WebAppInfo("https://smile-racers-ui.vercel.app/"))
+                .url(messageLink)
+//                .webApp(new WebAppInfo("https://smile-racers-ui.vercel.app/"))
                 .build();
     }
 

@@ -33,9 +33,17 @@ public class Account {
     @OneToOne
     private BotUser user;
 
+    @Column(name = "FREE_BUST_COUNT")
+    private Integer freeBustCount = 0;
+
     public Account(Long userChatId, BotUser user) {
         this.userChatId = userChatId;
         this.user = user;
         this.balance = 0L;
+        this.freeBustCount = 0;
+    }
+
+    public Integer getFreeBustCount() {
+        return freeBustCount == null ? 0 : freeBustCount;
     }
 }

@@ -3,12 +3,14 @@ package my.abdrus.smileracers.bot.service;
 import java.util.List;
 
 import my.abdrus.smileracers.bot.SmileRacersBot;
+import my.abdrus.smileracers.bot.entity.Account;
 import my.abdrus.smileracers.bot.entity.Match;
 import my.abdrus.smileracers.bot.entity.MatchPlayer;
 import my.abdrus.smileracers.bot.entity.PaymentRequest;
 import my.abdrus.smileracers.bot.entity.Player;
 import my.abdrus.smileracers.bot.enumeration.BusterType;
 import my.abdrus.smileracers.bot.exception.PaymentException;
+import my.abdrus.smileracers.bot.repository.AccountRepository;
 import my.abdrus.smileracers.bot.repository.MatchRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,6 +40,8 @@ public abstract class ChannelService {
     protected MatchService matchService;
     @Autowired
     private AccountService accountService;
+    @Autowired
+    private AccountRepository accountRepository;
     @Autowired
     private UserService userService;
 
@@ -99,12 +103,23 @@ public abstract class ChannelService {
 
         boolean isAdmin = userService.isAdminOrCreatorForChannel(chatId, userChatId, bot);
 
+        boolean hasFreeBust = false;
+
         try {
-            if (!isAdmin || !adminMode) {
+            Account account = accountService.getByUserId(userChatId);
+            if (account.getFreeBustCount() > 0) {
+                account.setFreeBustCount(account.getFreeBustCount() - 1);
+                accountRepository.save(account);
+                hasFreeBust = true;
+            } else if (!isAdmin || !adminMode) {
                 accountService.pay(paymentRequest);
             }
             raceService.addTickForPlayer(playerNumber, busterType);
-            answer.setText("\uD83C\uDF89  Бустер " + busterType.getName() + " активирован! \uD83C\uDF89");
+            if (hasFreeBust) {
+                answer.setText("\uD83C\uDF89  Бесплатный бустер " + busterType.getName() + " активирован! \uD83C\uDF89");
+            } else {
+                answer.setText("\uD83C\uDF89  Бустер " + busterType.getName() + " активирован! \uD83C\uDF89");
+            }
         } catch (PaymentException e) {
             answer.setShowAlert(true);
             answer.setText(String.format("Оплата не прошла. \n%s\nОбратитесь к владельцу канала.", e.getMessage()));
