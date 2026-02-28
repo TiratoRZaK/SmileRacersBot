@@ -23,7 +23,7 @@ public interface PaymentRequestRepository extends JpaRepository<PaymentRequest, 
     @Modifying
     @Query("""
             UPDATE PaymentRequest r
-            SET r.status = 'PAYED', r.payedDate = now()
+            SET r.status = 'PAYED', r.payedDate = CURRENT_TIMESTAMP
             WHERE r.id = :id
             """)
     void setPayedStatus(@Param("id") UUID id);
