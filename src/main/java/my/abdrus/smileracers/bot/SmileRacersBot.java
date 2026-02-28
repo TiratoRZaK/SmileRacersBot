@@ -2,6 +2,7 @@ package my.abdrus.smileracers.bot;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.Locale;
 
 import jakarta.annotation.PostConstruct;
 import my.abdrus.smileracers.bot.service.ClientChannelService;
@@ -89,6 +90,11 @@ public class SmileRacersBot extends TelegramLongPollingBot {
             try {
                 return super.execute(sendMessage);
             } catch (TelegramApiRequestException e) {
+                if (isMessageNotModifiedError(e)) {
+                    log.debug("Пропуск обновления сообщения без изменений");
+                    return null;
+                }
+
                 Integer code = e.getErrorCode();
                 boolean isTooManyRequests = code != null && code == 429;
                 Integer retryAfterSec = e.getParameters() == null ? null : e.getParameters().getRetryAfter();
@@ -111,6 +117,19 @@ public class SmileRacersBot extends TelegramLongPollingBot {
             }
         }
         throw new IllegalStateException("Unexpected bot execute state");
+    }
+
+    private boolean isMessageNotModifiedError(TelegramApiRequestException e) {
+        Integer code = e.getErrorCode();
+        if (code == null || code != 400) {
+            return false;
+        }
+
+        String errorMessage = e.getApiResponse();
+        if (errorMessage == null) {
+            errorMessage = e.getMessage();
+        }
+        return errorMessage != null && errorMessage.toLowerCase(Locale.ROOT).contains("message is not modified");
     }
 
     @Override
