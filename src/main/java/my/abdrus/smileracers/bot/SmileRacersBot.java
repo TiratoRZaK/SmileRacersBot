@@ -19,6 +19,7 @@ import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 
 @Service
 public class SmileRacersBot extends TelegramLongPollingBot {
@@ -84,10 +85,21 @@ public class SmileRacersBot extends TelegramLongPollingBot {
     public <T extends Serializable, Method extends BotApiMethod<T>> T execute(Method sendMessage) {
         try {
             return super.execute(sendMessage);
-        } catch (TelegramApiException e) {
-            if (e.getMessage().contains("Too Many Requests")) {
-                log.error("Скип отправки сообщения.");
+        } catch (TelegramApiRequestException e) {
+            Integer code = e.getErrorCode();
+            if (code != null && code == 429 && e.getParameters() != null && e.getParameters().getRetryAfter() != null) {
+                int retryAfterSec = e.getParameters().getRetryAfter();
+                try {
+                    log.error("Ошибка отправки");
+                    Thread.sleep(retryAfterSec);
+                    log.error("Повтор отправки");
+                    return super.execute(sendMessage);
+                } catch (InterruptedException | TelegramApiException ex) {
+                    throw new RuntimeException(ex);
+                }
             }
+        } catch (TelegramApiException ex) {
+            throw new RuntimeException(ex);
         }
         return null;
     }

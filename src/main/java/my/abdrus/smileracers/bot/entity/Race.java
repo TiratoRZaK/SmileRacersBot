@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAdder;
 
@@ -18,7 +18,7 @@ public class Race {
 
     @Getter
     private final Match match;
-    private final List<ConcurrentLinkedQueue<BusterType>> playerTickQueues;
+    private final List<ConcurrentLinkedDeque<BusterType>> playerTickQueues;
     private final List<DoubleAdder> playerScores;
     private final List<AtomicInteger> playerShields;
     private final Double raceSize;
@@ -52,7 +52,7 @@ public class Race {
 
         List<MatchPlayer> matchPlayers = match.getMatchPlayers();
         matchPlayers.forEach(matchPlayer -> {
-            playerTickQueues.add(new ConcurrentLinkedQueue<>());
+            playerTickQueues.add(new ConcurrentLinkedDeque<>());
             playerScores.add(new DoubleAdder());
             playerShields.add(new AtomicInteger(0));
         });
@@ -71,7 +71,7 @@ public class Race {
         Random random = new Random();
 
         for (int i = 0; i < playerTickQueues.size(); i++) {
-            BusterType tick = playerTickQueues.get(i).poll();
+            BusterType tick = playerTickQueues.get(i).pop();
             if (random.nextInt(99) > replaceBustChance) {
                 tick = random.nextBoolean() ? BusterType.BUST : BusterType.SLOW;
             }
@@ -136,7 +136,7 @@ public class Race {
             playerShields.get(playerNumber - 1).addAndGet(5);
             return;
         }
-        step(playerNumber - 1, busterType, new Random());
+        playerTickQueues.get(playerNumber - 1).push(busterType);
     }
 
     public String paintRace() {

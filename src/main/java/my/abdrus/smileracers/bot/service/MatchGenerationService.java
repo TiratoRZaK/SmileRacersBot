@@ -60,7 +60,7 @@ public class MatchGenerationService {
             log.info("Запуск линии матча");
             matchService.sendLineByActiveMatch(chatId, true, bot);
             try {
-                Thread.sleep(60_000);
+                Thread.sleep(30_000);
                 log.info("Запуск лайва матча");
                 matchService.startLiveByActiveMatch(chatId, bot);
             } catch (InterruptedException e) {
