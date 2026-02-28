@@ -83,25 +83,34 @@ public class SmileRacersBot extends TelegramLongPollingBot {
 
     @Override
     public <T extends Serializable, Method extends BotApiMethod<T>> T execute(Method sendMessage) {
-        try {
-            return super.execute(sendMessage);
-        } catch (TelegramApiRequestException e) {
-            Integer code = e.getErrorCode();
-            if (code != null && code == 429 && e.getParameters() != null && e.getParameters().getRetryAfter() != null) {
-                int retryAfterSec = e.getParameters().getRetryAfter();
+        final int maxAttempts = 2;
+        int attempt = 1;
+        while (attempt <= maxAttempts) {
+            try {
+                return super.execute(sendMessage);
+            } catch (TelegramApiRequestException e) {
+                Integer code = e.getErrorCode();
+                boolean isTooManyRequests = code != null && code == 429;
+                Integer retryAfterSec = e.getParameters() == null ? null : e.getParameters().getRetryAfter();
+                if (!isTooManyRequests || retryAfterSec == null || attempt == maxAttempts) {
+                    throw new RuntimeException(e);
+                }
+
+                long retryAfterMillis = retryAfterSec * 1_000L;
+                log.error("Ошибка отправки. Telegram вернул 429, повтор через {} сек.", retryAfterSec);
                 try {
-                    log.error("Ошибка отправки");
-                    Thread.sleep(retryAfterSec);
-                    log.error("Повтор отправки");
-                    return super.execute(sendMessage);
-                } catch (InterruptedException | TelegramApiException ex) {
+                    Thread.sleep(retryAfterMillis);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
                     throw new RuntimeException(ex);
                 }
+                log.error("Повтор отправки");
+                attempt++;
+            } catch (TelegramApiException ex) {
+                throw new RuntimeException(ex);
             }
-        } catch (TelegramApiException ex) {
-            throw new RuntimeException(ex);
         }
-        return null;
+        throw new IllegalStateException("Unexpected bot execute state");
     }
 
     @Override
