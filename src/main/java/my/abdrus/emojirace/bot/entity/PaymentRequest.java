@@ -44,7 +44,7 @@ public class PaymentRequest {
     @Column(name = "PAYED_DATE")
     private Date payedDate;
 
-    @Column(name = "TO_WINNER")
+    @Column(name = "TO_WINNER", nullable = false)
     private boolean toWinner = false;
 
     @Column(name = "STATUS", nullable = false)

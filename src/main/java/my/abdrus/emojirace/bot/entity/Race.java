@@ -179,8 +179,10 @@ public class Race {
                 .max(Comparator.comparingDouble(player -> getScoreByNumber(player.getNumber())))
                 .ifPresent(matchPlayer ->  {
                     match.setWinner(matchPlayer.getNumber());
-                    text
-                            .append("🏁 Гонка завершена! 🏁\n" + "Поздравляем победителя: ")
+                    text.append("🏁 Гонка №")
+                            .append(match.getId())
+                            .append(" завершена! 🏁\n")
+                            .append("Поздравляем победителя: ")
                             .append(matchPlayer.getPlayerName())
                             .append("!\n\n");
                 });
