@@ -331,7 +331,7 @@ public class ClientChannelService extends ChannelService {
             long requestId = Long.parseLong(s[1]);
             withdrawService.cancelById(userChatId, requestId, bot);
             bot.deleteMessage(userChatId, callbackQuery.getMessage().getMessageId());
-        } else if (query.startsWith("userlink_") || query.startsWith("withdraw_user_")) {
+        } else if (query.startsWith("userlink_")) {
             String[] s = query.split("_");
             long requestId = Long.parseLong(s[2]);
             long targetUserId = Long.parseLong(s[3]);
