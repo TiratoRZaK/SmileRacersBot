@@ -540,10 +540,7 @@ public class ClientChannelService extends ChannelService {
         for (int i = 0; i < createdRequests.size(); i++) {
             WithdrawRequest request = createdRequests.get(i);
             String line = buildWithdrawTitle(request.getId(), request.getUserChatId(), request.getSum());
-            text.append(i + 1)
-                    .append(") ")
-                    .append(line)
-                    .append("\n");
+            text.append(line).append("\n");
             buttons.add(List.of(InlineKeyboardButton.builder()
                     .text(line)
                     .callbackData("userlink_" + request.getId() + "_" + request.getUserChatId())
@@ -560,11 +557,11 @@ public class ClientChannelService extends ChannelService {
         BotUser botUser = userRepository.findByUserChatId(userChatId).orElse(null);
         String username = botUser != null && botUser.getUsername() != null && !botUser.getUsername().isBlank()
                 ? "@" + botUser.getUsername()
-                : "id=" + userChatId;
+                : String.valueOf(userChatId);
 
-        StringBuilder label = new StringBuilder("#").append(requestId).append(" — ").append(username);
+        StringBuilder label = new StringBuilder("#").append(requestId).append(" ID: ").append(username);
         if (sum != null) {
-            label.append(" — ").append(sum).append(" ⭐");
+            label.append(" Сумма: ").append(sum).append(" ⭐️");
         }
         return label.toString();
     }
