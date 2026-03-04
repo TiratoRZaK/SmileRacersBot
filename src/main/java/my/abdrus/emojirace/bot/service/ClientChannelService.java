@@ -333,13 +333,37 @@ public class ClientChannelService extends ChannelService {
             bot.deleteMessage(userChatId, callbackQuery.getMessage().getMessageId());
         } else if (query.startsWith("userlink_")) {
             String[] s = query.split("_");
-            long targetUserId = Long.parseLong(s[1]);
-            SendMessage sendMessage = new SendMessage(userChatId.toString(), "Открыть чат с пользователем:");
-            sendMessage.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(InlineKeyboardButton.builder()
+            long requestId = Long.parseLong(s[1]);
+            long targetUserId = Long.parseLong(s[2]);
+            String label = buildWithdrawTitle(requestId, targetUserId, null);
+
+            List<InlineKeyboardButton> row = new ArrayList<>();
+            row.add(InlineKeyboardButton.builder()
                     .text("Перейти в чат")
                     .url("tg://user?id=" + targetUserId)
-                    .build()))));
+                    .build());
+            row.add(InlineKeyboardButton.builder()
+                    .text("Списать сумму с баланса")
+                    .callbackData("withdrawPay_" + requestId)
+                    .build());
+            row.add(InlineKeyboardButton.builder()
+                    .text("Отменить вывод")
+                    .callbackData("withdrawCancelAdmin_" + requestId)
+                    .build());
+
+            SendMessage sendMessage = new SendMessage(userChatId.toString(), label);
+            sendMessage.setReplyMarkup(new InlineKeyboardMarkup(List.of(row)));
             bot.execute(sendMessage);
+        } else if (query.startsWith("withdrawPay_")) {
+            String[] s = query.split("_");
+            long requestId = Long.parseLong(s[1]);
+            withdrawService.markPayedByAdmin(userChatId, requestId, bot);
+            bot.deleteMessage(userChatId, callbackQuery.getMessage().getMessageId());
+        } else if (query.startsWith("withdrawCancelAdmin_")) {
+            String[] s = query.split("_");
+            long requestId = Long.parseLong(s[1]);
+            withdrawService.cancelByAdmin(userChatId, requestId, bot);
+            bot.deleteMessage(userChatId, callbackQuery.getMessage().getMessageId());
         } else if (query.startsWith("select_favorite_")) {
             String[] s = query.split("_");
             long userId = Long.parseLong(s[2]);
@@ -507,29 +531,42 @@ public class ClientChannelService extends ChannelService {
     private void sendCreatedWithdraws(Long adminChatId, EmojiRaceBot bot) {
         List<WithdrawRequest> createdRequests = withdrawService.getCreatedRequests();
         if (createdRequests.isEmpty()) {
-            bot.execute(new SendMessage(adminChatId.toString(), "Нет активных запросов на вывод в статусе CREATED."));
+            bot.execute(new SendMessage(adminChatId.toString(), "Нет активных запросов на вывод."));
             return;
         }
 
-        StringBuilder text = new StringBuilder("Запросы на вывод в статусе CREATED:\n");
+        StringBuilder text = new StringBuilder("Активные запросы на вывод:\n");
         List<List<InlineKeyboardButton>> buttons = new ArrayList<>();
         for (int i = 0; i < createdRequests.size(); i++) {
             WithdrawRequest request = createdRequests.get(i);
+            String line = buildWithdrawTitle(request.getId(), request.getUserChatId(), request.getSum());
             text.append(i + 1)
-                    .append(") #")
-                    .append(request.getId())
-                    .append(" — ")
-                    .append(request.getSum())
-                    .append(" ⭐\n");
+                    .append(") ")
+                    .append(line)
+                    .append("\n");
             buttons.add(List.of(InlineKeyboardButton.builder()
-                    .text("#" + request.getId() + " -> " + request.getUserChatId())
-                    .callbackData("userlink_" + request.getUserChatId())
+                    .text(line)
+                    .callbackData("userlink_" + request.getId() + "_" + request.getUserChatId())
                     .build()));
         }
 
         SendMessage sendMessage = new SendMessage(adminChatId.toString(), text.toString());
         sendMessage.setReplyMarkup(new InlineKeyboardMarkup(buttons));
         bot.execute(sendMessage);
+    }
+
+
+    private String buildWithdrawTitle(Long requestId, Long userChatId, Long sum) {
+        BotUser botUser = userRepository.findByUserChatId(userChatId).orElse(null);
+        String username = botUser != null && botUser.getUsername() != null && !botUser.getUsername().isBlank()
+                ? "@" + botUser.getUsername()
+                : "id=" + userChatId;
+
+        StringBuilder label = new StringBuilder("#").append(requestId).append(" — ").append(username);
+        if (sum != null) {
+            label.append(" — ").append(sum).append(" ⭐");
+        }
+        return label.toString();
     }
 
     private ReplyKeyboard createSelectPlayerKeyboard(List<Player> players, Long chatId, boolean firstSelect) {
