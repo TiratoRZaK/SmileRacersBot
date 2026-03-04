@@ -317,7 +317,7 @@ public class ClientChannelService extends ChannelService {
             msg.setText("Введите количество ⭐ для пополнения:");
             Integer messageId = bot.execute(msg).getMessageId();
             bot.deleteMessageScheduled(userId, messageId);
-        } else if (query.matches("^withdraw_\\d+$")) {
+        } else if (isWithdrawAmountCallback(query)) {
             String[] s = query.split("_");
             long userId = Long.parseLong(s[1]);
             stateService.setWaitingAmount(userId, StateService.State.WAITING_FOR_AMOUNT_WITHDRAW);
@@ -455,6 +455,22 @@ public class ClientChannelService extends ChannelService {
             bot.deleteMessageScheduled(userChatId, messageId);
         }
         return false;
+    }
+
+    private boolean isWithdrawAmountCallback(String query) {
+        if (!query.startsWith("withdraw_")) {
+            return false;
+        }
+        String[] parts = query.split("_");
+        if (parts.length != 2) {
+            return false;
+        }
+        try {
+            Long.parseLong(parts[1]);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     private AnswerCallbackQuery createAnswerAlert(CallbackQuery callbackQuery, String text) {
