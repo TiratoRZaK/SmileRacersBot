@@ -4,7 +4,6 @@ import java.util.Date;
 import java.util.List;
 
 import my.abdrus.emojirace.bot.EmojiRaceBot;
-import my.abdrus.emojirace.bot.entity.Account;
 import my.abdrus.emojirace.bot.entity.WithdrawRequest;
 import my.abdrus.emojirace.bot.enumeration.WithdrawRequestStatus;
 import my.abdrus.emojirace.bot.repository.WithdrawRequestRepository;
@@ -31,6 +30,7 @@ public class WithdrawService {
         accountService.pay(userChatId, amount);
         return withdrawRequestRepository.save(request).getId();
     }
+
     public List<WithdrawRequest> getCreatedRequests() {
         return withdrawRequestRepository.findAllByStatusOrderByIdAsc(WithdrawRequestStatus.CREATED);
     }
@@ -49,8 +49,59 @@ public class WithdrawService {
         } else {
             withdrawRequest.setStatus(WithdrawRequestStatus.CANCELED);
             withdrawRequestRepository.save(withdrawRequest);
-            accountService.addBalance(userChatId, withdrawRequest.getSum());
+            accountService.addBalance(withdrawRequest.getUserChatId(), withdrawRequest.getSum());
         }
+    }
+
+    public void markPayedByAdmin(Long adminChatId, Long requestId, EmojiRaceBot bot) {
+        WithdrawRequest withdrawRequest = withdrawRequestRepository.findById(requestId).orElse(null);
+        if (withdrawRequest == null) {
+            bot.execute(new SendMessage(adminChatId.toString(), "Вывод не найден."));
+            return;
+        }
+        if (WithdrawRequestStatus.PAYED.equals(withdrawRequest.getStatus())) {
+            bot.execute(new SendMessage(adminChatId.toString(), "Вывод уже выплачен."));
+            return;
+        }
+        if (WithdrawRequestStatus.CANCELED.equals(withdrawRequest.getStatus())) {
+            bot.execute(new SendMessage(adminChatId.toString(), "Вывод уже отменён."));
+            return;
+        }
+
+        withdrawRequest.setStatus(WithdrawRequestStatus.PAYED);
+        withdrawRequest.setPayedDate(new Date());
+        withdrawRequestRepository.save(withdrawRequest);
+
+        bot.execute(new SendMessage(withdrawRequest.getUserChatId().toString(),
+                "✅ Ваш вывод #" + withdrawRequest.getId() + " успешно выполнен."));
+        bot.execute(new SendMessage(adminChatId.toString(),
+                "Вывод #" + withdrawRequest.getId() + " отмечен как выплаченный."));
+    }
+
+    public void cancelByAdmin(Long adminChatId, Long requestId, EmojiRaceBot bot) {
+        WithdrawRequest withdrawRequest = withdrawRequestRepository.findById(requestId).orElse(null);
+        if (withdrawRequest == null) {
+            bot.execute(new SendMessage(adminChatId.toString(), "Вывод не найден."));
+            return;
+        }
+        if (WithdrawRequestStatus.PAYED.equals(withdrawRequest.getStatus())) {
+            bot.execute(new SendMessage(adminChatId.toString(), "Вывод уже выплачен."));
+            return;
+        }
+        if (WithdrawRequestStatus.CANCELED.equals(withdrawRequest.getStatus())) {
+            bot.execute(new SendMessage(adminChatId.toString(), "Вывод уже отменён."));
+            return;
+        }
+
+        withdrawRequest.setStatus(WithdrawRequestStatus.CANCELED);
+        withdrawRequestRepository.save(withdrawRequest);
+        accountService.addBalance(withdrawRequest.getUserChatId(), withdrawRequest.getSum());
+
+        bot.execute(new SendMessage(withdrawRequest.getUserChatId().toString(),
+                "❌ Ваш вывод #" + withdrawRequest.getId()
+                        + " отменён администратором. Обратитесь в поддержку."));
+        bot.execute(new SendMessage(adminChatId.toString(),
+                "Вывод #" + withdrawRequest.getId() + " отменён, сумма возвращена пользователю."));
     }
 
 }
