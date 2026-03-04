@@ -331,9 +331,9 @@ public class ClientChannelService extends ChannelService {
             long requestId = Long.parseLong(s[1]);
             withdrawService.cancelById(userChatId, requestId, bot);
             bot.deleteMessage(userChatId, callbackQuery.getMessage().getMessageId());
-        } else if (query.startsWith("withdraw_user_")) {
+        } else if (query.startsWith("userlink_")) {
             String[] s = query.split("_");
-            long targetUserId = Long.parseLong(s[2]);
+            long targetUserId = Long.parseLong(s[1]);
             SendMessage sendMessage = new SendMessage(userChatId.toString(), "Открыть чат с пользователем:");
             sendMessage.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(InlineKeyboardButton.builder()
                     .text("Перейти в чат")
@@ -523,7 +523,7 @@ public class ClientChannelService extends ChannelService {
                     .append(" ⭐\n");
             buttons.add(List.of(InlineKeyboardButton.builder()
                     .text("#" + request.getId() + " -> " + request.getUserChatId())
-                    .callbackData("withdraw_user_" + request.getUserChatId())
+                    .callbackData("userlink_" + request.getUserChatId())
                     .build()));
         }
 
