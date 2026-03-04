@@ -1,8 +1,8 @@
 package my.abdrus.emojirace.bot.repository;
 
-import java.util.UUID;
 
 import my.abdrus.emojirace.bot.entity.WithdrawRequest;
+import my.abdrus.emojirace.bot.enumeration.WithdrawRequestStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Repository
 public interface WithdrawRequestRepository extends JpaRepository<WithdrawRequest, Long> {
+
+    /**
+     * Получить выводы по статусу.
+     */
+    java.util.List<WithdrawRequest> findAllByStatusOrderByIdAsc(WithdrawRequestStatus status);
 
     /**
      * Подтвердить оплату вывода.

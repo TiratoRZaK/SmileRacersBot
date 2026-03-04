@@ -10,6 +10,7 @@ import my.abdrus.emojirace.bot.entity.BotUser;
 import my.abdrus.emojirace.bot.entity.DependMessageCode;
 import my.abdrus.emojirace.bot.entity.PaymentRequest;
 import my.abdrus.emojirace.bot.entity.Player;
+import my.abdrus.emojirace.bot.entity.WithdrawRequest;
 import my.abdrus.emojirace.bot.enumeration.DependMessage;
 import my.abdrus.emojirace.bot.enumeration.PaymentRequestStatus;
 import my.abdrus.emojirace.bot.exception.PaymentException;
@@ -227,6 +228,8 @@ public class ClientChannelService extends ChannelService {
                     .url(channelProperties.getHelpLink())
                     .build()))));
             bot.deleteMessageScheduled(chatId, bot.execute(msg).getMessageId(), channelProperties.getDefaultDeleteMessageMenuDelay());
+        } else if (text.equals("📤 Выводы") && userService.isAdmin(chatId)) {
+            sendCreatedWithdraws(chatId, bot);
         }  else if (text.startsWith("\uD83D\uDC4A Отправить ")) {
             try {
                 accountService.pay(message.getChatId(), 10L);
@@ -328,6 +331,15 @@ public class ClientChannelService extends ChannelService {
             long requestId = Long.parseLong(s[1]);
             withdrawService.cancelById(userChatId, requestId, bot);
             bot.deleteMessage(userChatId, callbackQuery.getMessage().getMessageId());
+        } else if (query.startsWith("withdraw_user_")) {
+            String[] s = query.split("_");
+            long targetUserId = Long.parseLong(s[2]);
+            SendMessage sendMessage = new SendMessage(userChatId.toString(), "Открыть чат с пользователем:");
+            sendMessage.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(InlineKeyboardButton.builder()
+                    .text("Перейти в чат")
+                    .url("tg://user?id=" + targetUserId)
+                    .build()))));
+            bot.execute(sendMessage);
         } else if (query.startsWith("select_favorite_")) {
             String[] s = query.split("_");
             long userId = Long.parseLong(s[2]);
@@ -455,6 +467,9 @@ public class ClientChannelService extends ChannelService {
 
         KeyboardRow row2 = new KeyboardRow();
         row2.add(new KeyboardButton("🆘 Помощь"));
+        if (userService.isAdmin(chatId)) {
+            row2.add(new KeyboardButton("📤 Выводы"));
+        }
         rows.add(row2);
 
         if (favoritePlayer != null) {
@@ -487,6 +502,34 @@ public class ClientChannelService extends ChannelService {
         pinMessage.setDisableNotification(true);
 
         bot.execute(pinMessage);
+    }
+
+    private void sendCreatedWithdraws(Long adminChatId, EmojiRaceBot bot) {
+        List<WithdrawRequest> createdRequests = withdrawService.getCreatedRequests();
+        if (createdRequests.isEmpty()) {
+            bot.execute(new SendMessage(adminChatId.toString(), "Нет активных запросов на вывод в статусе CREATED."));
+            return;
+        }
+
+        StringBuilder text = new StringBuilder("Запросы на вывод в статусе CREATED:\n");
+        List<List<InlineKeyboardButton>> buttons = new ArrayList<>();
+        for (int i = 0; i < createdRequests.size(); i++) {
+            WithdrawRequest request = createdRequests.get(i);
+            text.append(i + 1)
+                    .append(") #")
+                    .append(request.getId())
+                    .append(" — ")
+                    .append(request.getSum())
+                    .append(" ⭐\n");
+            buttons.add(List.of(InlineKeyboardButton.builder()
+                    .text("#" + request.getId() + " -> " + request.getUserChatId())
+                    .callbackData("withdraw_user_" + request.getUserChatId())
+                    .build()));
+        }
+
+        SendMessage sendMessage = new SendMessage(adminChatId.toString(), text.toString());
+        sendMessage.setReplyMarkup(new InlineKeyboardMarkup(buttons));
+        bot.execute(sendMessage);
     }
 
     private ReplyKeyboard createSelectPlayerKeyboard(List<Player> players, Long chatId, boolean firstSelect) {

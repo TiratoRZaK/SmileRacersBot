@@ -1,7 +1,7 @@
 package my.abdrus.emojirace.bot.service;
 
 import java.util.Date;
-import java.util.UUID;
+import java.util.List;
 
 import my.abdrus.emojirace.bot.EmojiRaceBot;
 import my.abdrus.emojirace.bot.entity.Account;
@@ -31,6 +31,10 @@ public class WithdrawService {
         accountService.pay(userChatId, amount);
         return withdrawRequestRepository.save(request).getId();
     }
+    public List<WithdrawRequest> getCreatedRequests() {
+        return withdrawRequestRepository.findAllByStatusOrderByIdAsc(WithdrawRequestStatus.CREATED);
+    }
+
     public void cancelById(Long userChatId, Long requestId, EmojiRaceBot bot) {
         WithdrawRequest withdrawRequest = withdrawRequestRepository.findById(requestId).orElse(null);
         if (withdrawRequest == null) {
