@@ -1,10 +1,9 @@
 package my.abdrus.emojirace.bot.service;
 
-import java.time.LocalDateTime;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.UUID;
 
 import my.abdrus.emojirace.bot.EmojiRaceBot;
 import my.abdrus.emojirace.bot.entity.BotUser;
@@ -57,6 +56,8 @@ public class ClientChannelService extends ChannelService {
     @Autowired
     private DependMessageService dependMessageService;
 
+    private final SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss");
+
     @Override
     public void updateProcess(Update update, EmojiRaceBot bot) {
         if (update.hasMessage()) {
@@ -105,7 +106,7 @@ public class ClientChannelService extends ChannelService {
         sendMessage.setText("👥 Работа с пользователем");
         sendMessage.setReplyMarkup(createUserRequestKeyboard(contact.getUserId()));
         Integer messageId = bot.execute(sendMessage).getMessageId();
-        bot.deleteMessageScheduled(message.getFrom().getId(), messageId);
+        bot.deleteMessageScheduled(message.getFrom().getId(), messageId, 120_000);
     }
 
     private void textProcess(Message message, Long chatId, EmojiRaceBot bot) {
@@ -146,14 +147,20 @@ public class ClientChannelService extends ChannelService {
                     return;
                 }
                 Date createdDate = new Date();
-                Long requestId = withdrawService.sendWithdrawRequestToAdmin(chatId, amount, createdDate);
-                SendMessage msg = new SendMessage(
-                        chatId.toString(), "✅ Запрос на вывод #" + requestId + " на " + amount + "⭐" + "от " + createdDate + " отправлен администраторам. \nОжидайте очереди. С вами свяжутся в течении 3 суток. \nВ основном это занимает до 24 часов.");
-                msg.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(InlineKeyboardButton.builder()
-                        .callbackData("cancelWithdraw_" + requestId)
-                        .text("Отменить вывод")
-                        .build()))));
-                bot.execute(msg);
+                try {
+                    Long requestId = withdrawService.sendWithdrawRequestToAdmin(chatId, amount, createdDate);
+                    SendMessage msg = new SendMessage(
+                            chatId.toString(), "✅ Запрос на вывод #" + requestId + " на " + amount + "⭐" + "от " + dateFormat.format(createdDate) + " отправлен администраторам. \nОжидайте очереди. С вами свяжутся в течении 3 суток. \nВ основном это занимает до 24 часов.");
+                    msg.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(InlineKeyboardButton.builder()
+                            .callbackData("cancelWithdraw_" + requestId)
+                            .text("Отменить вывод")
+                            .build()))));
+                    bot.execute(msg);
+                } catch (PaymentException e) {
+                    SendMessage msg = new SendMessage(
+                            chatId.toString(), "❌ Ошибка списания с баланса. Повторите позже или обратитесь в поддержку.");
+                    bot.deleteMessageScheduled(chatId, bot.execute(msg).getMessageId());
+                }
                 stateService.clear(chatId);
             } catch (NumberFormatException e) {
                 SendMessage msg = new SendMessage(

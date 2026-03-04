@@ -4,6 +4,7 @@ import java.util.Date;
 import java.util.UUID;
 
 import my.abdrus.emojirace.bot.EmojiRaceBot;
+import my.abdrus.emojirace.bot.entity.Account;
 import my.abdrus.emojirace.bot.entity.WithdrawRequest;
 import my.abdrus.emojirace.bot.enumeration.WithdrawRequestStatus;
 import my.abdrus.emojirace.bot.repository.WithdrawRequestRepository;
@@ -17,6 +18,9 @@ public class WithdrawService {
     @Autowired
     private WithdrawRequestRepository withdrawRequestRepository;
 
+    @Autowired
+    private AccountService accountService;
+
     public Long sendWithdrawRequestToAdmin(Long userChatId, Long amount, Date createdDate) {
         WithdrawRequest request = WithdrawRequest.builder()
                 .createdDate(createdDate)
@@ -24,6 +28,7 @@ public class WithdrawService {
                 .sum(amount)
                 .userChatId(userChatId)
                 .build();
+        accountService.pay(userChatId, amount);
         return withdrawRequestRepository.save(request).getId();
     }
     public void cancelById(Long userChatId, Long requestId, EmojiRaceBot bot) {
@@ -40,6 +45,7 @@ public class WithdrawService {
         } else {
             withdrawRequest.setStatus(WithdrawRequestStatus.CANCELED);
             withdrawRequestRepository.save(withdrawRequest);
+            accountService.addBalance(userChatId, withdrawRequest.getSum());
         }
     }
 
