@@ -317,7 +317,7 @@ public class ClientChannelService extends ChannelService {
             msg.setText("Введите количество ⭐ для пополнения:");
             Integer messageId = bot.execute(msg).getMessageId();
             bot.deleteMessageScheduled(userId, messageId);
-        } else if (isWithdrawAmountCallback(query)) {
+        } else if (query.startsWith("withdraw_")) {
             String[] s = query.split("_");
             long userId = Long.parseLong(s[1]);
             stateService.setWaitingAmount(userId, StateService.State.WAITING_FOR_AMOUNT_WITHDRAW);
@@ -344,24 +344,24 @@ public class ClientChannelService extends ChannelService {
                     .build());
             row.add(InlineKeyboardButton.builder()
                     .text("Списать сумму с баланса")
-                    .callbackData("withdraw_pay_" + requestId)
+                    .callbackData("withdrawPay_" + requestId)
                     .build());
             row.add(InlineKeyboardButton.builder()
                     .text("Отменить вывод")
-                    .callbackData("withdraw_cancel_admin_" + requestId)
+                    .callbackData("withdrawCancelAdmin_" + requestId)
                     .build());
 
             SendMessage sendMessage = new SendMessage(userChatId.toString(), label);
             sendMessage.setReplyMarkup(new InlineKeyboardMarkup(List.of(row)));
             bot.execute(sendMessage);
-        } else if (query.startsWith("withdraw_pay_")) {
+        } else if (query.startsWith("withdrawPay_")) {
             String[] s = query.split("_");
-            long requestId = Long.parseLong(s[2]);
+            long requestId = Long.parseLong(s[1]);
             withdrawService.markPayedByAdmin(userChatId, requestId, bot);
             bot.deleteMessage(userChatId, callbackQuery.getMessage().getMessageId());
-        } else if (query.startsWith("withdraw_cancel_admin_")) {
+        } else if (query.startsWith("withdrawCancelAdmin_")) {
             String[] s = query.split("_");
-            long requestId = Long.parseLong(s[3]);
+            long requestId = Long.parseLong(s[1]);
             withdrawService.cancelByAdmin(userChatId, requestId, bot);
             bot.deleteMessage(userChatId, callbackQuery.getMessage().getMessageId());
         } else if (query.startsWith("select_favorite_")) {
@@ -455,22 +455,6 @@ public class ClientChannelService extends ChannelService {
             bot.deleteMessageScheduled(userChatId, messageId);
         }
         return false;
-    }
-
-    private boolean isWithdrawAmountCallback(String query) {
-        if (!query.startsWith("withdraw_")) {
-            return false;
-        }
-        String[] parts = query.split("_");
-        if (parts.length != 2) {
-            return false;
-        }
-        try {
-            Long.parseLong(parts[1]);
-            return true;
-        } catch (NumberFormatException e) {
-            return false;
-        }
     }
 
     private AnswerCallbackQuery createAnswerAlert(CallbackQuery callbackQuery, String text) {
