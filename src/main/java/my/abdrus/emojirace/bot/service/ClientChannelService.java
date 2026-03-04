@@ -1,8 +1,10 @@
 package my.abdrus.emojirace.bot.service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import my.abdrus.emojirace.bot.EmojiRaceBot;
 import my.abdrus.emojirace.bot.entity.BotUser;
@@ -16,7 +18,6 @@ import my.abdrus.emojirace.bot.repository.PaymentRequestRepository;
 import my.abdrus.emojirace.bot.repository.PlayerRepository;
 import my.abdrus.emojirace.bot.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.AnswerPreCheckoutQuery;
@@ -26,6 +27,7 @@ import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Contact;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.payments.PreCheckoutQuery;
 import org.telegram.telegrambots.meta.api.objects.payments.SuccessfulPayment;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
@@ -39,11 +41,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.Keyboard
 public class ClientChannelService extends ChannelService {
 
     @Autowired
-    private MatchService matchService;
-    @Autowired
     private PaymentRequestRepository paymentRequestRepository;
-    @Autowired
-    private AccountService accountService;
     @Autowired
     private MatchGenerationService matchGenerationService;
     @Autowired
@@ -51,19 +49,13 @@ public class ClientChannelService extends ChannelService {
     @Autowired
     private PlayerRepository playerRepository;
     @Autowired
-    private UserService userService;
-    @Autowired
     private UserRepository userRepository;
     @Autowired
     private StateService stateService;
     @Autowired
+    private WithdrawService withdrawService;
+    @Autowired
     private DependMessageService dependMessageService;
-
-    @Value("${telegram.bot.channel.defaultDeleteMessageMenuDelay}")
-    private int defaultDeleteMessageMenuDelay;
-
-    @Value("${telegram.bot.channel.helpLink}")
-    private String helpLink;
 
     @Override
     public void updateProcess(Update update, EmojiRaceBot bot) {
@@ -125,10 +117,43 @@ public class ClientChannelService extends ChannelService {
         accountService.linkToUser(message.getFrom().getId());
 
         StateService.Session session = stateService.getSession(chatId);
-        if (session.state == StateService.State.WAITING_FOR_AMOUNT) {
+        if (session.state == StateService.State.WAITING_FOR_AMOUNT_DEP) {
             try {
                 long amount = Long.parseLong(text);
-                bot.deleteMessageScheduled(chatId, invoiceService.sendDepositInvoice(chatId, amount, bot));
+                bot.deleteMessageScheduled(chatId, invoiceService.sendDepositInvoice(chatId, amount));
+                stateService.clear(chatId);
+            } catch (NumberFormatException e) {
+                SendMessage msg = new SendMessage(
+                        chatId.toString(), "❌ Введено не корректное число, повторите попытку пополнения через кнопку Баланс в меню.");
+                bot.deleteMessageScheduled(chatId, bot.execute(msg).getMessageId());
+                stateService.clear(chatId);
+            }
+            return;
+        } else if (session.state == StateService.State.WAITING_FOR_AMOUNT_WITHDRAW) {
+            try {
+                long amount = Long.parseLong(text);
+                if (amount < 100) {
+                    SendMessage msg = new SendMessage(
+                            chatId.toString(), "❌ Введено не корректное число. Сумма меньше минимальной.");
+                    bot.deleteMessageScheduled(chatId, bot.execute(msg).getMessageId());
+                    stateService.clear(chatId);
+                    return;
+                } else if (accountService.getBalanceByUserChatId(chatId).compareTo(amount) < 0) {
+                    SendMessage msg = new SendMessage(
+                            chatId.toString(), "❌ Введено не корректное число. Сумма больше доступной на балансе.");
+                    bot.deleteMessageScheduled(chatId, bot.execute(msg).getMessageId());
+                    stateService.clear(chatId);
+                    return;
+                }
+                Date createdDate = new Date();
+                Long requestId = withdrawService.sendWithdrawRequestToAdmin(chatId, amount, createdDate);
+                SendMessage msg = new SendMessage(
+                        chatId.toString(), "✅ Запрос на вывод #" + requestId + " на " + amount + "⭐" + "от " + createdDate + " отправлен администраторам. \nОжидайте очереди. С вами свяжутся в течении 3 суток. \nВ основном это занимает до 24 часов.");
+                msg.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(InlineKeyboardButton.builder()
+                        .callbackData("cancelWithdraw_" + requestId)
+                        .text("Отменить вывод")
+                        .build()))));
+                bot.execute(msg);
                 stateService.clear(chatId);
             } catch (NumberFormatException e) {
                 SendMessage msg = new SendMessage(
@@ -157,7 +182,7 @@ public class ClientChannelService extends ChannelService {
             Long balance = accountService.getBalanceByUserChatId(chatId);
             SendMessage msg = new SendMessage(chatId.toString(), "Ваш баланс составляет:\n" + balance + " ⭐");
             msg.setReplyMarkup(createDepositKeyboard(chatId));
-            bot.deleteMessageScheduled(chatId, bot.execute(msg).getMessageId(), defaultDeleteMessageMenuDelay);
+            bot.deleteMessageScheduled(chatId, bot.execute(msg).getMessageId(), channelProperties.getDefaultDeleteMessageMenuDelay());
         } else if (text.equals("😎 Выбрать любимый смайл")) {
             List<Player> players = new ArrayList<>(playerRepository.findAll());
             boolean isFirstMessage = true;
@@ -192,9 +217,9 @@ public class ClientChannelService extends ChannelService {
             SendMessage msg = new SendMessage(chatId.toString(), "Обратитесь к владельцу канала:");
             message.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(InlineKeyboardButton.builder()
                     .text("👤 Связаться с владельцем")
-                    .url(helpLink)
+                    .url(channelProperties.getHelpLink())
                     .build()))));
-            bot.deleteMessageScheduled(chatId, bot.execute(msg).getMessageId(), defaultDeleteMessageMenuDelay);
+            bot.deleteMessageScheduled(chatId, bot.execute(msg).getMessageId(), channelProperties.getDefaultDeleteMessageMenuDelay());
         }  else if (text.startsWith("\uD83D\uDC4A Отправить ")) {
             try {
                 accountService.pay(message.getChatId(), 10L);
@@ -207,10 +232,10 @@ public class ClientChannelService extends ChannelService {
             }
         } else if (text.equals("\uD83D\uDC4A Показать текущую битву")) {
             bot.deleteMessageScheduled(chatId,
-                    matchService.sendLineByActiveMatch(chatId, false, bot),
-                    defaultDeleteMessageMenuDelay);
+                    matchService.sendActiveMatchStateToChannel(chatId, false, bot),
+                    channelProperties.getDefaultDeleteMessageMenuDelay());
         } else if (text.equals("/start")) {
-            sendPersistentKeyboard(chatId, bot);
+            sendPersistentKeyboard(message.getFrom(), chatId, bot);
         }
     }
 
@@ -263,9 +288,12 @@ public class ClientChannelService extends ChannelService {
                 try {
                     accountService.pay(savedPaymentRequest);
                     answer.setText("🎉 Оплата прошла успешно! 🎉");
+                    SendMessage payMsg = new SendMessage(userChatId.toString(), "Принят голос в размере " + amount + "⭐ в матче #" + match.getId() + " за игрока " + paymentRequest.getMatchPlayer().getPlayerName());
+                    payMsg.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(matchService.createMatchLinkButton(match)))));
+                    bot.execute(payMsg);
                 } catch (PaymentException e) {
                     answer.setShowAlert(true);
-                    answer.setText(String.format("Оплата не прошла. \n%s\nОбратитесь к владельцу канала.", e.getMessage()));
+                    answer.setText(String.format("Оплата не прошла. \n%s\n", e.getMessage()));
                 }
                 bot.execute(answer);
             });
@@ -273,12 +301,26 @@ public class ClientChannelService extends ChannelService {
         } else if (query.startsWith("deposit_")) {
             String[] s = query.split("_");
             long userId = Long.parseLong(s[1]);
-            stateService.setWaitingAmount(userId);
+            stateService.setWaitingAmount(userId, StateService.State.WAITING_FOR_AMOUNT_DEP);
             SendMessage msg = new SendMessage();
             msg.setChatId(userId);
             msg.setText("Введите количество ⭐ для пополнения:");
             Integer messageId = bot.execute(msg).getMessageId();
             bot.deleteMessageScheduled(userId, messageId);
+        } else if (query.startsWith("withdraw_")) {
+            String[] s = query.split("_");
+            long userId = Long.parseLong(s[1]);
+            stateService.setWaitingAmount(userId, StateService.State.WAITING_FOR_AMOUNT_WITHDRAW);
+            SendMessage msg = new SendMessage();
+            msg.setChatId(userId);
+            msg.setText("Введите количество ⭐ для вывода (не меньше 100):");
+            Integer messageId = bot.execute(msg).getMessageId();
+            bot.deleteMessageScheduled(userId, messageId);
+        }else if (query.startsWith("cancelWithdraw_")) {
+            String[] s = query.split("_");
+            long requestId = Long.parseLong(s[1]);
+            withdrawService.cancelById(userChatId, requestId, bot);
+            bot.deleteMessage(userChatId, callbackQuery.getMessage().getMessageId());
         } else if (query.startsWith("select_favorite_")) {
             String[] s = query.split("_");
             long userId = Long.parseLong(s[2]);
@@ -294,7 +336,7 @@ public class ClientChannelService extends ChannelService {
                 user.setFavoritePlayer(player);
                 userRepository.save(user);
                 answer.setText("\uD83C\uDF86 Ваш любимый смайл " + playerName + " установлен! \uD83C\uDF86");
-                sendPersistentKeyboard(userId, bot);
+                sendPersistentKeyboard(callbackQuery.getFrom(), userId, bot);
             } else {
                 answer.setShowAlert(true);
                 answer.setText("☹ Ваш любимый смайл не обнаружен в базе данных :( Попробуйте другой. ☹");
@@ -317,14 +359,14 @@ public class ClientChannelService extends ChannelService {
                     user.setFavoritePlayer(player);
                     userRepository.save(user);
                     answer.setText("\uD83C\uDF86 Ваш любимый смайл " + playerName + " установлен! \uD83C\uDF86");
-                    sendPersistentKeyboard(userId, bot);
+                    sendPersistentKeyboard(callbackQuery.getFrom(), userId, bot);
                 } else {
                     accountService.addBalance(userId, 150L);
                     answer.setText("☹ Ваш любимый смайл не обнаружен в базе данных :( Попробуйте другой. ☹");
                 }
             } catch (PaymentException e) {
                 answer.setShowAlert(true);
-                answer.setText(String.format("Оплата не прошла. \n%s\nОбратитесь к владельцу канала.", e.getMessage()));
+                answer.setText(String.format("Оплата не прошла. \n%s\n", e.getMessage()));
             }
             dependMessageService.deleteDependMessage(userChatId, DependMessageCode.SELECT_FAV_PLAYER, bot);
             bot.execute(answer);
@@ -386,13 +428,15 @@ public class ClientChannelService extends ChannelService {
         }
     }
 
-    public void sendPersistentKeyboard(Long chatId, EmojiRaceBot bot) {
+    public void sendPersistentKeyboard(User from, Long chatId, EmojiRaceBot bot) {
         List<KeyboardRow> rows = new ArrayList<>();
 
         KeyboardRow row1 = new KeyboardRow();
         row1.add(new KeyboardButton("💰 Баланс"));
 
-        BotUser botUser = userService.createIfNeed(chatId);
+        accountService.getByUserId(chatId);
+        BotUser botUser = userService.addInfoIfNeed(from);
+
         Player favoritePlayer = botUser.getFavoritePlayer();
         if (favoritePlayer == null) {
             row1.add(new KeyboardButton("\uD83D\uDE0E Выбрать любимый смайл"));
@@ -470,8 +514,12 @@ public class ClientChannelService extends ChannelService {
         addAccountBtn.setText("Пополнить баланс звёздами");
         addAccountBtn.setCallbackData("deposit_" + userId);
 
+        InlineKeyboardButton withdrawBtn = new InlineKeyboardButton();
+        withdrawBtn.setText("Отправить запрос на вывод");
+        withdrawBtn.setCallbackData("withdraw_" + userId);
+
         keyboard.setKeyboard(List.of(
-                List.of(addAccountBtn)
+                List.of(addAccountBtn, withdrawBtn)
         ));
         return keyboard;
     }

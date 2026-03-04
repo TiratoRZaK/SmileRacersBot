@@ -5,6 +5,7 @@ import my.abdrus.emojirace.bot.entity.Jackpot;
 import my.abdrus.emojirace.bot.entity.Match;
 import my.abdrus.emojirace.bot.entity.MatchPlayer;
 import my.abdrus.emojirace.bot.repository.JackpotRepository;
+import my.abdrus.emojirace.config.ChannelProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -18,11 +19,11 @@ public class JackpotService {
 
     @Autowired
     private JackpotRepository jackpotRepository;
-
-    @Value("${telegram.bot.channel.main.chatId}")
-    private String mainChannelChatId;
+    @Autowired
+    private ChannelProperties channelProperties;
 
     public void createIfNeedToChannel(EmojiRaceBot bot) {
+        Long mainChannelChatId = channelProperties.getMainChannelChatId();
         Jackpot jackpot = jackpotRepository.findTopByIsPayedFalseOrderByCreatedDateDesc().orElseGet(() -> jackpotRepository.save(new Jackpot()));
         if (jackpot.getChannelTimerMessageId() == null) {
             SendMessage message = new SendMessage();
@@ -45,6 +46,7 @@ public class JackpotService {
     }
 
     public void update(Match match, EmojiRaceBot bot) {
+        Long mainChannelChatId = channelProperties.getMainChannelChatId();
         long sum = match.getMatchPlayers().stream().mapToLong(MatchPlayer::getScore).sum();
         if (sum == 0) {
             return;

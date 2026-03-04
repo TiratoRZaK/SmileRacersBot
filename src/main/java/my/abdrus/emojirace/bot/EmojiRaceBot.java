@@ -9,6 +9,8 @@ import my.abdrus.emojirace.bot.service.ClientChannelService;
 import my.abdrus.emojirace.bot.service.JackpotService;
 import my.abdrus.emojirace.bot.service.MainChannelService;
 import my.abdrus.emojirace.bot.service.MatchGenerationService;
+import my.abdrus.emojirace.config.BotProperties;
+import my.abdrus.emojirace.config.ChannelProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,24 +39,15 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
     private MatchGenerationService matchGenerationService;
     @Autowired
     private JackpotService jackpotService;
-
-    @Value("${telegram.bot.username}")
-    private String username;
-
-    @Value("${telegram.bot.token}")
-    private String token;
-
-    @Value("${telegram.bot.channel.defaultDeleteMessageDelay}")
-    private String defaultDeleteMessageDelay;
-
-    public Integer getDefaultDeleteMessageDelay() {
-        return Integer.parseInt(defaultDeleteMessageDelay);
-    }
+    @Autowired
+    private ChannelProperties channelProperties;
+    @Autowired
+    private BotProperties botProperties;
 
     @PostConstruct
     public void start() {
         jackpotService.createIfNeedToChannel(this);
-        matchGenerationService.startGeneration(mainChannelService.getId(), this);
+        matchGenerationService.startGeneration(this);
     }
 
     @Override
@@ -68,7 +61,7 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
     }
 
     public void deleteMessageScheduled(Long chatId, Integer messageId) {
-        deleteMessageScheduled(chatId, messageId, getDefaultDeleteMessageDelay());
+        deleteMessageScheduled(chatId, messageId, channelProperties.getDefaultDeleteMessageDelay());
     }
     public void deleteMessageScheduled(Long chatId, Integer messageId, long delayMillis) {
         if (messageId == null) {
@@ -96,6 +89,10 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
                 }
                 if (isDeleteMessageNotExistsError(e)) {
                     log.debug("Пропуск удаления ранее удалённого сообщения");
+                    return null;
+                }
+                if (isEditMessageNotExistsError(e)) {
+                    log.debug("Пропуск изменения ранее удалённого сообщения");
                     return null;
                 }
 
@@ -149,13 +146,26 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
         return errorMessage != null && errorMessage.toLowerCase(Locale.ROOT).contains("message to delete not found");
     }
 
+    private boolean isEditMessageNotExistsError(TelegramApiRequestException e) {
+        Integer code = e.getErrorCode();
+        if (code == null || code != 400) {
+            return false;
+        }
+
+        String errorMessage = e.getApiResponse();
+        if (errorMessage == null) {
+            errorMessage = e.getMessage();
+        }
+        return errorMessage != null && errorMessage.toLowerCase(Locale.ROOT).contains("message to edit not found");
+    }
+
     @Override
     public String getBotUsername() {
-        return username;
+        return botProperties.getUsername();
     }
 
     @Override
     public String getBotToken() {
-        return token;
+        return botProperties.getToken();
     }
 }

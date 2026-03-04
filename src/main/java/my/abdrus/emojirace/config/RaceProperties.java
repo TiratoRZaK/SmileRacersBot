@@ -17,4 +17,5 @@ public class RaceProperties {
     private Double defaultStepSize;
     private Integer replaceBustChance;
     private Integer equalizeBustChance;
+    private Integer defaultRacerCount;
 }

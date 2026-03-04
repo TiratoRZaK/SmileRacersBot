@@ -32,7 +32,7 @@ public class Match {
 
     @Id
     @Column(name = "ID", nullable = false, unique = true)
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
     private Long id;
 
     @Column(name = "CREATED_DATE", nullable = false)

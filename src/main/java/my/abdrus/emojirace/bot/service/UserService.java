@@ -55,4 +55,8 @@ public class UserService {
             userRepository.save(user);
         }
     }
+
+    public boolean checkExists(Long userChatId) {
+        return userRepository.findByUserChatId(userChatId).isPresent();
+    }
 }

@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ScheduledFuture;
 import java.util.stream.Collectors;
 
@@ -28,6 +29,7 @@ import my.abdrus.emojirace.bot.repository.MatchRepository;
 import my.abdrus.emojirace.bot.repository.PaymentRequestRepository;
 import my.abdrus.emojirace.bot.repository.PlayerRepository;
 import my.abdrus.emojirace.bot.repository.ScoreMessageRepository;
+import my.abdrus.emojirace.config.ChannelProperties;
 import my.abdrus.emojirace.config.RaceProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,6 +40,10 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+
+import static my.abdrus.emojirace.bot.enumeration.MatchStatus.COMPLETED;
+import static my.abdrus.emojirace.bot.enumeration.MatchStatus.CREATED;
+import static my.abdrus.emojirace.bot.enumeration.MatchStatus.LIVE;
 
 @Slf4j
 @Service
@@ -65,13 +71,8 @@ public class MatchService {
     private AccountService accountService;
     @Autowired
     private RaceProperties raceProperties;
-
-    @Value("${telegram.bot.link}")
-    private String botLink;
-
-    @Value("${telegram.channel.link}")
-    private String channelLink;
-
+    @Autowired
+    private ChannelProperties channelProperties;
     @Autowired
     private TaskScheduler scheduler;
 
@@ -81,16 +82,7 @@ public class MatchService {
      * Создать новый матч по именам игроков.
      */
     @Transactional
-    public Match createMatchByPlayerNames(String... playerNames) {
-        List<Player> players = Arrays.stream(playerNames)
-                .map(playerName ->
-                        playerRepository.findByName(playerName)
-                                .orElseGet(() -> {
-                                    Player newPlayer = new Player(playerName);
-                                    return playerRepository.save(newPlayer);
-                                }))
-                .toList();
-
+    public Match createMatchByPlayers(List<Player> players) {
         List<MatchPlayer> matchPlayers = new ArrayList<>();
         for (int i = 0; i < players.size(); i++) {
             matchPlayers.add(new MatchPlayer(players.get(i), i + 1));
@@ -98,7 +90,7 @@ public class MatchService {
 
         Match match = Match.builder()
                 .createdDate(new Date())
-                .status(MatchStatus.CREATED)
+                .status(CREATED)
                 .matchPlayers(matchPlayers)
                 .build();
 
@@ -106,83 +98,117 @@ public class MatchService {
         return matchRepository.save(match);
     }
 
-    public Integer sendLineByActiveMatch(Long chatId, boolean isMainChannel, EmojiRaceBot bot) {
-        var match = matchRepository.findLatestActiveMatchWithPlayers(Arrays.asList(MatchStatus.values()));
+    public Integer sendActiveMatchStateToChannel(Long chatId,
+                                                 boolean isMainChannel,
+                                                 EmojiRaceBot bot) {
+        return matchRepository
+                .findFirstByStatusInOrderByCreatedDateDesc(Arrays.asList(MatchStatus.values()))
+                .map(Match::getId)
+                .flatMap(id -> matchRepository.findById(id))
+                .map(match -> {
+                    return switch (match.getStatus()) {
+                        case CREATED -> {
+                            String playerNames = match.getMatchPlayers().stream()
+                                    .map(MatchPlayer::getPlayerName)
+                                    .collect(Collectors.joining(" или "));
+
+                            var message = new SendMessage();
+
+                            message.setChatId(chatId.toString());
+                            String text = "Гонка №" + match.getId() + "\n\n" +
+                                    "❓❓❓   Кто победит?   ❓❓❓\n\n" +
+                                    playerNames +
+                                    "\n\n" +
+                                    "Решайся и голосуй звёздами!\n\n" +
+                                    "Пополнить баланс звёзд можно перейдя в бота.";
+                            message.setText(text);
+
+                            var markup = createActiveMatchToChannelForLineVotesKeyboard(match, isMainChannel);
+                            message.setReplyMarkup(markup);
+
+                            Integer messageId = bot.execute(message).getMessageId();
+                            createScoreMessage(match, chatId, messageId);
+                            yield messageId;
+                        }
+                        case LIVE ->  {
+                            InlineKeyboardButton button = createMatchLinkButton(match);
+                            InlineKeyboardMarkup keyboard = InlineKeyboardMarkup.builder()
+                                    .keyboardRow(List.of(button))
+                                    .build();
+
+                            SendMessage message = new SendMessage();
+                            message.setChatId(chatId.toString());
+
+                            boolean isAdmin = userService.isAdmin(chatId);
+                            StringBuilder textBuilder = new StringBuilder();
+                            if (isAdmin) {
+                                for (MatchPlayer matchPlayer : match.getMatchPlayers()) {
+                                    long sum = matchPlayer.getScore();
+                                    textBuilder.append("На ")
+                                            .append(matchPlayer.getPlayerName())
+                                            .append(" поставили: ")
+                                            .append(sum).append(" ⭐\n");
+                                }
+                                textBuilder.append("\n\n");
+                            }
+
+                            textBuilder.append("Матч уже начался. Перейти?");
+                            message.setText(textBuilder.toString());
+                            message.setReplyMarkup(keyboard);
+
+                            Integer messageId = bot.execute(message).getMessageId();
+                            createScoreMessage(match, chatId, messageId);
+                            yield messageId;
+                        }
+                        case COMPLETED -> {
+                            InlineKeyboardButton button = createMatchLinkButton(match);
+
+                            InlineKeyboardMarkup keyboard = InlineKeyboardMarkup.builder()
+                                    .keyboardRow(List.of(button))
+                                    .build();
+
+                            SendMessage message = new SendMessage();
+                            message.setChatId(chatId.toString());
+                            message.setText("Матч уже завершился. Перейти?");
+                            message.setReplyMarkup(keyboard);
+
+                            Integer messageId = bot.execute(message).getMessageId();
+                            createScoreMessage(match, chatId, messageId);
+                            yield messageId;
+                        }
+                    };
+                })
+                .orElse(null);
+    }
+
+    public void sendMatchLineToChannel(Match match, EmojiRaceBot bot) {
         if (match == null) {
-            return null;
+            return;
         }
 
-        switch (match.getStatus()) {
-            case CREATED -> {
-                String playerNames = match.getMatchPlayers().stream()
-                        .map(MatchPlayer::getPlayerName)
-                        .collect(Collectors.joining(" или "));
+        Long mainChannelChatId = channelProperties.getMainChannelChatId();
 
-                var message = new SendMessage();
+        String playerNames = match.getMatchPlayers().stream()
+                .map(MatchPlayer::getPlayerName)
+                .collect(Collectors.joining(" или "));
 
-                message.setChatId(chatId.toString());
-                String text = "❓❓❓   Кто победит?   ❓❓❓\n\n" +
-                        playerNames +
-                        "\n\n" +
-                        "Решайся и голосуй звёздами!\n\n" +
-                        "Пополнить баланс звёзд можно перейдя в бота.";
-                message.setText(text);
+        var message = new SendMessage();
 
-                var markup = createActiveMatchToChannelForLineVotesKeyboard(match, isMainChannel);
-                message.setReplyMarkup(markup);
+        message.setChatId(mainChannelChatId.toString());
+        String text = "Гонка №" + match.getId() + "\n\n" +
+                "❓❓❓   Кто победит?   ❓❓❓\n\n" +
+                playerNames +
+                "\n\n" +
+                "Решайся и голосуй звёздами!\n\n" +
+                "Пополнить баланс звёзд можно перейдя в бота.";
+        message.setText(text);
 
-                Integer messageId = bot.execute(message).getMessageId();
-                createScoreMessage(match, chatId, messageId);
-                return messageId;
-            }
-            case LIVE ->  {
-                InlineKeyboardButton button = createMatchLinkButton(match);
-                InlineKeyboardMarkup keyboard = InlineKeyboardMarkup.builder()
-                        .keyboardRow(List.of(button))
-                        .build();
+        var markup = createActiveMatchToChannelForLineVotesKeyboard(match, true);
+        message.setReplyMarkup(markup);
 
-                SendMessage message = new SendMessage();
-                message.setChatId(chatId.toString());
-
-                boolean isAdmin = userService.isAdmin(chatId);
-                StringBuilder textBuilder = new StringBuilder();
-                if (isAdmin) {
-                    for (MatchPlayer matchPlayer : match.getMatchPlayers()) {
-                        long sum = matchPlayer.getScore();
-                        textBuilder.append("На ")
-                                .append(matchPlayer.getPlayerName())
-                                .append(" поставили: ")
-                                .append(sum).append(" ⭐\n");
-                    }
-                    textBuilder.append("\n\n");
-                }
-
-                textBuilder.append("Матч уже начался. Перейти?");
-                message.setText(textBuilder.toString());
-                message.setReplyMarkup(keyboard);
-
-                Integer messageId = bot.execute(message).getMessageId();
-                createScoreMessage(match, chatId, messageId);
-                return messageId;
-            }
-            case COMPLETED -> {
-                InlineKeyboardButton button = createMatchLinkButton(match);
-
-                InlineKeyboardMarkup keyboard = InlineKeyboardMarkup.builder()
-                        .keyboardRow(List.of(button))
-                        .build();
-
-                SendMessage message = new SendMessage();
-                message.setChatId(chatId.toString());
-                message.setText("Матч уже завершился. Перейти?");
-                message.setReplyMarkup(keyboard);
-
-                Integer messageId = bot.execute(message).getMessageId();
-                createScoreMessage(match, chatId, messageId);
-                return messageId;
-            }
-        }
-        return null;
+        log.info("Старт линии гонки #{}", match.getId());
+        Integer messageId = bot.execute(message).getMessageId();
+        createScoreMessage(match, mainChannelChatId, messageId);
     }
 
     void createScoreMessage(Match match, Long chatId, Integer messageId) {
@@ -207,25 +233,31 @@ public class MatchService {
 
         if (withBotLink) {
             keyboard.add(List.of(createBotLinkButton()));
+        } else {
+            keyboard.add(List.of(createMatchLinkButton(match)));
         }
         var markup = new InlineKeyboardMarkup();
         markup.setKeyboard(keyboard);
         return markup;
     }
 
-    public void startLiveByActiveMatch(Long mainChannelChatId, EmojiRaceBot bot) {
-        var match = completeLineVotes(bot);
+    public void startLiveByActiveMatch(Match match, EmojiRaceBot bot) {
+        match = completeLineVotes(match, bot);
         if (match == null) {
             return;
         }
 
-        Race race = new Race(match, raceProperties, getRandomTopPlayer(match), getRandomBottomPlayer(match));
+        Long mainChannelChatId = channelProperties.getMainChannelChatId();
+
+        Race race = new Race(match, raceProperties, getTopPayedPlayerOrRandom(match), getBottomPayedPlayerRandom(match));
 
         Integer messageId = sendRaceStateMessage(mainChannelChatId, bot, race);
         match.setChannelTimerMessageId(messageId);
-        match.setStatus(MatchStatus.LIVE);
-        matchRepository.save(match);
+        match.setStatus(LIVE);
+        Match savedMatch = matchRepository.save(match);
+        race.setMatch(savedMatch);
 
+        log.info("Старт лайва гонки #{}.", match.getId());
         timerFuture = scheduler.scheduleWithFixedDelay(() -> {
             if (race.isNotFinish()) {
                 EditMessageText editMessage = new EditMessageText();
@@ -240,12 +272,16 @@ public class MatchService {
                 editMessage.setChatId(mainChannelChatId);
                 editMessage.setMessageId(messageId);
                 editMessage.setText(race.getCompletedRaceStateMessage());
+                editMessage.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(createBotLinkButton()))));
                 bot.execute(editMessage);
-                match.setStatus(MatchStatus.COMPLETED);
-                winnerProcess(matchRepository.save(match), bot);
-                log.info("Завершение битвы. Расчёт результатов.");
+                Match raceMatch = race.getMatch();
+                raceMatch.setStatus(COMPLETED);
+                raceMatch = matchRepository.save(raceMatch);
+                race.setMatch(raceMatch);
+                winnerProcess(matchRepository.save(raceMatch), bot);
+                log.info("Завершение гонки #{}. Расчёт результатов.", savedMatch.getId());
             }
-        }, Duration.of(2, ChronoUnit.SECONDS));
+        }, Duration.of(1, ChronoUnit.SECONDS));
         raceService.startRace(race);
     }
 
@@ -345,7 +381,7 @@ public class MatchService {
     private InlineKeyboardButton createBotLinkButton() {
         var button3 = new InlineKeyboardButton();
         button3.setText("\uD83E\uDD16 Перейти в бота \uD83E\uDD16");
-        button3.setUrl(botLink);
+        button3.setUrl(channelProperties.getBotLink());
         return button3;
     }
 
@@ -356,12 +392,12 @@ public class MatchService {
         return button;
     }
 
-    public Match completeLineVotes(EmojiRaceBot bot) {
-        var match = matchRepository.findLatestActiveMatchWithPlayers(List.of(MatchStatus.CREATED, MatchStatus.LIVE));
+    public Match completeLineVotes(Match match, EmojiRaceBot bot) {
         if (match == null) {
             return null;
         }
 
+        log.info("Завершение голосования гонки #{}. Фиксация голосов.", match.getId());
         match.getMatchPlayers().forEach(matchPlayer -> {
             long sum = paymentRequestRepository.findAllByMatchPlayerAndStatus(
                             matchPlayer, PaymentRequestStatus.PAYED).stream()
@@ -389,7 +425,7 @@ public class MatchService {
     }
 
     public InlineKeyboardButton createMatchLinkButton(Match match) {
-        String messageLink = channelLink + match.getChannelTimerMessageId();
+        String messageLink = channelProperties.getChannelLink() + match.getChannelTimerMessageId();
         return InlineKeyboardButton.builder()
                 .text("📢 Перейти к матчу")
                 .url(messageLink)
@@ -397,11 +433,11 @@ public class MatchService {
                 .build();
     }
 
-    public MatchPlayer getRandomTopPlayer(Match match) {
+    public MatchPlayer getTopPayedPlayerOrRandom(Match match) {
         return match.getRandomPlayerByBet(match, false);
     }
 
-    public MatchPlayer getRandomBottomPlayer(Match match) {
+    public MatchPlayer getBottomPayedPlayerRandom(Match match) {
         return match.getRandomPlayerByBet(match, true);
     }
 }

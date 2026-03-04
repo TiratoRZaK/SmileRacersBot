@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAdder;
 
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import my.abdrus.emojirace.bot.enumeration.BusterType;
 import my.abdrus.emojirace.config.RaceProperties;
@@ -18,7 +19,8 @@ import my.abdrus.emojirace.config.RaceProperties;
 public class Race {
 
     @Getter
-    private final Match match;
+    @Setter
+    private Match match;
     private final List<ConcurrentLinkedDeque<BusterType>> playerTickQueues;
     private final List<DoubleAdder> playerScores;
     private final List<AtomicInteger> playerShields;
@@ -148,7 +150,7 @@ public class Race {
     public String getRaceStateMessage() {
         StringBuilder text = new StringBuilder();
         text
-                .append("\uD83D\uDD25 Битва в самом разгаре! \uD83D\uDD25\n")
+                .append("\uD83D\uDD25 Гонка №").append(match.getId()).append(" в самом разгаре! \uD83D\uDD25\n")
                 .append("Помоги своему фавориту придти на 🏁 первым!\n")
                 .append("\n")
                 .append("Используй бустеры на кнопках ниже:\n")

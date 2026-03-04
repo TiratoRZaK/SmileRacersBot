@@ -12,6 +12,10 @@ import my.abdrus.emojirace.bot.enumeration.BusterType;
 import my.abdrus.emojirace.bot.exception.PaymentException;
 import my.abdrus.emojirace.bot.repository.AccountRepository;
 import my.abdrus.emojirace.bot.repository.MatchRepository;
+import my.abdrus.emojirace.bot.repository.PaymentRequestRepository;
+import my.abdrus.emojirace.bot.repository.PlayerRepository;
+import my.abdrus.emojirace.bot.repository.UserRepository;
+import my.abdrus.emojirace.config.ChannelProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -29,9 +33,6 @@ import static my.abdrus.emojirace.bot.enumeration.BusterType.SLOW;
 @Service
 public abstract class ChannelService {
 
-    @Value("${telegram.bot.channel.adminMode}")
-    private boolean adminMode;
-
     @Autowired
     protected MatchRepository matchRepository;
     @Autowired
@@ -39,11 +40,13 @@ public abstract class ChannelService {
     @Autowired
     protected MatchService matchService;
     @Autowired
-    private AccountService accountService;
+    protected AccountService accountService;
     @Autowired
-    private AccountRepository accountRepository;
+    protected AccountRepository accountRepository;
     @Autowired
-    private UserService userService;
+    protected UserService userService;
+    @Autowired
+    protected ChannelProperties channelProperties;
 
     public abstract void updateProcess(Update update, EmojiRaceBot bot);
 
@@ -66,24 +69,51 @@ public abstract class ChannelService {
             var match = matchOptional.get();
             var player = match.getPlayerByNumber(playerNumber);
 
+            if (!userService.checkExists(userChatId)) {
+                answer.setShowAlert(true);
+                answer.setText("Вы у нас впервые! \uD83E\uDD29 \nНеобходимо создать аккаунт. \uD83C\uDF8A \nПерейдите в бота \uD83E\uDD16 кнопкой ниже, иначе мы не сможем вам ответить \uD83D\uDE22");
+                bot.execute(answer);
+                return true;
+            }
             Integer messageId = sendStarsRequest(userChatId, player, bot);
             matchService.createScoreMessage(match, userChatId, messageId);
+            if (userChatId.equals(channelProperties.getMainChannelChatId())) {
+                answer.setText("Перейдите в бота для выбора суммы ⭐\uFE0F для голоса.");
+            }
             bot.execute(answer);
             return true;
         }
         if (query.startsWith("bust_")) {
+            if (!userService.checkExists(userChatId)) {
+                answer.setShowAlert(true);
+                answer.setText("Вы у нас впервые! \uD83E\uDD29 \nНеобходимо создать аккаунт. \uD83C\uDF8A \nПерейдите в бота \uD83E\uDD16 кнопкой ниже, иначе мы не сможем вам ответить \uD83D\uDE22");
+                bot.execute(answer);
+                return true;
+            }
             String[] s = query.split("_");
             Integer playerNumber = Integer.parseInt(s[1]);
             busterPaymentProcess(callbackQuery, playerNumber, answer, BUST, bot);
             bot.execute(answer);
             return true;
         } else if (query.startsWith("slow_")) {
+            if (!userService.checkExists(userChatId)) {
+                answer.setShowAlert(true);
+                answer.setText("Вы у нас впервые! \uD83E\uDD29 \nНеобходимо создать аккаунт. \uD83C\uDF8A \nПерейдите в бота \uD83E\uDD16 кнопкой ниже, иначе мы не сможем вам ответить \uD83D\uDE22");
+                bot.execute(answer);
+                return true;
+            }
             String[] s = query.split("_");
             Integer playerNumber = Integer.parseInt(s[1]);
             busterPaymentProcess(callbackQuery, playerNumber, answer, SLOW, bot);
             bot.execute(answer);
             return true;
         } else if (query.startsWith("shield_")) {
+            if (!userService.checkExists(userChatId)) {
+                answer.setShowAlert(true);
+                answer.setText("Вы у нас впервые! \uD83E\uDD29 \nНеобходимо создать аккаунт. \uD83C\uDF8A \nПерейдите в бота \uD83E\uDD16 кнопкой ниже, иначе мы не сможем вам ответить \uD83D\uDE22");
+                bot.execute(answer);
+                return true;
+            }
             String[] s = query.split("_");
             Integer playerNumber = Integer.parseInt(s[1]);
             busterPaymentProcess(callbackQuery, playerNumber, answer, SHIELD, bot);
@@ -107,11 +137,12 @@ public abstract class ChannelService {
 
         try {
             Account account = accountService.getByUserId(userChatId);
+            userService.addInfoIfNeed(callbackQuery.getFrom());
             if (account.getFreeBustCount() > 0) {
                 account.setFreeBustCount(account.getFreeBustCount() - 1);
                 accountRepository.save(account);
                 hasFreeBust = true;
-            } else if (!isAdmin || !adminMode) {
+            } else if (!isAdmin || !channelProperties.isAdminMode()) {
                 accountService.pay(paymentRequest);
             }
             raceService.addTickForPlayer(playerNumber, busterType);
@@ -122,7 +153,7 @@ public abstract class ChannelService {
             }
         } catch (PaymentException e) {
             answer.setShowAlert(true);
-            answer.setText(String.format("Оплата не прошла. \n%s\nОбратитесь к владельцу канала.", e.getMessage()));
+            answer.setText(String.format("Оплата не прошла. \n%s", e.getMessage()));
         }
     }
 
@@ -132,7 +163,7 @@ public abstract class ChannelService {
         Player player = matchPlayer.getPlayer();
 
         message.setChatId(userChatId);
-        message.setText("❓Думаешь победит " + player.getName() + " ❓\n" +
+        message.setText("❓Думаешь в гонке №" + match.getId() + " победит " + player.getName() + " ❓\n" +
                 "\n" +
                 "⭐ Насколько звёзд ты уверен? ⭐");
 

@@ -1,5 +1,6 @@
 package my.abdrus.emojirace.bot.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,22 +15,12 @@ import org.springframework.stereotype.Repository;
 public interface MatchRepository extends JpaRepository<Match, Long> {
 
     @Query("""
-    SELECT m
-    FROM Match m
-    LEFT JOIN FETCH m.matchPlayers
-    WHERE m.id = :id
-""")
+        SELECT m
+        FROM Match m
+        LEFT JOIN FETCH m.matchPlayers
+        WHERE m.id = :id
+    """)
     Optional<Match> findById(@Param("id") Long id);
 
-    @Query("""
-    SELECT m
-    FROM Match m
-    LEFT JOIN FETCH m.matchPlayers
-    WHERE m.createdDate = (
-        SELECT MAX(m2.createdDate)
-        FROM Match m2
-        WHERE m2.status in :statusList
-    )
-""")
-    Match findLatestActiveMatchWithPlayers(List<MatchStatus> statusList);
+    Optional<Match> findFirstByStatusInOrderByCreatedDateDesc(Collection<MatchStatus> statusList);
 }

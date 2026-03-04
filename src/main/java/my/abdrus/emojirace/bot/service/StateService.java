@@ -10,7 +10,8 @@ public class StateService {
 
     public enum State {
         NONE,
-        WAITING_FOR_AMOUNT
+        WAITING_FOR_AMOUNT_DEP,
+        WAITING_FOR_AMOUNT_WITHDRAW
     }
 
     public static class Session {
@@ -25,8 +26,8 @@ public class StateService {
 
     private final Map<Long, Session> sessions = new ConcurrentHashMap<>();
 
-    public void setWaitingAmount(Long targetUserId) {
-        sessions.put(targetUserId, new Session(State.WAITING_FOR_AMOUNT, targetUserId));
+    public void setWaitingAmount(Long targetUserId, State state) {
+        sessions.put(targetUserId, new Session(state, targetUserId));
     }
 
     public Session getSession(Long targetUserId) {

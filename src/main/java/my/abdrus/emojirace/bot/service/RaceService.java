@@ -30,7 +30,7 @@ public class RaceService {
                 timerFuture.cancel(false);
                 activeRace = null;
             }
-        }, Duration.of(2, ChronoUnit.SECONDS));
+        }, Duration.of(1, ChronoUnit.SECONDS));
     }
 
     public void addTickForPlayer(Integer playerNumber, BusterType busterType) {

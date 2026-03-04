@@ -13,8 +13,8 @@ public class PaymentException extends RuntimeException {
     @Override
     public String getMessage() {
         return switch (type) {
-            case ACCOUNT_WITH_BALANCE_NOT_FOUND -> "Средств на балансе недостаточно.";
-            case BALANCE_UPDATED -> "Баланс был обновлён. Средств недостаточно.";
+            case ACCOUNT_WITH_BALANCE_NOT_FOUND -> "Средств на балансе недостаточно.\n\nПополнить баланс можно через бота.";
+            case BALANCE_UPDATED -> "Баланс был обновлён. Средств недостаточно.\n\nПополнить баланс можно через бота.";
         };
     }
 }

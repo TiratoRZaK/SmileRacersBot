@@ -2,7 +2,6 @@ package my.abdrus.emojirace.bot.service;
 
 import jakarta.validation.constraints.NotNull;
 import my.abdrus.emojirace.bot.EmojiRaceBot;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -10,19 +9,12 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 @Service
 public class MainChannelService extends ChannelService {
 
-    @Value("${telegram.bot.channel.main.chatId}")
-    private String mainChannelChatId;
-
-    public Long getId() {
-        return Long.parseLong(mainChannelChatId);
-    }
-
     /**
      * Проверить что обновление пришло в основной канал.
      */
     public boolean isMainChannel(@NotNull Update update) {
         return update.hasChannelPost()
-                && getId().equals(update.getChannelPost().getChatId());
+                && channelProperties.getMainChannelChatId().equals(update.getChannelPost().getChatId());
     }
 
     @Override
