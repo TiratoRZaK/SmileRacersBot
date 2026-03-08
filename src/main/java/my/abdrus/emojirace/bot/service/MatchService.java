@@ -105,6 +105,7 @@ public class MatchService {
     public Match createBattle(Long creatorUserChatId, Player creatorPlayer, long stake) throws PaymentException {
         MatchPlayer creatorMatchPlayer = new MatchPlayer(creatorPlayer, 1);
         creatorMatchPlayer.setOwnerUserChatId(creatorUserChatId);
+        creatorMatchPlayer.setScore(stake);
 
         Match match = Match.builder()
                 .createdDate(new Date())
@@ -136,6 +137,7 @@ public class MatchService {
         MatchPlayer matchPlayer = new MatchPlayer(player, match.getMatchPlayers().size() + 1);
         matchPlayer.setOwnerUserChatId(userChatId);
         matchPlayer.setMatch(match);
+        matchPlayer.setScore(stake);
         match.getMatchPlayers().add(matchPlayer);
         matchPlayerRepository.save(matchPlayer);
         createBattleStake(matchPlayer, userChatId, stake);
