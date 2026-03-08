@@ -518,7 +518,7 @@ public class MatchService {
                 .map(matchPlayer -> {
                     String owner = matchPlayer.getOwnerUserChatId() == null
                             ? ""
-                            : " (" + userService.getUsernameOrFallback(matchPlayer.getOwnerUserChatId()) + ")";
+                            : " " + userService.getUsernameOrFallback(matchPlayer.getOwnerUserChatId());
                     return "• " + matchPlayer.getPlayerName() + owner;
                 })
                 .collect(Collectors.joining("\n"));

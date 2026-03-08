@@ -3,6 +3,7 @@ package my.abdrus.emojirace.bot.service;
 import my.abdrus.emojirace.bot.EmojiRaceBot;
 import my.abdrus.emojirace.bot.entity.BotUser;
 import my.abdrus.emojirace.bot.repository.UserRepository;
+import my.abdrus.emojirace.bot.util.TelegramUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMember;
@@ -62,9 +63,7 @@ public class UserService {
 
     public String getUsernameOrFallback(Long userChatId) {
         return userRepository.findByUserChatId(userChatId)
-                .map(BotUser::getUsername)
-                .filter(username -> username != null && !username.isBlank())
-                .map(username -> "@" + username)
+                .map(TelegramUtils::formatTelegramUser)
                 .orElse("id:" + userChatId);
     }
 }

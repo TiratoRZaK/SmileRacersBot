@@ -700,23 +700,6 @@ public class ClientChannelService extends ChannelService {
         bot.deleteMessageScheduled(chatId, bot.execute(sendMessage).getMessageId());
     }
 
-
-    private String formatTelegramUser(User user) {
-        if (user == null) {
-            return "неизвестный пользователь";
-        }
-
-        if (user.getUserName() != null && !user.getUserName().isBlank()) {
-            return "@" + user.getUserName();
-        }
-
-        if (user.getFirstName() != null && !user.getFirstName().isBlank()) {
-            return user.getFirstName();
-        }
-
-        return String.valueOf(user.getId());
-    }
-
     private String buildWithdrawTitle(Long requestId, Long userChatId, Long sum) {
         BotUser botUser = userRepository.findByUserChatId(userChatId).orElse(null);
         String username = botUser != null && botUser.getUsername() != null && !botUser.getUsername().isBlank()
@@ -770,13 +753,6 @@ public class ClientChannelService extends ChannelService {
                 List.of(addAccountBtn, withdrawBtn)
         ));
         return keyboard;
-    }
-
-    private InlineKeyboardMarkup createBattleCreatorKeyboard(Long battleId) {
-        return new InlineKeyboardMarkup(List.of(List.of(
-                InlineKeyboardButton.builder().text("Старт батла").callbackData("battleStart_" + battleId).build(),
-                InlineKeyboardButton.builder().text("Отменить батл").callbackData("battleCancel_" + battleId).build()
-        )));
     }
 
     private void sendBattleJoinInvite(Long chatId, long battleId, EmojiRaceBot bot) {
