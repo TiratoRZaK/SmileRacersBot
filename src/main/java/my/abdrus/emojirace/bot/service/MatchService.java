@@ -111,6 +111,7 @@ public class MatchService {
                 .status(CREATED)
                 .type(MatchType.BATTLE)
                 .creatorUserChatId(creatorUserChatId)
+                .battleStake(stake)
                 .matchPlayers(new ArrayList<>(List.of(creatorMatchPlayer)))
                 .build();
         creatorMatchPlayer.setMatch(match);
@@ -179,12 +180,7 @@ public class MatchService {
     }
 
     public long getBattleStake(Match match) {
-        return match.getMatchPlayers().stream()
-                .findFirst()
-                .flatMap(matchPlayer -> paymentRequestRepository.findAllByMatchPlayerAndStatus(matchPlayer, PaymentRequestStatus.PAYED)
-                        .stream().findFirst())
-                .map(PaymentRequest::getSum)
-                .orElse(0L);
+        return match.getBattleStake() == null ? 0L : match.getBattleStake();
     }
 
     private void createBattleStake(MatchPlayer matchPlayer, Long userChatId, long stake) throws PaymentException {

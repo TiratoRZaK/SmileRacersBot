@@ -57,6 +57,9 @@ public class Match {
     @Column(name = "CREATOR_USER_CHAT_ID")
     private Long creatorUserChatId;
 
+    @Column(name = "BATTLE_STAKE")
+    private Long battleStake;
+
     @OneToMany(mappedBy = "match", cascade = CascadeType.REMOVE)
     private List<ScoreMessage> scoreMessages;
 
