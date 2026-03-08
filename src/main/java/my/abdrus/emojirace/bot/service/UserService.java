@@ -59,4 +59,12 @@ public class UserService {
     public boolean checkExists(Long userChatId) {
         return userRepository.findByUserChatId(userChatId).isPresent();
     }
+
+    public String getUsernameOrFallback(Long userChatId) {
+        return userRepository.findByUserChatId(userChatId)
+                .map(BotUser::getUsername)
+                .filter(username -> username != null && !username.isBlank())
+                .map(username -> "@" + username)
+                .orElse("id:" + userChatId);
+    }
 }
