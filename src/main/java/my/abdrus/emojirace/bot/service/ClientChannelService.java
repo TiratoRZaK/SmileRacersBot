@@ -11,6 +11,7 @@ import my.abdrus.emojirace.bot.EmojiRaceBot;
 import my.abdrus.emojirace.bot.entity.BotUser;
 import my.abdrus.emojirace.bot.entity.DependMessageCode;
 import my.abdrus.emojirace.bot.entity.Match;
+import my.abdrus.emojirace.bot.entity.MatchPlayer;
 import my.abdrus.emojirace.bot.entity.PaymentRequest;
 import my.abdrus.emojirace.bot.entity.Player;
 import my.abdrus.emojirace.bot.entity.WithdrawRequest;
@@ -451,8 +452,9 @@ public class ClientChannelService extends ChannelService {
                 return true;
             }
 
+            bot.deleteMessage(userChatId, callbackQuery.getMessage().getMessageId());
             canceled.getMatchPlayers().stream()
-                    .map(mp -> mp.getOwnerUserChatId())
+                    .map(MatchPlayer::getOwnerUserChatId)
                     .filter(id -> id != null && !id.equals(userChatId))
                     .distinct()
                     .forEach(id -> bot.execute(new SendMessage(id.toString(), "⚠️ Батл #" + battleId + " отменён создателем. Ставка возвращена.")));
