@@ -486,8 +486,10 @@ public class MatchService {
 
         paymentRequestRepository.completeLoseRequests(winner, winner.getMatch());
 
+        jackpotService.update(match, bot);
+
         long battleBank = Optional.ofNullable(paymentRequestRepository.sumBattleBank(match)).orElse(0L);
-        long winnerAmount = Math.round(battleBank * 0.95d * 2);
+        long winnerAmount = Math.round(battleBank * 0.95d);
 
         Long winnerUserChatId = winner.getOwnerUserChatId();
         if (accountService.addBalance(winnerUserChatId, winnerAmount)) {
