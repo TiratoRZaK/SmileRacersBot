@@ -22,7 +22,9 @@ import my.abdrus.emojirace.bot.entity.Player;
 import my.abdrus.emojirace.bot.entity.ScoreMessage;
 import my.abdrus.emojirace.bot.enumeration.BusterType;
 import my.abdrus.emojirace.bot.enumeration.MatchStatus;
+import my.abdrus.emojirace.bot.enumeration.MatchType;
 import my.abdrus.emojirace.bot.enumeration.PaymentRequestStatus;
+import my.abdrus.emojirace.bot.exception.PaymentException;
 import my.abdrus.emojirace.bot.repository.AccountRepository;
 import my.abdrus.emojirace.bot.repository.MatchPlayerRepository;
 import my.abdrus.emojirace.bot.repository.MatchRepository;
@@ -91,11 +93,109 @@ public class MatchService {
         Match match = Match.builder()
                 .createdDate(new Date())
                 .status(CREATED)
+                .type(MatchType.REGULAR)
                 .matchPlayers(matchPlayers)
                 .build();
 
         matchPlayers.forEach(matchPlayer -> matchPlayer.setMatch(match));
         return matchRepository.save(match);
+    }
+
+    @Transactional
+    public Match createBattle(Long creatorUserChatId, Player creatorPlayer, long stake) throws PaymentException {
+        MatchPlayer creatorMatchPlayer = new MatchPlayer(creatorPlayer, 1);
+        creatorMatchPlayer.setOwnerUserChatId(creatorUserChatId);
+
+        Match match = Match.builder()
+                .createdDate(new Date())
+                .status(CREATED)
+                .type(MatchType.BATTLE)
+                .creatorUserChatId(creatorUserChatId)
+                .matchPlayers(new ArrayList<>(List.of(creatorMatchPlayer)))
+                .build();
+        creatorMatchPlayer.setMatch(match);
+
+        Match savedMatch = matchRepository.save(match);
+        createBattleStake(savedMatch.getMatchPlayers().get(0), creatorUserChatId, stake);
+        return savedMatch;
+    }
+
+    @Transactional
+    public boolean joinBattle(Long matchId, Long userChatId, Player player, long stake) throws PaymentException {
+        Match match = matchRepository.findById(matchId).orElse(null);
+        if (match == null || match.getType() != MatchType.BATTLE || match.getStatus() != CREATED) {
+            return false;
+        }
+        boolean emojiExists = match.getMatchPlayers().stream().anyMatch(mp -> mp.getPlayerName().equals(player.getName()));
+        boolean userExists = match.getMatchPlayers().stream().anyMatch(mp -> userChatId.equals(mp.getOwnerUserChatId()));
+        if (emojiExists || userExists) {
+            return false;
+        }
+
+        MatchPlayer matchPlayer = new MatchPlayer(player, match.getMatchPlayers().size() + 1);
+        matchPlayer.setOwnerUserChatId(userChatId);
+        matchPlayer.setMatch(match);
+        match.getMatchPlayers().add(matchPlayer);
+        matchPlayerRepository.save(matchPlayer);
+        createBattleStake(matchPlayer, userChatId, stake);
+        return true;
+    }
+
+    @Transactional
+    public Match cancelBattle(Long matchId, Long initiatorUserChatId) {
+        Match match = matchRepository.findById(matchId).orElse(null);
+        if (match == null || match.getType() != MatchType.BATTLE || match.getStatus() != CREATED
+                || !initiatorUserChatId.equals(match.getCreatorUserChatId())) {
+            return null;
+        }
+        match.setStatus(COMPLETED);
+
+        match.getMatchPlayers().forEach(matchPlayer ->
+                paymentRequestRepository.findAllByMatchPlayerAndStatus(matchPlayer, PaymentRequestStatus.PAYED)
+                        .forEach(request -> {
+                            accountService.addBalance(request.getUserChatId(), request.getSum());
+                            request.setStatus(PaymentRequestStatus.COMPLETED);
+                            paymentRequestRepository.save(request);
+                        }));
+
+        return matchRepository.save(match);
+    }
+
+    public boolean canStartBattle(Long matchId, Long initiatorUserChatId) {
+        Match match = matchRepository.findById(matchId).orElse(null);
+        return match != null
+                && match.getType() == MatchType.BATTLE
+                && match.getStatus() == CREATED
+                && initiatorUserChatId.equals(match.getCreatorUserChatId())
+                && match.getMatchPlayers().size() > 1;
+    }
+
+    public List<Player> getAvailableBattlePlayers(Long matchId) {
+        Match match = matchRepository.findById(matchId).orElse(null);
+        if (match == null) {
+            return List.of();
+        }
+        return playerRepository.findAllByNameNotIn(match.getMatchPlayers().stream().map(MatchPlayer::getPlayerName).toList());
+    }
+
+    public long getBattleStake(Match match) {
+        return match.getMatchPlayers().stream()
+                .findFirst()
+                .flatMap(matchPlayer -> paymentRequestRepository.findAllByMatchPlayerAndStatus(matchPlayer, PaymentRequestStatus.PAYED)
+                        .stream().findFirst())
+                .map(PaymentRequest::getSum)
+                .orElse(0L);
+    }
+
+    private void createBattleStake(MatchPlayer matchPlayer, Long userChatId, long stake) throws PaymentException {
+        PaymentRequest paymentRequest = new PaymentRequest();
+        paymentRequest.setMatchPlayer(matchPlayer);
+        paymentRequest.setUserChatId(userChatId);
+        paymentRequest.setSum(stake);
+        paymentRequest.setStatus(PaymentRequestStatus.WAIT_PAYMENT);
+        paymentRequest.setCreatedDate(new Date());
+        PaymentRequest saved = paymentRequestRepository.save(paymentRequest);
+        accountService.pay(saved);
     }
 
     public Integer sendActiveMatchStateToChannel(Long chatId,
@@ -286,6 +386,11 @@ public class MatchService {
     }
 
     private void winnerProcess(Match match, EmojiRaceBot bot) {
+        if (match.getType() == MatchType.BATTLE) {
+            battleWinnerProcess(match, bot);
+            return;
+        }
+
         Integer winnerNumber = match.getWinner();
         MatchPlayer winner = match.getPlayerByNumber(winnerNumber);
 
@@ -352,6 +457,53 @@ public class MatchService {
 
             }
         });
+    }
+
+    private void battleWinnerProcess(Match match, EmojiRaceBot bot) {
+        Integer winnerNumber = match.getWinner();
+        MatchPlayer winner = match.getPlayerByNumber(winnerNumber);
+        if (winner == null || winner.getOwnerUserChatId() == null) {
+            return;
+        }
+
+        paymentRequestRepository.completeLoseRequests(winner, winner.getMatch());
+
+        long battleBank = match.getMatchPlayers().stream()
+                .mapToLong(matchPlayer -> matchPlayer.getScore() == null ? 0L : matchPlayer.getScore())
+                .sum();
+        long winnerAmount = Math.round(battleBank * 0.95d);
+
+        Long winnerUserChatId = winner.getOwnerUserChatId();
+        if (accountService.addBalance(winnerUserChatId, winnerAmount)) {
+            SendMessage winnerMessage = new SendMessage(
+                    winnerUserChatId.toString(),
+                    "🏆 Вы победили в батле #" + match.getId() + "!\n\n" +
+                            "На ваш баланс начислено " + winnerAmount + " ⭐ (95% от банка " + battleBank + " ⭐)."
+            );
+            winnerMessage.setReplyMarkup(InlineKeyboardMarkup.builder().keyboard(List.of(List.of(createMatchLinkButton(match)))).build());
+            bot.execute(winnerMessage);
+        }
+
+        paymentRequestRepository.findAllByMatchPlayerAndStatus(winner, PaymentRequestStatus.PAYED)
+                .forEach(paymentRequest -> {
+                    paymentRequest.setStatus(PaymentRequestStatus.COMPLETED);
+                    paymentRequest.setToWinner(true);
+                    paymentRequestRepository.save(paymentRequest);
+                });
+
+        match.getMatchPlayers().stream()
+                .filter(matchPlayer -> !matchPlayer.getNumber().equals(winnerNumber))
+                .map(MatchPlayer::getOwnerUserChatId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .forEach(loserUserChatId -> {
+                    SendMessage loseMessage = new SendMessage(
+                            loserUserChatId.toString(),
+                            "😔 Батл #" + match.getId() + " завершён. К сожалению, в этот раз вы проиграли."
+                    );
+                    loseMessage.setReplyMarkup(InlineKeyboardMarkup.builder().keyboard(List.of(List.of(createMatchLinkButton(match)))).build());
+                    bot.execute(loseMessage);
+                });
     }
 
     private Integer sendRaceStateMessage(Long mainChannelChatId, EmojiRaceBot bot, Race race) {

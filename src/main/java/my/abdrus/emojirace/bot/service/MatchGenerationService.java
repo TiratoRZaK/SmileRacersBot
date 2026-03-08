@@ -13,6 +13,7 @@ import my.abdrus.emojirace.bot.EmojiRaceBot;
 import my.abdrus.emojirace.bot.entity.Match;
 import my.abdrus.emojirace.bot.entity.Player;
 import my.abdrus.emojirace.bot.enumeration.MatchStatus;
+import my.abdrus.emojirace.bot.enumeration.MatchType;
 import my.abdrus.emojirace.bot.repository.MatchRepository;
 import my.abdrus.emojirace.bot.repository.PlayerRepository;
 import my.abdrus.emojirace.config.ChannelProperties;
@@ -45,20 +46,33 @@ public class MatchGenerationService {
 
     public void startGeneration(EmojiRaceBot bot) {
         taskScheduler.scheduleWithFixedDelay(() -> {
-            var latestActiveMatch = matchRepository
-                    .findFirstByStatusInOrderByCreatedDateDesc(List.of(MatchStatus.values()))
-                    .orElse(null);
-            if (latestActiveMatch == null || latestActiveMatch.getStatus().equals(MatchStatus.COMPLETED)) {
-                latestActiveMatch = matchService.createMatchByPlayers(getPlayersForMatch());
-                log.info("Генерация новой гонки #{}", latestActiveMatch.getId());
-                matchRepository
-                        .findById(latestActiveMatch.getId())
-                        .ifPresent(match -> matchService.sendMatchLineToChannel(match, bot));
-            } else {
-                matchRepository
-                        .findById(latestActiveMatch.getId())
-                        .ifPresent(match -> matchService.startLiveByActiveMatch(match, bot));
+            var liveMatch = matchRepository.findFirstByStatusOrderByCreatedDateAsc(MatchStatus.LIVE).orElse(null);
+            if (liveMatch != null) {
+                return;
             }
+
+            var waitingBattle = matchRepository
+                    .findFirstByStatusAndTypeOrderByCreatedDateAsc(MatchStatus.CREATED, MatchType.BATTLE)
+                    .orElse(null);
+            if (waitingBattle != null) {
+                log.info("Старт батла #{} из очереди ожидания", waitingBattle.getId());
+                matchRepository.findById(waitingBattle.getId()).ifPresent(match -> matchService.startLiveByActiveMatch(match, bot));
+                return;
+            }
+
+            var waitingRegularMatch = matchRepository
+                    .findFirstByStatusAndTypeOrderByCreatedDateAsc(MatchStatus.CREATED, MatchType.REGULAR)
+                    .orElse(null);
+            if (waitingRegularMatch != null) {
+                matchRepository.findById(waitingRegularMatch.getId()).ifPresent(match -> matchService.startLiveByActiveMatch(match, bot));
+                return;
+            }
+
+            Match createdRegularMatch = matchService.createMatchByPlayers(getPlayersForMatch());
+            log.info("Генерация новой гонки #{}", createdRegularMatch.getId());
+            matchRepository
+                    .findById(createdRegularMatch.getId())
+                    .ifPresent(match -> matchService.sendMatchLineToChannel(match, bot));
         }, Duration.ofMinutes(3));
     }
 

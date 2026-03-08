@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import my.abdrus.emojirace.bot.entity.Match;
 import my.abdrus.emojirace.bot.enumeration.MatchStatus;
+import my.abdrus.emojirace.bot.enumeration.MatchType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,4 +24,8 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
     Optional<Match> findById(@Param("id") Long id);
 
     Optional<Match> findFirstByStatusInOrderByCreatedDateDesc(Collection<MatchStatus> statusList);
+
+    Optional<Match> findFirstByStatusOrderByCreatedDateAsc(MatchStatus status);
+
+    Optional<Match> findFirstByStatusAndTypeOrderByCreatedDateAsc(MatchStatus status, MatchType type);
 }
