@@ -11,7 +11,8 @@ public class StateService {
     public enum State {
         NONE,
         WAITING_FOR_AMOUNT_DEP,
-        WAITING_FOR_AMOUNT_WITHDRAW
+        WAITING_FOR_AMOUNT_WITHDRAW,
+        WAITING_FOR_BATTLE_STAKE
     }
 
     public static class Session {

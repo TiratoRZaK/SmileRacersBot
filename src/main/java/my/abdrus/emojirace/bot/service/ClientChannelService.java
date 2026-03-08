@@ -4,14 +4,18 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import my.abdrus.emojirace.bot.EmojiRaceBot;
 import my.abdrus.emojirace.bot.entity.BotUser;
 import my.abdrus.emojirace.bot.entity.DependMessageCode;
+import my.abdrus.emojirace.bot.entity.Match;
 import my.abdrus.emojirace.bot.entity.PaymentRequest;
 import my.abdrus.emojirace.bot.entity.Player;
 import my.abdrus.emojirace.bot.entity.WithdrawRequest;
 import my.abdrus.emojirace.bot.enumeration.DependMessage;
+import my.abdrus.emojirace.bot.enumeration.MatchType;
 import my.abdrus.emojirace.bot.enumeration.PaymentRequestStatus;
 import my.abdrus.emojirace.bot.exception.PaymentException;
 import my.abdrus.emojirace.bot.repository.PaymentRequestRepository;
@@ -58,6 +62,7 @@ public class ClientChannelService extends ChannelService {
     private DependMessageService dependMessageService;
 
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss");
+    private final Map<Long, Long> pendingBattleStake = new ConcurrentHashMap<>();
 
     @Override
     public void updateProcess(Update update, EmojiRaceBot bot) {
@@ -170,6 +175,21 @@ public class ClientChannelService extends ChannelService {
                 stateService.clear(chatId);
             }
             return;
+        } else if (session.state == StateService.State.WAITING_FOR_BATTLE_STAKE) {
+            try {
+                long stake = Long.parseLong(text);
+                if (stake < 1) {
+                    throw new NumberFormatException();
+                }
+
+                pendingBattleStake.put(chatId, stake);
+                sendBattleCreatorPlayerSelection(chatId, bot);
+                stateService.clear(chatId);
+            } catch (NumberFormatException e) {
+                bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Введите корректную сумму ставки (целое число > 0)." )).getMessageId());
+                stateService.clear(chatId);
+            }
+            return;
         }
 
         if (text.startsWith("plus_")) {
@@ -240,11 +260,23 @@ public class ClientChannelService extends ChannelService {
                 SendMessage msg = new SendMessage(chatId.toString(), "Ошибка оплаты. " + e.getMessage());
                 bot.deleteMessageScheduled(chatId, bot.execute(msg).getMessageId());
             }
+        } else if (text.equals("⚔️ Создать батл")) {
+            stateService.setWaitingAmount(chatId, StateService.State.WAITING_FOR_BATTLE_STAKE);
+            bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Введите ставку для батла в ⭐:" )).getMessageId());
         } else if (text.equals("\uD83D\uDC4A Показать текущую битву")) {
             bot.deleteMessageScheduled(chatId,
                     matchService.sendActiveMatchStateToChannel(chatId, false, bot),
                     channelProperties.getDefaultDeleteMessageMenuDelay());
-        } else if (text.equals("/start")) {
+        } else if (text.startsWith("/start")) {
+            if (text.startsWith("/start join_battle_")) {
+                try {
+                    long battleId = Long.parseLong(text.replace("/start join_battle_", "").trim());
+                    sendBattleJoinInvite(chatId, battleId, bot);
+                } catch (NumberFormatException ignored) {
+                    bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Некорректная ссылка батла.")).getMessageId());
+                }
+                return;
+            }
             sendPersistentKeyboard(message.getFrom(), chatId, bot);
         }
     }
@@ -307,6 +339,120 @@ public class ClientChannelService extends ChannelService {
                 }
                 bot.execute(answer);
             });
+            return true;
+        } else if (query.startsWith("battleJoin_")) {
+            String[] s = query.split("_");
+            long battleId = Long.parseLong(s[1]);
+            sendBattleJoinInvite(userChatId, battleId, bot);
+            return true;
+        } else if (query.startsWith("battleCreatePick_")) {
+            String playerName = query.replace("battleCreatePick_", "");
+            Long stake = pendingBattleStake.get(userChatId);
+            if (stake == null || stake < 1) {
+                bot.execute(createAnswerAlert(callbackQuery, "Ставка батла не найдена. Начните создание заново."));
+                return true;
+            }
+
+            Player selectedPlayer = playerRepository.findByName(playerName).orElse(null);
+            if (selectedPlayer == null) {
+                bot.execute(createAnswerAlert(callbackQuery, "Смайл не найден."));
+                return true;
+            }
+
+            try {
+                Match battle = matchService.createBattle(userChatId, selectedPlayer, stake);
+                String inviteLink = channelProperties.getBotLink() + "?start=join_battle_" + battle.getId();
+                SendMessage msg = new SendMessage(userChatId.toString(),
+                        "⚔️ Батл #" + battle.getId() + " создан!\n\n" +
+                                "Ставка: " + stake + " ⭐\n" +
+                                "Ваш смайл: " + selectedPlayer.getName() + "\n\n" +
+                                "Ссылка для друга:\n" + inviteLink + "\n\n" +
+                                "Когда участников станет больше одного — нажмите 'Старт батла'.");
+                msg.setReplyMarkup(createBattleCreatorKeyboard(battle.getId()));
+                bot.execute(msg);
+                pendingBattleStake.remove(userChatId);
+                dependMessageService.deleteDependMessage(userChatId, DependMessageCode.SELECT_BATTLE_PLAYER, bot);
+                bot.execute(createAnswerAlert(callbackQuery, "Батл создан."));
+            } catch (PaymentException e) {
+                bot.execute(createAnswerAlert(callbackQuery, "Не удалось создать батл: " + e.getMessage()));
+            }
+            return true;
+        } else if (query.startsWith("battlePick_")) {
+            String[] s = query.split("_");
+            long battleId = Long.parseLong(s[1]);
+            String playerName = s[2];
+            dependMessageService.deleteDependMessage(userChatId, DependMessageCode.SELECT_BATTLE_JOIN_PLAYER, bot);
+            SendMessage msg = new SendMessage(userChatId.toString(), "Вы выбрали смайл " + playerName + ". Подтвердите вход в батл.");
+            msg.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(
+                    InlineKeyboardButton.builder().text("Подтвердить участие").callbackData("battleConfirm_" + battleId + "_" + playerName).build()
+            ))));
+            bot.execute(msg);
+            return true;
+        } else if (query.startsWith("battleConfirm_")) {
+            String[] s = query.split("_");
+            long battleId = Long.parseLong(s[1]);
+            String playerName = s[2];
+            Match battle = matchRepository.findById(battleId).orElse(null);
+            if (battle == null || battle.getType() != MatchType.BATTLE || battle.getStatus() != my.abdrus.emojirace.bot.enumeration.MatchStatus.CREATED) {
+                bot.execute(createAnswerAlert(callbackQuery, "Батл недоступен."));
+                return true;
+            }
+
+            long stake = matchService.getBattleStake(battle);
+            Player player = playerRepository.findByName(playerName).orElse(null);
+            if (player == null) {
+                bot.execute(createAnswerAlert(callbackQuery, "Смайл не найден."));
+                return true;
+            }
+            try {
+                boolean joined = matchService.joinBattle(battleId, userChatId, player, stake);
+                if (!joined) {
+                    bot.execute(createAnswerAlert(callbackQuery, "Нельзя присоединиться (смайл/участник уже есть или батл закрыт)."));
+                    return true;
+                }
+                SendMessage msg = new SendMessage(userChatId.toString(), "✅ Вы присоединились к батлу #" + battleId + " со ставкой " + stake + " ⭐.");
+                bot.execute(msg);
+
+                if (battle.getCreatorUserChatId() != null) {
+                    SendMessage creatorMsg = new SendMessage(battle.getCreatorUserChatId().toString(),
+                            "В батл #" + battleId + " присоединился новый участник. Можно запускать.");
+                    creatorMsg.setReplyMarkup(createBattleCreatorKeyboard(battleId));
+                    bot.execute(creatorMsg);
+                }
+            } catch (PaymentException e) {
+                bot.execute(createAnswerAlert(callbackQuery, "Не удалось списать ставку: " + e.getMessage()));
+            }
+            return true;
+        } else if (query.startsWith("battleStart_")) {
+            long battleId = Long.parseLong(query.split("_")[1]);
+            if (!matchService.canStartBattle(battleId, userChatId)) {
+                bot.execute(createAnswerAlert(callbackQuery, "Старт недоступен: нужен создатель и минимум 2 участника."));
+                return true;
+            }
+
+            Match liveExists = matchRepository.findFirstByStatusOrderByCreatedDateAsc(my.abdrus.emojirace.bot.enumeration.MatchStatus.LIVE).orElse(null);
+            if (liveExists == null) {
+                matchRepository.findById(battleId).ifPresent(match -> matchService.startLiveByActiveMatch(match, bot));
+                bot.execute(createAnswerAlert(callbackQuery, "Батл запущен!"));
+            } else {
+                bot.execute(createAnswerAlert(callbackQuery, "Батл поставлен в очередь и стартует автоматически после текущей гонки."));
+            }
+            return true;
+        } else if (query.startsWith("battleCancel_")) {
+            long battleId = Long.parseLong(query.split("_")[1]);
+            Match canceled = matchService.cancelBattle(battleId, userChatId);
+            if (canceled == null) {
+                bot.execute(createAnswerAlert(callbackQuery, "Отмена недоступна."));
+                return true;
+            }
+
+            canceled.getMatchPlayers().stream()
+                    .map(mp -> mp.getOwnerUserChatId())
+                    .filter(id -> id != null && !id.equals(userChatId))
+                    .distinct()
+                    .forEach(id -> bot.execute(new SendMessage(id.toString(), "⚠️ Батл #" + battleId + " отменён создателем. Ставка возвращена.")));
+
+            bot.execute(createAnswerAlert(callbackQuery, "Батл отменён."));
             return true;
         } else if (query.startsWith("deposit_")) {
             String[] s = query.split("_");
@@ -506,6 +652,10 @@ public class ClientChannelService extends ChannelService {
         row4.add(new KeyboardButton("\uD83D\uDC4A Показать текущую битву"));
         rows.add(row4);
 
+        KeyboardRow row5 = new KeyboardRow();
+        row5.add(new KeyboardButton("⚔️ Создать батл"));
+        rows.add(row5);
+
 
         ReplyKeyboardMarkup keyboard = new ReplyKeyboardMarkup();
         keyboard.setKeyboard(rows);
@@ -605,6 +755,114 @@ public class ClientChannelService extends ChannelService {
         keyboard.setKeyboard(List.of(
                 List.of(addAccountBtn, withdrawBtn)
         ));
+        return keyboard;
+    }
+
+    private InlineKeyboardMarkup createBattleCreatorKeyboard(Long battleId) {
+        return new InlineKeyboardMarkup(List.of(List.of(
+                InlineKeyboardButton.builder().text("Старт батла").callbackData("battleStart_" + battleId).build(),
+                InlineKeyboardButton.builder().text("Отменить батл").callbackData("battleCancel_" + battleId).build()
+        )));
+    }
+
+    private void sendBattleJoinInvite(Long chatId, long battleId, EmojiRaceBot bot) {
+        Match battle = matchRepository.findById(battleId).orElse(null);
+        if (battle == null || battle.getType() != MatchType.BATTLE || battle.getStatus() != my.abdrus.emojirace.bot.enumeration.MatchStatus.CREATED) {
+            bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Батл недоступен или уже завершён.")).getMessageId());
+            return;
+        }
+
+        long stake = matchService.getBattleStake(battle);
+        List<Player> availablePlayers = matchService.getAvailableBattlePlayers(battleId);
+        if (availablePlayers.isEmpty()) {
+            bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Нет доступных смайлов для входа в батл.")).getMessageId());
+            return;
+        }
+
+        boolean isFirstMessage = true;
+        while (!availablePlayers.isEmpty()) {
+            int count = Math.min(100, availablePlayers.size());
+            List<Player> subList = new ArrayList<>(availablePlayers.subList(0, count));
+            SendMessage msg = new SendMessage(chatId.toString(),
+                    isFirstMessage
+                            ? "⚔️ Приглашение в батл #" + battleId + "\n" +
+                            "Ставка: " + stake + " ⭐\n" +
+                            "Выберите смайл для участия:"
+                            : "Доступные смайлы для батла #" + battleId + ":");
+            msg.setReplyMarkup(createBattlePickKeyboard(subList, battleId));
+            Integer sendMessageId = bot.execute(msg).getMessageId();
+            dependMessageService.putDependMessage(chatId, DependMessage.builder()
+                    .messageId(sendMessageId)
+                    .chatId(chatId)
+                    .code(DependMessageCode.SELECT_BATTLE_JOIN_PLAYER)
+                    .build());
+            availablePlayers.subList(0, count).clear();
+            isFirstMessage = false;
+        }
+    }
+
+    private void sendBattleCreatorPlayerSelection(Long chatId, EmojiRaceBot bot) {
+        List<Player> players = new ArrayList<>(playerRepository.findAll());
+        boolean isFirstMessage = true;
+        while (!players.isEmpty()) {
+            int count = Math.min(100, players.size());
+            List<Player> subList = new ArrayList<>(players.subList(0, count));
+            SendMessage msg = new SendMessage(chatId.toString(), isFirstMessage
+                    ? "Выберите смайл для вашего батла:"
+                    : "Следующие смайлы:");
+            msg.setReplyMarkup(createBattleCreateKeyboard(subList));
+            Integer sendMessageId = bot.execute(msg).getMessageId();
+            dependMessageService.putDependMessage(chatId, DependMessage.builder()
+                    .messageId(sendMessageId)
+                    .chatId(chatId)
+                    .code(DependMessageCode.SELECT_BATTLE_PLAYER)
+                    .build());
+            players.subList(0, count).clear();
+            isFirstMessage = false;
+        }
+    }
+
+    private ReplyKeyboard createBattleCreateKeyboard(List<Player> players) {
+        InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+        List<InlineKeyboardButton> currentRow = new ArrayList<>();
+
+        for (Player player : players) {
+            InlineKeyboardButton button = new InlineKeyboardButton();
+            button.setText(player.getName());
+            button.setCallbackData("battleCreatePick_" + player.getName());
+            currentRow.add(button);
+            if (currentRow.size() == 8) {
+                rows.add(new ArrayList<>(currentRow));
+                currentRow.clear();
+            }
+        }
+        if (!currentRow.isEmpty()) {
+            rows.add(currentRow);
+        }
+        keyboard.setKeyboard(rows);
+        return keyboard;
+    }
+
+    private ReplyKeyboard createBattlePickKeyboard(List<Player> players, long battleId) {
+        InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+        List<InlineKeyboardButton> currentRow = new ArrayList<>();
+
+        for (Player player : players) {
+            InlineKeyboardButton button = new InlineKeyboardButton();
+            button.setText(player.getName());
+            button.setCallbackData("battlePick_" + battleId + "_" + player.getName());
+            currentRow.add(button);
+            if (currentRow.size() == 8) {
+                rows.add(new ArrayList<>(currentRow));
+                currentRow.clear();
+            }
+        }
+        if (!currentRow.isEmpty()) {
+            rows.add(currentRow);
+        }
+        keyboard.setKeyboard(rows);
         return keyboard;
     }
 
