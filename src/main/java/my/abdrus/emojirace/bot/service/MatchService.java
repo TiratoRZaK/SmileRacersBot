@@ -174,6 +174,22 @@ public class MatchService {
                 && match.getMatchPlayers().size() > 1;
     }
 
+
+    @Transactional
+    public boolean requestBattleStart(Long matchId, Long initiatorUserChatId) {
+        Match match = matchRepository.findById(matchId).orElse(null);
+        if (match == null
+                || match.getType() != MatchType.BATTLE
+                || match.getStatus() != CREATED
+                || !canStartBattle(matchId, initiatorUserChatId)) {
+            return false;
+        }
+
+        match.setBattleStartRequested(true);
+        matchRepository.save(match);
+        return true;
+    }
+
     public List<Player> getAvailableBattlePlayers(Long matchId) {
         Match match = matchRepository.findById(matchId).orElse(null);
         if (match == null) {

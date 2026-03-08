@@ -432,8 +432,10 @@ public class ClientChannelService extends ChannelService {
             if (liveExists == null) {
                 matchRepository.findById(battleId).ifPresent(match -> matchService.startLiveByActiveMatch(match, bot));
                 bot.execute(createAnswerAlert(callbackQuery, "Батл запущен!"));
-            } else {
+            } else if (matchService.requestBattleStart(battleId, userChatId)) {
                 bot.execute(createAnswerAlert(callbackQuery, "Батл поставлен в очередь и стартует автоматически после текущей гонки."));
+            } else {
+                bot.execute(createAnswerAlert(callbackQuery, "Не удалось поставить батл в очередь."));
             }
             return true;
         } else if (query.startsWith("battleCancel_")) {
