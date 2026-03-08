@@ -2,6 +2,8 @@ package my.abdrus.emojirace.bot.service;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -569,7 +571,7 @@ public class MatchService {
         if (messageId == null) {
             SendMessage msg = new SendMessage(battle.getCreatorUserChatId().toString(), text.toString());
             if (battle.getStatus() == CREATED) {
-                msg.setReplyMarkup(createBattleCreatorKeyboard(battle.getId()));
+                msg.setReplyMarkup(createBattleCreatorKeyboard(battle.getId(), inviteLink));
             }
             Integer newMessageId = bot.execute(msg).getMessageId();
             battle.setBattleCreatorMessageId(newMessageId);
@@ -582,7 +584,7 @@ public class MatchService {
         editMessage.setMessageId(messageId);
         editMessage.setText(text.toString());
         if (battle.getStatus() == CREATED) {
-            editMessage.setReplyMarkup(createBattleCreatorKeyboard(battle.getId()));
+            editMessage.setReplyMarkup(createBattleCreatorKeyboard(battle.getId(), inviteLink));
         }
         bot.execute(editMessage);
     }
@@ -611,11 +613,20 @@ public class MatchService {
         return markup;
     }
 
-    private InlineKeyboardMarkup createBattleCreatorKeyboard(Long battleId) {
-        return new InlineKeyboardMarkup(List.of(List.of(
-                InlineKeyboardButton.builder().text("Старт батла").callbackData("battleStart_" + battleId).build(),
-                InlineKeyboardButton.builder().text("Отменить батл").callbackData("battleCancel_" + battleId).build()
-        )));
+    private InlineKeyboardMarkup createBattleCreatorKeyboard(Long battleId, String inviteLink) {
+        String shareText = URLEncoder.encode("Присоединяйся к моему батлу в EmojiRace!", StandardCharsets.UTF_8);
+        String encodedInviteLink = URLEncoder.encode(inviteLink, StandardCharsets.UTF_8);
+        String shareUrl = "https://t.me/share/url?url=" + encodedInviteLink + "&text=" + shareText;
+
+        return new InlineKeyboardMarkup(List.of(
+                List.of(
+                        InlineKeyboardButton.builder().text("Старт батла").callbackData("battleStart_" + battleId).build(),
+                        InlineKeyboardButton.builder().text("Отменить батл").callbackData("battleCancel_" + battleId).build()
+                ),
+                List.of(
+                        InlineKeyboardButton.builder().text("Пригласить друзей").url(shareUrl).build()
+                )
+        ));
     }
 
     private InlineKeyboardButton createBotLinkButton() {
