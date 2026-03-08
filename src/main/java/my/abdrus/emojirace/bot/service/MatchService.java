@@ -614,9 +614,11 @@ public class MatchService {
     }
 
     private InlineKeyboardMarkup createBattleCreatorKeyboard(Long battleId, String inviteLink) {
-        String shareText = URLEncoder.encode("Присоединяйся к моему батлу в EmojiRace!", StandardCharsets.UTF_8);
-        String encodedInviteLink = URLEncoder.encode(inviteLink, StandardCharsets.UTF_8);
-        String shareUrl = "https://t.me/share/url?url=" + encodedInviteLink + "&text=" + shareText;
+        String shareTemplate = "✨ Тебя приглашают в батл EmojiRace!%n" +
+                "Батл #%d уже ждёт тебя.%n%n" +
+                "Выбирай смайл и присоединяйся:%n%s";
+        String shareText = URLEncoder.encode(shareTemplate.formatted(battleId, inviteLink), StandardCharsets.UTF_8);
+        String shareUrl = "https://t.me/share/url?text=" + shareText;
 
         return new InlineKeyboardMarkup(List.of(
                 List.of(
