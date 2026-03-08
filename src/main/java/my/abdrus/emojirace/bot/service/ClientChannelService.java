@@ -343,7 +343,7 @@ public class ClientChannelService extends ChannelService {
                     .url("tg://user?id=" + targetUserId)
                     .build());
             row.add(InlineKeyboardButton.builder()
-                    .text("Списать сумму с баланса")
+                    .text("Подтвердить вывод")
                     .callbackData("withdrawPay_" + requestId)
                     .build());
             row.add(InlineKeyboardButton.builder()
@@ -528,10 +528,10 @@ public class ClientChannelService extends ChannelService {
         bot.execute(pinMessage);
     }
 
-    private void sendCreatedWithdraws(Long adminChatId, EmojiRaceBot bot) {
+    private void sendCreatedWithdraws(Long chatId, EmojiRaceBot bot) {
         List<WithdrawRequest> createdRequests = withdrawService.getCreatedRequests();
         if (createdRequests.isEmpty()) {
-            bot.execute(new SendMessage(adminChatId.toString(), "Нет активных запросов на вывод."));
+            bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Нет активных запросов на вывод.")).getMessageId());
             return;
         }
 
@@ -547,9 +547,9 @@ public class ClientChannelService extends ChannelService {
                     .build()));
         }
 
-        SendMessage sendMessage = new SendMessage(adminChatId.toString(), text.toString());
+        SendMessage sendMessage = new SendMessage(chatId.toString(), text.toString());
         sendMessage.setReplyMarkup(new InlineKeyboardMarkup(buttons));
-        bot.execute(sendMessage);
+        bot.deleteMessageScheduled(chatId, bot.execute(sendMessage).getMessageId());
     }
 
 

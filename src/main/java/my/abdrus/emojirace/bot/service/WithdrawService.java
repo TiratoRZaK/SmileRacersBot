@@ -39,13 +39,13 @@ public class WithdrawService {
         WithdrawRequest withdrawRequest = withdrawRequestRepository.findById(requestId).orElse(null);
         if (withdrawRequest == null) {
             SendMessage sendMessage = new SendMessage(userChatId.toString(), "Вывод не найден.");
-            bot.execute(sendMessage);
+            bot.deleteMessageScheduled(userChatId, bot.execute(sendMessage).getMessageId());
         } else if (WithdrawRequestStatus.PAYED.equals(withdrawRequest.getStatus())) {
-            SendMessage sendMessage = new SendMessage(userChatId.toString(), "Вывод уже выплачен.");
-            bot.execute(sendMessage);
+            SendMessage sendMessage = new SendMessage(userChatId.toString(), "✅ Вывод уже выплачен.");
+            bot.deleteMessageScheduled(userChatId, bot.execute(sendMessage).getMessageId());
         } else if (WithdrawRequestStatus.CANCELED.equals(withdrawRequest.getStatus())) {
-            SendMessage sendMessage = new SendMessage(userChatId.toString(), "Вывод уже отменён.");
-            bot.execute(sendMessage);
+            SendMessage sendMessage = new SendMessage(userChatId.toString(), "✅ Вывод уже отменён.");
+            bot.deleteMessageScheduled(userChatId, bot.execute(sendMessage).getMessageId());
         } else {
             withdrawRequest.setStatus(WithdrawRequestStatus.CANCELED);
             withdrawRequestRepository.save(withdrawRequest);
@@ -56,15 +56,15 @@ public class WithdrawService {
     public void markPayedByAdmin(Long adminChatId, Long requestId, EmojiRaceBot bot) {
         WithdrawRequest withdrawRequest = withdrawRequestRepository.findById(requestId).orElse(null);
         if (withdrawRequest == null) {
-            bot.execute(new SendMessage(adminChatId.toString(), "Вывод не найден."));
+            bot.deleteMessageScheduled(adminChatId, bot.execute(new SendMessage(adminChatId.toString(), "Вывод не найден.")).getMessageId());
             return;
         }
         if (WithdrawRequestStatus.PAYED.equals(withdrawRequest.getStatus())) {
-            bot.execute(new SendMessage(adminChatId.toString(), "Вывод уже выплачен."));
+            bot.deleteMessageScheduled(adminChatId, bot.execute(new SendMessage(adminChatId.toString(), "✅ Вывод уже выплачен.")).getMessageId());
             return;
         }
         if (WithdrawRequestStatus.CANCELED.equals(withdrawRequest.getStatus())) {
-            bot.execute(new SendMessage(adminChatId.toString(), "Вывод уже отменён."));
+            bot.deleteMessageScheduled(adminChatId, bot.execute(new SendMessage(adminChatId.toString(), "✅ Вывод уже отменён.")).getMessageId());
             return;
         }
 
@@ -74,22 +74,22 @@ public class WithdrawService {
 
         bot.execute(new SendMessage(withdrawRequest.getUserChatId().toString(),
                 "✅ Ваш вывод #" + withdrawRequest.getId() + " успешно выполнен."));
-        bot.execute(new SendMessage(adminChatId.toString(),
-                "Вывод #" + withdrawRequest.getId() + " отмечен как выплаченный."));
+        bot.deleteMessageScheduled(adminChatId, bot.execute(new SendMessage(adminChatId.toString(),
+                "✅ Вывод #" + withdrawRequest.getId() + " отмечен как выплаченный.")).getMessageId());
     }
 
     public void cancelByAdmin(Long adminChatId, Long requestId, EmojiRaceBot bot) {
         WithdrawRequest withdrawRequest = withdrawRequestRepository.findById(requestId).orElse(null);
         if (withdrawRequest == null) {
-            bot.execute(new SendMessage(adminChatId.toString(), "Вывод не найден."));
+            bot.deleteMessageScheduled(adminChatId, bot.execute(new SendMessage(adminChatId.toString(), "Вывод не найден.")).getMessageId());
             return;
         }
         if (WithdrawRequestStatus.PAYED.equals(withdrawRequest.getStatus())) {
-            bot.execute(new SendMessage(adminChatId.toString(), "Вывод уже выплачен."));
+            bot.deleteMessageScheduled(adminChatId, bot.execute(new SendMessage(adminChatId.toString(), "✅ Вывод уже выплачен.")).getMessageId());
             return;
         }
         if (WithdrawRequestStatus.CANCELED.equals(withdrawRequest.getStatus())) {
-            bot.execute(new SendMessage(adminChatId.toString(), "Вывод уже отменён."));
+            bot.deleteMessageScheduled(adminChatId, bot.execute(new SendMessage(adminChatId.toString(), "✅ Вывод уже отменён.")).getMessageId());
             return;
         }
 
@@ -100,8 +100,8 @@ public class WithdrawService {
         bot.execute(new SendMessage(withdrawRequest.getUserChatId().toString(),
                 "❌ Ваш вывод #" + withdrawRequest.getId()
                         + " отменён администратором. Обратитесь в поддержку."));
-        bot.execute(new SendMessage(adminChatId.toString(),
-                "Вывод #" + withdrawRequest.getId() + " отменён, сумма возвращена пользователю."));
+        bot.deleteMessageScheduled(adminChatId, bot.execute(new SendMessage(adminChatId.toString(),
+                "✅ Вывод #" + withdrawRequest.getId() + " отменён, сумма возвращена пользователю.")).getMessageId());
     }
 
 }
