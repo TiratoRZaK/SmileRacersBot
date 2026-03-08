@@ -39,6 +39,9 @@ public class MatchPlayer {
     @Column(name = "SCORE", nullable = false)
     private Long score = 0L;
 
+    @Column(name = "OWNER_USER_CHAT_ID")
+    private Long ownerUserChatId;
+
     public MatchPlayer(Player player, Integer playerNumber) {
         this.player = player;
         this.number = playerNumber;

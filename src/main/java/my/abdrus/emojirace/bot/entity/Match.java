@@ -21,6 +21,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import my.abdrus.emojirace.bot.enumeration.MatchStatus;
+import my.abdrus.emojirace.bot.enumeration.MatchType;
 
 @Data
 @Builder
@@ -47,6 +48,14 @@ public class Match {
     @Column(name = "STATUS")
     @Enumerated(EnumType.STRING)
     private MatchStatus status;
+
+    @Column(name = "TYPE", nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private MatchType type = MatchType.REGULAR;
+
+    @Column(name = "CREATOR_USER_CHAT_ID")
+    private Long creatorUserChatId;
 
     @OneToMany(mappedBy = "match", cascade = CascadeType.REMOVE)
     private List<ScoreMessage> scoreMessages;
