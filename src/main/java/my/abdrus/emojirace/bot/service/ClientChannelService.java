@@ -190,40 +190,6 @@ public class ClientChannelService extends ChannelService {
                 stateService.clear(chatId);
             }
             return;
-        } else if (session.state == StateService.State.WAITING_FOR_BATTLE_STAKE) {
-            try {
-                long stake = Long.parseLong(text);
-                if (stake < 1) {
-                    throw new NumberFormatException();
-                }
-
-                BotUser user = userService.createIfNeed(chatId);
-                Player favoritePlayer = user.getFavoritePlayer();
-                if (favoritePlayer == null) {
-                    bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Сначала выберите любимый смайл.")).getMessageId());
-                    stateService.clear(chatId);
-                    return;
-                }
-
-                Match battle = matchService.createBattle(chatId, favoritePlayer, stake);
-                String inviteLink = channelProperties.getBotLink() + "?start=join_battle_" + battle.getId();
-                SendMessage msg = new SendMessage(chatId.toString(),
-                        "⚔️ Батл #" + battle.getId() + " создан!\n\n" +
-                                "Ставка: " + stake + " ⭐\n" +
-                                "Ваш смайл: " + favoritePlayer.getName() + "\n\n" +
-                                "Ссылка для друга:\n" + inviteLink + "\n\n" +
-                                "Когда участников станет больше одного — нажмите 'Старт батла'.");
-                msg.setReplyMarkup(createBattleCreatorKeyboard(battle.getId()));
-                bot.execute(msg);
-                stateService.clear(chatId);
-            } catch (NumberFormatException e) {
-                bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Введите корректную сумму ставки (целое число > 0)." )).getMessageId());
-                stateService.clear(chatId);
-            } catch (PaymentException e) {
-                bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Не удалось создать батл: " + e.getMessage())).getMessageId());
-                stateService.clear(chatId);
-            }
-            return;
         }
 
         if (text.startsWith("plus_")) {
@@ -898,43 +864,6 @@ public class ClientChannelService extends ChannelService {
         }
         keyboard.setKeyboard(rows);
         return keyboard;
-    }
-
-    private InlineKeyboardMarkup createBattleCreatorKeyboard(Long battleId) {
-        return new InlineKeyboardMarkup(List.of(List.of(
-                InlineKeyboardButton.builder().text("Старт батла").callbackData("battleStart_" + battleId).build(),
-                InlineKeyboardButton.builder().text("Отменить батл").callbackData("battleCancel_" + battleId).build()
-        )));
-    }
-
-    private void sendBattleJoinInvite(Long chatId, long battleId, EmojiRaceBot bot) {
-        Match battle = matchRepository.findById(battleId).orElse(null);
-        if (battle == null || battle.getType() != MatchType.BATTLE || battle.getStatus() != my.abdrus.emojirace.bot.enumeration.MatchStatus.CREATED) {
-            bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Батл недоступен или уже завершён.")).getMessageId());
-            return;
-        }
-
-        long stake = matchService.getBattleStake(battle);
-        List<Player> availablePlayers = matchService.getAvailableBattlePlayers(battleId);
-        if (availablePlayers.isEmpty()) {
-            bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Нет доступных смайлов для входа в батл.")).getMessageId());
-            return;
-        }
-
-        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-        for (Player player : availablePlayers.stream().limit(10).toList()) {
-            rows.add(List.of(InlineKeyboardButton.builder()
-                    .text("Выбрать " + player.getName())
-                    .callbackData("battlePick_" + battleId + "_" + player.getName())
-                    .build()));
-        }
-
-        SendMessage msg = new SendMessage(chatId.toString(),
-                "⚔️ Приглашение в батл #" + battleId + "\n" +
-                        "Ставка: " + stake + " ⭐\n" +
-                        "Выберите смайл для участия:");
-        msg.setReplyMarkup(new InlineKeyboardMarkup(rows));
-        bot.execute(msg);
     }
 
     public InlineKeyboardMarkup createUserRequestKeyboard(Long userId) {
