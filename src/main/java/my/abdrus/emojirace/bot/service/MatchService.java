@@ -614,8 +614,12 @@ public class MatchService {
     }
 
     private InlineKeyboardMarkup createBattleCreatorKeyboard(Long battleId, String inviteLink) {
-        String shareText = URLEncoder.encode("Присоединяйся к моему батлу в EmojiRace!", StandardCharsets.UTF_8);
+        String shareTemplate = "✨ Тебя приглашают в батл EmojiRace!%n" +
+                "Батл #%d уже ждёт тебя.%n" +
+                "Присоединяйся по ссылке ниже 👇";
+        String shareText = URLEncoder.encode(shareTemplate.formatted(battleId), StandardCharsets.UTF_8);
         String encodedInviteLink = URLEncoder.encode(inviteLink, StandardCharsets.UTF_8);
+        // Keep both url and text params for broad Telegram client compatibility.
         String shareUrl = "https://t.me/share/url?url=" + encodedInviteLink + "&text=" + shareText;
 
         return new InlineKeyboardMarkup(List.of(

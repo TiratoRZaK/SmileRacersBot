@@ -271,6 +271,11 @@ public class ClientChannelService extends ChannelService {
             if (text.startsWith("/start join_battle_")) {
                 try {
                     long battleId = Long.parseLong(text.replace("/start join_battle_", "").trim());
+                    if (!userService.checkExists(chatId)) {
+                        sendPersistentKeyboard(message.getFrom(), chatId, bot);
+                        bot.execute(new SendMessage(chatId.toString(),
+                                "👋 Похоже, вы впервые в EmojiRace! Ниже закреплено меню — пополните баланс и присоединяйтесь к батлам."));
+                    }
                     sendBattleJoinInvite(chatId, battleId, bot);
                 } catch (NumberFormatException ignored) {
                     bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Некорректная ссылка батла.")).getMessageId());
@@ -777,10 +782,12 @@ public class ClientChannelService extends ChannelService {
             List<Player> subList = new ArrayList<>(availablePlayers.subList(0, count));
             SendMessage msg = new SendMessage(chatId.toString(),
                     isFirstMessage
-                            ? "⚔️ Приглашение в батл #" + battleId + "\n" +
-                            "Голос за победу: " + stake + " ⭐\n" +
-                            "Выберите смайл для участия:"
+                            ? "⚔️✨ *ПРИГЛАШЕНИЕ В БАТЛ* ✨⚔️\n" +
+                            "Батл #" + battleId + "\n" +
+                            "Ставка за вход: " + stake + " ⭐\n" +
+                            "🎯 Выберите смайл для участия и подтвердите вход ниже:"
                             : "Доступные смайлы для батла #" + battleId + ":");
+            msg.setParseMode("Markdown");
             msg.setReplyMarkup(createBattlePickKeyboard(subList, battleId));
             Integer sendMessageId = bot.execute(msg).getMessageId();
             dependMessageService.putDependMessage(chatId, DependMessage.builder()
