@@ -800,7 +800,7 @@ public class ClientChannelService extends ChannelService {
             SendMessage msg = new SendMessage(chatId.toString(),
                     isFirstMessage
                             ? "⚔️ Приглашение в батл #" + battleId + "\n" +
-                            "Сумма голосов на победителя: " + stake + " ⭐\n" +
+                            "Голос за победу: " + stake + " ⭐\n" +
                             "Выберите смайл для участия:"
                             : "Доступные смайлы для батла #" + battleId + ":");
             msg.setReplyMarkup(createBattlePickKeyboard(subList, battleId));

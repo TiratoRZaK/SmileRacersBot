@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -470,7 +471,7 @@ public class MatchService {
         paymentRequestRepository.completeLoseRequests(winner, winner.getMatch());
 
         long battleBank = Optional.ofNullable(paymentRequestRepository.sumBattleBank(match)).orElse(0L);
-        long winnerAmount = Math.round(battleBank * 0.95d);
+        long winnerAmount = Math.round(battleBank * 0.95d * 2);
 
         Long winnerUserChatId = winner.getOwnerUserChatId();
         if (accountService.addBalance(winnerUserChatId, winnerAmount)) {
@@ -513,7 +514,13 @@ public class MatchService {
         }
 
         String participants = battle.getMatchPlayers().stream()
-                .map(matchPlayer -> "• " + matchPlayer.getPlayerName())
+                .sorted(Comparator.comparing(MatchPlayer::getNumber))
+                .map(matchPlayer -> {
+                    String owner = matchPlayer.getOwnerUserChatId() == null
+                            ? ""
+                            : " (" + userService.getUsernameOrFallback(matchPlayer.getOwnerUserChatId()) + ")";
+                    return "• " + matchPlayer.getPlayerName() + owner;
+                })
                 .collect(Collectors.joining("\n"));
         if (participants.isBlank()) {
             participants = "—";
@@ -521,9 +528,11 @@ public class MatchService {
 
         String inviteLink = channelProperties.getBotLink() + "?start=join_battle_" + battle.getId();
         long battleBank = Optional.ofNullable(paymentRequestRepository.sumBattleBank(battle)).orElse(0L);
+        long voteForVictory = getBattleStake(battle);
 
         StringBuilder text = new StringBuilder("⚔️ Батл #" + battle.getId() + " создан!\n\n")
-                .append("Сумма голосов на победителя: ").append(battleBank).append(" ⭐\n")
+                .append("Голос за победу: ").append(voteForVictory).append(" ⭐\n")
+                .append("Общий банк: ").append(battleBank).append(" ⭐\n")
                 .append("Участники:\n").append(participants).append("\n\n")
                 .append("Ссылка для друга:\n").append(inviteLink);
 
