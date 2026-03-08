@@ -63,6 +63,10 @@ public class Match {
     @Column(name = "BATTLE_CREATOR_MESSAGE_ID")
     private Integer battleCreatorMessageId;
 
+    @Column(name = "BATTLE_START_REQUESTED", nullable = false)
+    @Builder.Default
+    private boolean battleStartRequested = false;
+
     @OneToMany(mappedBy = "match", cascade = CascadeType.REMOVE)
     private List<ScoreMessage> scoreMessages;
 

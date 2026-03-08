@@ -52,7 +52,7 @@ public class MatchGenerationService {
             }
 
             var waitingBattle = matchRepository
-                    .findFirstByStatusAndTypeOrderByCreatedDateAsc(MatchStatus.CREATED, MatchType.BATTLE)
+                    .findFirstByStatusAndTypeAndBattleStartRequestedTrueOrderByCreatedDateAsc(MatchStatus.CREATED, MatchType.BATTLE)
                     .filter(match -> matchService.canStartBattle(match.getId(), match.getCreatorUserChatId()))
                     .orElse(null);
             if (waitingBattle != null) {
