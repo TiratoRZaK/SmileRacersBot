@@ -25,7 +25,7 @@ public class AccountService {
     @Autowired
     private UserService userService;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void pay(@NotNull PaymentRequest paymentRequest) throws PaymentException {
         Account account = accountRepository
                 .findAvailableAccount(paymentRequest.getUserChatId(), paymentRequest.getSum())
