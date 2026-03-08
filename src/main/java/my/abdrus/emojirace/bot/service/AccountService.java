@@ -1,10 +1,12 @@
 package my.abdrus.emojirace.bot.service;
 
 import jakarta.validation.constraints.NotNull;
+import java.util.Date;
 import my.abdrus.emojirace.bot.entity.Account;
 import my.abdrus.emojirace.bot.entity.BotUser;
 import my.abdrus.emojirace.bot.entity.PaymentRequest;
 import my.abdrus.emojirace.bot.enumeration.PaymentExceptionType;
+import my.abdrus.emojirace.bot.enumeration.PaymentRequestStatus;
 import my.abdrus.emojirace.bot.exception.PaymentException;
 import my.abdrus.emojirace.bot.repository.AccountRepository;
 import my.abdrus.emojirace.bot.repository.PaymentRequestRepository;
@@ -29,12 +31,13 @@ public class AccountService {
                 .findAvailableAccount(paymentRequest.getUserChatId(), paymentRequest.getSum())
                 .orElseThrow(() -> new PaymentException(PaymentExceptionType.ACCOUNT_WITH_BALANCE_NOT_FOUND));
         int result = accountRepository.withdrawFunds(account.getId(), paymentRequest.getSum());
-        if (paymentRequest.getId() != null) {
-            paymentRequestRepository.setPayedStatus(paymentRequest.getId());
-        }
         if (result == 0) {
             throw new PaymentException(PaymentExceptionType.BALANCE_UPDATED);
         }
+
+        paymentRequest.setStatus(PaymentRequestStatus.PAYED);
+        paymentRequest.setPayedDate(new Date());
+        paymentRequestRepository.save(paymentRequest);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
