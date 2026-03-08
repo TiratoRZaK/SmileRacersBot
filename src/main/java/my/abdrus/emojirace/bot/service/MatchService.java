@@ -374,9 +374,12 @@ public class MatchService {
                 bot.execute(editMessage);
                 Match raceMatch = race.getMatch();
                 raceMatch.setStatus(COMPLETED);
-                raceMatch = matchRepository.save(raceMatch);
-                race.setMatch(raceMatch);
-                winnerProcess(matchRepository.save(raceMatch), bot);
+                Match completedMatch = matchRepository.save(raceMatch);
+                race.setMatch(completedMatch);
+                winnerProcess(completedMatch, bot);
+                if (completedMatch.getType() == MatchType.BATTLE) {
+                    refreshBattleCreatorMessage(completedMatch.getId(), bot);
+                }
                 log.info("Завершение гонки #{}. Расчёт результатов.", savedMatch.getId());
             }
         }, Duration.of(1, ChronoUnit.SECONDS));
@@ -466,9 +469,7 @@ public class MatchService {
 
         paymentRequestRepository.completeLoseRequests(winner, winner.getMatch());
 
-        long battleBank = match.getMatchPlayers().stream()
-                .mapToLong(matchPlayer -> matchPlayer.getScore() == null ? 0L : matchPlayer.getScore())
-                .sum();
+        long battleBank = Optional.ofNullable(paymentRequestRepository.sumBattleBank(match)).orElse(0L);
         long winnerAmount = Math.round(battleBank * 0.95d);
 
         Long winnerUserChatId = winner.getOwnerUserChatId();
@@ -504,6 +505,61 @@ public class MatchService {
                 });
     }
 
+
+    public void refreshBattleCreatorMessage(Long battleId, EmojiRaceBot bot) {
+        Match battle = matchRepository.findById(battleId).orElse(null);
+        if (battle == null || battle.getType() != MatchType.BATTLE || battle.getCreatorUserChatId() == null) {
+            return;
+        }
+
+        String participants = battle.getMatchPlayers().stream()
+                .map(matchPlayer -> "• " + matchPlayer.getPlayerName())
+                .collect(Collectors.joining("\n"));
+        if (participants.isBlank()) {
+            participants = "—";
+        }
+
+        String inviteLink = channelProperties.getBotLink() + "?start=join_battle_" + battle.getId();
+        long battleBank = Optional.ofNullable(paymentRequestRepository.sumBattleBank(battle)).orElse(0L);
+
+        StringBuilder text = new StringBuilder("⚔️ Батл #" + battle.getId() + " создан!\n\n")
+                .append("Сумма голосов на победителя: ").append(battleBank).append(" ⭐\n")
+                .append("Участники:\n").append(participants).append("\n\n")
+                .append("Ссылка для друга:\n").append(inviteLink);
+
+        if (battle.getStatus() == COMPLETED) {
+            MatchPlayer winner = battle.getPlayerByNumber(battle.getWinner());
+            if (winner != null) {
+                text.append("\n\n🏁 Батл завершён. Победитель: ").append(winner.getPlayerName());
+            } else {
+                text.append("\n\n🏁 Батл завершён.");
+            }
+        } else {
+            text.append("\n\nКогда участников станет больше одного — нажмите 'Старт батла'.");
+        }
+
+        Integer messageId = battle.getBattleCreatorMessageId();
+        if (messageId == null) {
+            SendMessage msg = new SendMessage(battle.getCreatorUserChatId().toString(), text.toString());
+            if (battle.getStatus() == CREATED) {
+                msg.setReplyMarkup(createBattleCreatorKeyboard(battle.getId()));
+            }
+            Integer newMessageId = bot.execute(msg).getMessageId();
+            battle.setBattleCreatorMessageId(newMessageId);
+            matchRepository.save(battle);
+            return;
+        }
+
+        EditMessageText editMessage = new EditMessageText();
+        editMessage.setChatId(battle.getCreatorUserChatId());
+        editMessage.setMessageId(messageId);
+        editMessage.setText(text.toString());
+        if (battle.getStatus() == CREATED) {
+            editMessage.setReplyMarkup(createBattleCreatorKeyboard(battle.getId()));
+        }
+        bot.execute(editMessage);
+    }
+
     private Integer sendRaceStateMessage(Long mainChannelChatId, EmojiRaceBot bot, Race race) {
         SendMessage message = new SendMessage();
         message.setChatId(mainChannelChatId);
@@ -526,6 +582,13 @@ public class MatchService {
         var markup = new InlineKeyboardMarkup();
         markup.setKeyboard(keyboard);
         return markup;
+    }
+
+    private InlineKeyboardMarkup createBattleCreatorKeyboard(Long battleId) {
+        return new InlineKeyboardMarkup(List.of(List.of(
+                InlineKeyboardButton.builder().text("Старт батла").callbackData("battleStart_" + battleId).build(),
+                InlineKeyboardButton.builder().text("Отменить батл").callbackData("battleCancel_" + battleId).build()
+        )));
     }
 
     private InlineKeyboardButton createBotLinkButton() {

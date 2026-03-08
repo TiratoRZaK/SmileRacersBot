@@ -60,6 +60,9 @@ public class Match {
     @Column(name = "BATTLE_STAKE")
     private Long battleStake;
 
+    @Column(name = "BATTLE_CREATOR_MESSAGE_ID")
+    private Integer battleCreatorMessageId;
+
     @OneToMany(mappedBy = "match", cascade = CascadeType.REMOVE)
     private List<ScoreMessage> scoreMessages;
 

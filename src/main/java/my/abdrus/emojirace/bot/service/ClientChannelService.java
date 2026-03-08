@@ -361,15 +361,7 @@ public class ClientChannelService extends ChannelService {
 
             try {
                 Match battle = matchService.createBattle(userChatId, selectedPlayer, stake);
-                String inviteLink = channelProperties.getBotLink() + "?start=join_battle_" + battle.getId();
-                SendMessage msg = new SendMessage(userChatId.toString(),
-                        "⚔️ Батл #" + battle.getId() + " создан!\n\n" +
-                                "Ставка: " + stake + " ⭐\n" +
-                                "Ваш смайл: " + selectedPlayer.getName() + "\n\n" +
-                                "Ссылка для друга:\n" + inviteLink + "\n\n" +
-                                "Когда участников станет больше одного — нажмите 'Старт батла'.");
-                msg.setReplyMarkup(createBattleCreatorKeyboard(battle.getId()));
-                bot.execute(msg);
+                matchService.refreshBattleCreatorMessage(battle.getId(), bot);
                 pendingBattleStake.remove(userChatId);
                 dependMessageService.deleteDependMessage(userChatId, DependMessageCode.SELECT_BATTLE_PLAYER, bot);
                 bot.execute(createAnswerAlert(callbackQuery, "Батл создан."));
@@ -423,13 +415,7 @@ public class ClientChannelService extends ChannelService {
                 bot.execute(msg);
 
                 if (battle.getCreatorUserChatId() != null) {
-                    SendMessage creatorMsg = new SendMessage(battle.getCreatorUserChatId().toString(),
-                            "⚔️ Батл #" + battleId + " создан!\n\n" +
-                                    "Новый участник: " + formatTelegramUser(callbackQuery.getFrom()) + "\n" +
-                                    "Выбранный смайл: " + player.getName() + "\n\n" +
-                                    "Можно запускать.");
-                    creatorMsg.setReplyMarkup(createBattleCreatorKeyboard(battleId));
-                    bot.execute(creatorMsg);
+                    matchService.refreshBattleCreatorMessage(battleId, bot);
                 }
             } catch (PaymentException e) {
                 bot.execute(createAnswerAlert(callbackQuery, "Не удалось списать ставку: " + e.getMessage()));
@@ -814,7 +800,7 @@ public class ClientChannelService extends ChannelService {
             SendMessage msg = new SendMessage(chatId.toString(),
                     isFirstMessage
                             ? "⚔️ Приглашение в батл #" + battleId + "\n" +
-                            "Ставка: " + stake + " ⭐\n" +
+                            "Сумма голосов на победителя: " + stake + " ⭐\n" +
                             "Выберите смайл для участия:"
                             : "Доступные смайлы для батла #" + battleId + ":");
             msg.setReplyMarkup(createBattlePickKeyboard(subList, battleId));
