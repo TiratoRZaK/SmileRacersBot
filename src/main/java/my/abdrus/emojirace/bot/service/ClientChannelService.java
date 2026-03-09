@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import my.abdrus.emojirace.bot.EmojiRaceBot;
+import my.abdrus.emojirace.bot.entity.BalanceTopup;
 import my.abdrus.emojirace.bot.entity.BotUser;
 import my.abdrus.emojirace.bot.entity.DependMessageCode;
 import my.abdrus.emojirace.bot.entity.Match;
@@ -22,6 +23,7 @@ import my.abdrus.emojirace.bot.exception.PaymentException;
 import my.abdrus.emojirace.bot.repository.PaymentRequestRepository;
 import my.abdrus.emojirace.bot.repository.PlayerRepository;
 import my.abdrus.emojirace.bot.repository.UserRepository;
+import my.abdrus.emojirace.bot.repository.BalanceTopupRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
@@ -61,6 +63,10 @@ public class ClientChannelService extends ChannelService {
     private WithdrawService withdrawService;
     @Autowired
     private DependMessageService dependMessageService;
+    @Autowired
+    private UserHistoryReportService userHistoryReportService;
+    @Autowired
+    private BalanceTopupRepository balanceTopupRepository;
 
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss");
     private final Map<Long, Long> pendingBattleStake = new ConcurrentHashMap<>();
@@ -78,6 +84,11 @@ public class ClientChannelService extends ChannelService {
                 Long userId = Long.valueOf(s[1]);
                 Long amount = Long.valueOf(s[2]);
                 if (accountService.addBalance(userId, amount)) {
+                    BalanceTopup topup = new BalanceTopup();
+                    topup.setUserChatId(userId);
+                    topup.setSum(amount);
+                    topup.setSource("telegram_payment");
+                    balanceTopupRepository.save(topup);
                     Integer messageId = bot.execute(
                             new SendMessage(userId.toString(), "Баланс успешно пополнен на " + amount + " ⭐"))
                             .getMessageId();
@@ -199,6 +210,11 @@ public class ClientChannelService extends ChannelService {
             Long userId = Long.valueOf(s[1]);
             int sum = Integer.parseInt(s[2]);
             if (accountService.addBalance(userId, (long) sum)) {
+                BalanceTopup topup = new BalanceTopup();
+                topup.setUserChatId(userId);
+                topup.setSum((long) sum);
+                topup.setSource("admin_plus_command");
+                balanceTopupRepository.save(topup);
                 bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(message.getChatId().toString(), "Баланс успешно пополнен")).getMessageId());
             }
         } else if (text.startsWith("minus_")) {
@@ -243,6 +259,8 @@ public class ClientChannelService extends ChannelService {
                 players.subList(0, count).clear();
                 isFirstMessage = false;
             }
+        } else if (text.equals("📒 История операций")) {
+            userHistoryReportService.sendHistory(chatId, chatId, bot);
         } else if (text.equals("🆘 Помощь")) {
             SendMessage msg = new SendMessage(chatId.toString(), "Обратитесь к владельцу канала:");
             msg.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(InlineKeyboardButton.builder()
@@ -585,6 +603,11 @@ public class ClientChannelService extends ChannelService {
             String[] s = query.split("_");
             long userId = Long.parseLong(s[2]);
             bot.execute(createAnswerAlert(callbackQuery, "Баланс пользователя:" + accountService.getBalanceByUserChatId(userId) + " ⭐"));
+        } else if (query.startsWith("history_")) {
+            String[] s = query.split("_");
+            long userId = Long.parseLong(s[1]);
+            userHistoryReportService.sendHistory(userChatId, userId, bot);
+            bot.execute(createAnswerAlert(callbackQuery, "История сформирована"));
         } else if (query.startsWith("balance_plus_")) {
             String[] s = query.split("_");
             long userId = Long.parseLong(s[2]);
@@ -639,6 +662,7 @@ public class ClientChannelService extends ChannelService {
 
         Player favoritePlayer = botUser.getFavoritePlayer();
 
+        row1.add(new KeyboardButton("📒 История операций"));
         row1.add(new KeyboardButton("🆘 Помощь"));
         if (userService.isAdmin(chatId)) {
             row1.add(new KeyboardButton("📤 Выводы"));
@@ -886,10 +910,14 @@ public class ClientChannelService extends ChannelService {
         checkBalanceButton.setText("Просмотр баланса");
         checkBalanceButton.setCallbackData("check_balance_" + userId);
 
+        InlineKeyboardButton historyButton = new InlineKeyboardButton();
+        historyButton.setText("История операций");
+        historyButton.setCallbackData("history_" + userId);
+
         keyboard.setKeyboard(List.of(
                 List.of(addAccountBtn, setAdminButton),
                 List.of(depositButton, withdrawButton),
-                List.of(checkBalanceButton)
+                List.of(checkBalanceButton, historyButton)
         ));
         return keyboard;
     }
