@@ -17,7 +17,7 @@ import lombok.Data;
 import my.abdrus.emojirace.bot.enumeration.PaymentRequestStatus;
 
 /**
- * Голос за участника битвы.
+ * Голос за участника гонки.
  */
 @Entity
 @Data

@@ -187,7 +187,7 @@ public class ClientChannelService extends ChannelService {
                 sendBattleCreatorPlayerSelection(chatId, bot);
                 stateService.clear(chatId);
             } catch (NumberFormatException e) {
-                bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Введите корректную сумму ставки (целое число > 0)." )).getMessageId());
+                bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Введите корректную стоимость голоса (целое число > 0)." )).getMessageId());
                 stateService.clear(chatId);
             }
             return;
@@ -263,8 +263,8 @@ public class ClientChannelService extends ChannelService {
             }
         } else if (text.equals("⚔️ Создать батл")) {
             stateService.setWaitingAmount(chatId, StateService.State.WAITING_FOR_BATTLE_STAKE);
-            bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Введите ставку для батла в ⭐:" )).getMessageId());
-        } else if (text.equals("\uD83D\uDC4A Показать текущую битву")) {
+            bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Введите цену голоса за победителя батла в ⭐:" )).getMessageId());
+        } else if (text.equals("\uD83D\uDC4A Показать текущую гонку")) {
             bot.deleteMessageScheduled(chatId,
                     matchService.sendActiveMatchStateToChannel(chatId, false, bot),
                     channelProperties.getDefaultDeleteMessageMenuDelay());
@@ -296,8 +296,8 @@ public class ClientChannelService extends ChannelService {
                 В следующий раз смена любимого смайла будет стоить 150 ⭐
                 
                 Выбор любимого смайла открывает возможности:
-                 - При ставке по линии на ваш любимый смайл, в случае его победы получите + 1 \uD83D\uDC07 подарок
-                 - За 10 ⭐ ставить свой любимый смайл в очередь на участие в следующей битве
+                 - При голосе перед гонкой на ваш любимый смайл, в случае его победы получите + 1 \uD83D\uDC07 в подарок
+                 - За 10 ⭐ устанавливать свой любимый смайл в очередь на участие в следующей гонке
                 """;
         }
         SendMessage msg = new SendMessage(chatId.toString(), text);
@@ -355,7 +355,7 @@ public class ClientChannelService extends ChannelService {
             String playerName = query.replace("battleCreatePick_", "");
             Long stake = pendingBattleStake.get(userChatId);
             if (stake == null || stake < 1) {
-                bot.execute(createAnswerAlert(callbackQuery, "Ставка батла не найдена. Начните создание заново."));
+                bot.execute(createAnswerAlert(callbackQuery, "Ваш голос не найден. Начните создание заново."));
                 return true;
             }
 
@@ -416,7 +416,7 @@ public class ClientChannelService extends ChannelService {
                     bot.execute(createAnswerAlert(callbackQuery, "Нельзя присоединиться (смайл/участник уже есть или батл закрыт)."));
                     return true;
                 }
-                SendMessage msg = new SendMessage(userChatId.toString(), "✅ Вы присоединились к батлу #" + battleId + " со ставкой " + stake + " ⭐.");
+                SendMessage msg = new SendMessage(userChatId.toString(), "✅ Вы присоединились к батлу #" + battleId + ". Голос за победителя: " + stake + " ⭐.");
                 msg.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(matchService.createMatchLinkButton(battle)))));
                 bot.execute(msg);
 
@@ -424,7 +424,7 @@ public class ClientChannelService extends ChannelService {
                     matchService.refreshBattleCreatorMessage(battleId, bot);
                 }
             } catch (PaymentException e) {
-                bot.execute(createAnswerAlert(callbackQuery, "Не удалось списать ставку: " + e.getMessage()));
+                bot.execute(createAnswerAlert(callbackQuery, "Не удалось списать сумму голоса: " + e.getMessage()));
             }
             return true;
         } else if (query.startsWith("battleStart_")) {
@@ -457,7 +457,7 @@ public class ClientChannelService extends ChannelService {
                     .map(MatchPlayer::getOwnerUserChatId)
                     .filter(id -> id != null && !id.equals(userChatId))
                     .distinct()
-                    .forEach(id -> bot.execute(new SendMessage(id.toString(), "⚠️ Батл #" + battleId + " отменён создателем. Ставка возвращена.")));
+                    .forEach(id -> bot.execute(new SendMessage(id.toString(), "⚠️ Батл #" + battleId + " отменён создателем. Сумма голоса возвращена на баланс.")));
 
             bot.execute(createAnswerAlert(callbackQuery, "Батл отменён."));
             return true;
@@ -656,7 +656,7 @@ public class ClientChannelService extends ChannelService {
         }
 
         KeyboardRow row4 = new KeyboardRow();
-        row4.add(new KeyboardButton("\uD83D\uDC4A Показать текущую битву"));
+        row4.add(new KeyboardButton("\uD83D\uDC4A Показать текущую гонку"));
         rows.add(row4);
 
         KeyboardRow row5 = new KeyboardRow();
@@ -786,7 +786,7 @@ public class ClientChannelService extends ChannelService {
                     isFirstMessage
                             ? "⚔️✨ *ПРИГЛАШЕНИЕ В БАТЛ* ✨⚔️\n" +
                             "Батл #" + battleId + "\n" +
-                            "Ставка за вход: " + stake + " ⭐\n" +
+                            "Стоимость голоса за победителя: " + stake + " ⭐\n" +
                             "🎯 Выберите смайл для участия и подтвердите вход ниже:"
                             : "Доступные смайлы для батла #" + battleId + ":");
             msg.setParseMode("Markdown");

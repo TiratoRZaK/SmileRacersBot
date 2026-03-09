@@ -47,13 +47,13 @@ public interface PaymentRequestRepository extends JpaRepository<PaymentRequest, 
                               @Param("match") Match match);
 
     /**
-     * Найти все голоса за участника битвы в определённом статусе.
+     * Найти все голоса за участника гонки в определённом статусе.
      */
     List<PaymentRequest> findAllByMatchPlayerAndStatus(@Param("matchPlayer") MatchPlayer matchPlayer,
                                                        @Param("status") PaymentRequestStatus status);
 
     /**
-     * Найти все голоса конкретного пользователя за участника битвы в определённом статусе.
+     * Найти все голоса конкретного пользователя за участника гонки в определённом статусе.
      */
     List<PaymentRequest> findAllByMatchPlayerAndStatusAndUserChatId(@Param("matchPlayer") MatchPlayer matchPlayer,
                                                                     @Param("status") PaymentRequestStatus status,

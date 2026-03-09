@@ -261,9 +261,9 @@ public class MatchService {
                             if (isAdmin) {
                                 for (MatchPlayer matchPlayer : match.getMatchPlayers()) {
                                     long sum = matchPlayer.getScore();
-                                    textBuilder.append("На ")
+                                    textBuilder.append("За ")
                                             .append(matchPlayer.getPlayerName())
-                                            .append(" поставили: ")
+                                            .append(" проголосовали на: ")
                                             .append(sum).append(" ⭐\n");
                                 }
                                 textBuilder.append("\n\n");
@@ -446,10 +446,10 @@ public class MatchService {
             if (accountService.addBalance(userId, sum * 2)) {
                 String text = "Поздравляю с победой!\n\n" +
                         "Баланс успешно пополнен на " + sum * 2 + " ⭐.\n\n\uD83C\uDF40 " +
-                        "Удача любит смелых! Скорее возвращайтесь в новых битвах!";
+                        "Удача любит смелых! Скорее возвращайтесь в новых гонках!";
                 if (addFreeBust) {
                     text += "\n\n\nВаш любимый смайл " + favoritePlayer.getName() + " победил! Вам начислен один бесплатный бустер!\n" +
-                            "Можете использовать его в любой следующей битве!";
+                            "Можете использовать его в любой следующей гонке!";
                 }
                 SendMessage message = new SendMessage(userId.toString(), text);
                 message.setReplyMarkup(InlineKeyboardMarkup.builder().keyboard(List.of(List.of(createMatchLinkButton(match)))).build());
@@ -469,7 +469,7 @@ public class MatchService {
                         "\uD83C\uDF40 Обратитесь за помощью по кнопке ниже. \uD83C\uDF40";
                 if (addFreeBust) {
                     text += "\n\n\nВаш любимый смайл " + favoritePlayer.getName() + " победил! Вам начислен один бесплатный бустер!\n" +
-                            "Можете использовать его в любой следующей битве!";
+                            "Можете использовать его в любой следующей гонке!";
                 }
                 SendMessage message = new SendMessage(userId.toString(), text);
                 message.setReplyMarkup(InlineKeyboardMarkup.builder().keyboard(List.of(List.of(createMatchLinkButton(match)))).build());
@@ -614,12 +614,12 @@ public class MatchService {
     }
 
     private InlineKeyboardMarkup createBattleCreatorKeyboard(Long battleId, String inviteLink) {
-        String shareTemplate = "✨ Тебя приглашают в батл EmojiRace!%n" +
+        String shareTemplate = "✨ Вызываю тебя на батл Emoji Race!%n" +
                 "Батл #%d уже ждёт тебя.%n" +
-                "Присоединяйся по ссылке ниже 👇";
+                "Присоединяйся ко мне по ссылке ниже 👇";
         String shareText = URLEncoder.encode(shareTemplate.formatted(battleId), StandardCharsets.UTF_8);
         String encodedInviteLink = URLEncoder.encode(inviteLink, StandardCharsets.UTF_8);
-        // Keep both url and text params for broad Telegram client compatibility.
+
         String shareUrl = "https://t.me/share/url?url=" + encodedInviteLink + "&text=" + shareText;
 
         return new InlineKeyboardMarkup(List.of(
