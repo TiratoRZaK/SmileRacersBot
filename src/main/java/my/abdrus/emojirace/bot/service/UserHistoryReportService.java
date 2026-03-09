@@ -27,6 +27,8 @@ import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 
 @Service
 public class UserHistoryReportService {
@@ -70,7 +72,27 @@ public class UserHistoryReportService {
                     .append(" | ").append(item.details)
                     .append("\n");
         }
-        bot.execute(new SendMessage(requesterChatId.toString(), text.toString()));
+        SendMessage message = new SendMessage(requesterChatId.toString(), text.toString());
+        message.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(
+                InlineKeyboardButton.builder()
+                        .text("📥 Скачать Excel")
+                        .callbackData("history_file_" + targetUserId)
+                        .build()
+        ))));
+        bot.execute(message);
+    }
+
+    public void sendHistoryFile(Long requesterChatId, Long targetUserId, EmojiRaceBot bot) {
+        BotUser targetUser = userRepository.findByUserChatId(targetUserId).orElse(null);
+        String targetLabel = targetUser != null && targetUser.getUsername() != null && !targetUser.getUsername().isBlank()
+                ? "@" + targetUser.getUsername()
+                : String.valueOf(targetUserId);
+        List<HistoryItem> history = loadHistory(targetUserId);
+        if (history.isEmpty()) {
+            bot.execute(new SendMessage(requesterChatId.toString(), "История пользователя " + targetLabel + " пока пуста."));
+            return;
+        }
+        sendExcel(requesterChatId, targetUserId, targetLabel, history, bot);
     }
 
     private List<HistoryItem> loadHistory(Long userId) {
@@ -85,7 +107,7 @@ public class UserHistoryReportService {
 
         for (WithdrawRequest request : withdrawRequestRepository.findAllByUserChatIdOrderByCreatedDateDesc(userId)) {
             String details = switch (request.getStatus()) {
-                case PAYED, COMPLETED -> "Вывод подтверждён";
+                case PAYED -> "Вывод подтверждён";
                 case CANCELED -> "Вывод отменён";
                 case CREATED -> "Вывод в обработке";
             };
@@ -113,11 +135,11 @@ public class UserHistoryReportService {
 
     private void sendExcel(Long requesterChatId, Long userId, String userLabel, List<HistoryItem> history, EmojiRaceBot bot) {
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            XSSFSheet sheet = workbook.createSheet("История операций");
+            XSSFSheet sheet = workbook.createSheet("History");
             Row header = sheet.createRow(0);
             header.createCell(0).setCellValue("Дата");
             header.createCell(1).setCellValue("Операция");
-            header.createCell(2).setCellValue("Сумма ⭐");
+            header.createCell(2).setCellValue("Сумма (⭐)");
             header.createCell(3).setCellValue("Детали");
 
             for (int i = 0; i < history.size(); i++) {

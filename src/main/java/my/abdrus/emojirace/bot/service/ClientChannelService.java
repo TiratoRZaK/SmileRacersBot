@@ -213,7 +213,7 @@ public class ClientChannelService extends ChannelService {
                 BalanceTopup topup = new BalanceTopup();
                 topup.setUserChatId(userId);
                 topup.setSum((long) sum);
-                topup.setSource("Системная операция");
+                topup.setSource("admin_plus_command");
                 balanceTopupRepository.save(topup);
                 bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(message.getChatId().toString(), "Баланс успешно пополнен")).getMessageId());
             }
@@ -603,6 +603,11 @@ public class ClientChannelService extends ChannelService {
             String[] s = query.split("_");
             long userId = Long.parseLong(s[2]);
             bot.execute(createAnswerAlert(callbackQuery, "Баланс пользователя:" + accountService.getBalanceByUserChatId(userId) + " ⭐"));
+        } else if (query.startsWith("history_file_")) {
+            String[] s = query.split("_");
+            long userId = Long.parseLong(s[2]);
+            userHistoryReportService.sendHistoryFile(userChatId, userId, bot);
+            bot.execute(createAnswerAlert(callbackQuery, "Файл истории сформирован"));
         } else if (query.startsWith("history_")) {
             String[] s = query.split("_");
             long userId = Long.parseLong(s[1]);
