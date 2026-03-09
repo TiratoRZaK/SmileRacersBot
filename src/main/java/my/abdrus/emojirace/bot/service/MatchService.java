@@ -259,7 +259,13 @@ public class MatchService {
                                 textBuilder.append("\n\n");
                             }
 
-                            textBuilder.append("Матч уже начался. Перейти?");
+                            if (match.getType() == MatchType.BATTLE) {
+                                textBuilder.append("⚔️ Батл уже начался.\n")
+                                        .append("Участники: ").append(buildBattleParticipantsText(match)).append("\n\n")
+                                        .append("Перейти к матчу?");
+                            } else {
+                                textBuilder.append("Матч уже начался. Перейти?");
+                            }
                             message.setText(textBuilder.toString());
                             message.setReplyMarkup(keyboard);
 
@@ -276,7 +282,13 @@ public class MatchService {
 
                             SendMessage message = new SendMessage();
                             message.setChatId(chatId.toString());
-                            message.setText("Матч уже завершился. Перейти?");
+                            if (match.getType() == MatchType.BATTLE) {
+                                message.setText("⚔️ Батл уже завершился.\n" +
+                                        "Участники: " + buildBattleParticipantsText(match) + "\n\n" +
+                                        "Перейти к матчу?");
+                            } else {
+                                message.setText("Матч уже завершился. Перейти?");
+                            }
                             message.setReplyMarkup(keyboard);
 
                             Integer messageId = bot.execute(message).getMessageId();
@@ -582,18 +594,9 @@ public class MatchService {
                 .collect(Collectors.joining(" или "));
 
         if (match.getType() == MatchType.BATTLE) {
-            String battleParticipants = match.getMatchPlayers().stream()
-                    .sorted(Comparator.comparing(MatchPlayer::getNumber))
-                    .map(matchPlayer -> {
-                        String username = matchPlayer.getOwnerUserChatId() == null
-                                ? "неизвестный пользователь"
-                                : userService.getUsernameOrFallback(matchPlayer.getOwnerUserChatId());
-                        return username + " (" + matchPlayer.getPlayerName() + ")";
-                    })
-                    .collect(Collectors.joining(" vs "));
             return "⚔️ Батл №" + match.getId() + "\n\n" +
                     "Кто победит в батле?\n\n" +
-                    battleParticipants + "\n\n" +
+                    buildBattleParticipantsText(match) + "\n\n" +
                     "Решайся и голосуй звёздами!\n\n" +
                     "Пополнить баланс звёзд можно перейдя в бота.";
         }
@@ -604,6 +607,18 @@ public class MatchService {
                 "\n\n" +
                 "Решайся и голосуй звёздами!\n\n" +
                 "Пополнить баланс звёзд можно перейдя в бота.";
+    }
+
+    private String buildBattleParticipantsText(Match match) {
+        return match.getMatchPlayers().stream()
+                .sorted(Comparator.comparing(MatchPlayer::getNumber))
+                .map(matchPlayer -> {
+                    String username = matchPlayer.getOwnerUserChatId() == null
+                            ? "неизвестный пользователь"
+                            : userService.getUsernameOrFallback(matchPlayer.getOwnerUserChatId());
+                    return username + " (" + matchPlayer.getPlayerName() + ")";
+                })
+                .collect(Collectors.joining(" vs "));
     }
 
     private Integer sendRaceStateMessage(Long mainChannelChatId, EmojiRaceBot bot, Race race) {
