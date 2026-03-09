@@ -225,20 +225,10 @@ public class MatchService {
                 .map(match -> {
                     return switch (match.getStatus()) {
                         case CREATED -> {
-                            String playerNames = match.getMatchPlayers().stream()
-                                    .map(MatchPlayer::getPlayerName)
-                                    .collect(Collectors.joining(" или "));
-
                             var message = new SendMessage();
 
                             message.setChatId(chatId.toString());
-                            String text = "Гонка №" + match.getId() + "\n\n" +
-                                    "❓❓❓   Кто победит?   ❓❓❓\n\n" +
-                                    playerNames +
-                                    "\n\n" +
-                                    "Решайся и голосуй звёздами!\n\n" +
-                                    "Пополнить баланс звёзд можно перейдя в бота.";
-                            message.setText(text);
+                            message.setText(buildMatchLineText(match));
 
                             var markup = createActiveMatchToChannelForLineVotesKeyboard(match, isMainChannel);
                             message.setReplyMarkup(markup);
@@ -269,7 +259,13 @@ public class MatchService {
                                 textBuilder.append("\n\n");
                             }
 
-                            textBuilder.append("Матч уже начался. Перейти?");
+                            if (match.getType() == MatchType.BATTLE) {
+                                textBuilder.append("⚔️ Батл уже начался.\n")
+                                        .append("Участники: ").append(buildBattleParticipantsText(match)).append("\n\n")
+                                        .append("Перейти к матчу?");
+                            } else {
+                                textBuilder.append("Матч уже начался. Перейти?");
+                            }
                             message.setText(textBuilder.toString());
                             message.setReplyMarkup(keyboard);
 
@@ -286,7 +282,13 @@ public class MatchService {
 
                             SendMessage message = new SendMessage();
                             message.setChatId(chatId.toString());
-                            message.setText("Матч уже завершился. Перейти?");
+                            if (match.getType() == MatchType.BATTLE) {
+                                message.setText("⚔️ Батл уже завершился.\n" +
+                                        "Участники: " + buildBattleParticipantsText(match) + "\n\n" +
+                                        "Перейти к матчу?");
+                            } else {
+                                message.setText("Матч уже завершился. Перейти?");
+                            }
                             message.setReplyMarkup(keyboard);
 
                             Integer messageId = bot.execute(message).getMessageId();
@@ -305,20 +307,10 @@ public class MatchService {
 
         Long mainChannelChatId = channelProperties.getMainChannelChatId();
 
-        String playerNames = match.getMatchPlayers().stream()
-                .map(MatchPlayer::getPlayerName)
-                .collect(Collectors.joining(" или "));
-
         var message = new SendMessage();
 
         message.setChatId(mainChannelChatId.toString());
-        String text = "Гонка №" + match.getId() + "\n\n" +
-                "❓❓❓   Кто победит?   ❓❓❓\n\n" +
-                playerNames +
-                "\n\n" +
-                "Решайся и голосуй звёздами!\n\n" +
-                "Пополнить баланс звёзд можно перейдя в бота.";
-        message.setText(text);
+        message.setText(buildMatchLineText(match));
 
         var markup = createActiveMatchToChannelForLineVotesKeyboard(match, true);
         message.setReplyMarkup(markup);
@@ -373,6 +365,9 @@ public class MatchService {
         match.setStatus(LIVE);
         Match savedMatch = matchRepository.save(match);
         race.setMatch(savedMatch);
+        if (savedMatch.getType() == MatchType.BATTLE) {
+            refreshBattleCreatorMessage(savedMatch.getId(), bot);
+        }
 
         log.info("Старт лайва гонки #{}.", match.getId());
         timerFuture = scheduler.scheduleWithFixedDelay(() -> {
@@ -563,6 +558,10 @@ public class MatchService {
             } else {
                 text.append("\n\n🏁 Батл завершён.");
             }
+        } else if (battle.getStatus() == MatchStatus.LIVE) {
+            text.append("\n\n🚦 Батл уже начался.");
+        } else if (battle.isBattleStartRequested()) {
+            text.append("\n\n⏳ Батл уже ожидает своей очереди для начала.");
         } else {
             text.append("\n\nКогда участников станет больше одного — нажмите 'Старт батла'.");
         }
@@ -570,8 +569,8 @@ public class MatchService {
         Integer messageId = battle.getBattleCreatorMessageId();
         if (messageId == null) {
             SendMessage msg = new SendMessage(battle.getCreatorUserChatId().toString(), text.toString());
-            if (battle.getStatus() == CREATED) {
-                msg.setReplyMarkup(createBattleCreatorKeyboard(battle.getId(), inviteLink));
+            if (battle.getStatus() != COMPLETED) {
+                msg.setReplyMarkup(createBattleCreatorKeyboard(battle, inviteLink));
             }
             Integer newMessageId = bot.execute(msg).getMessageId();
             battle.setBattleCreatorMessageId(newMessageId);
@@ -583,10 +582,43 @@ public class MatchService {
         editMessage.setChatId(battle.getCreatorUserChatId());
         editMessage.setMessageId(messageId);
         editMessage.setText(text.toString());
-        if (battle.getStatus() == CREATED) {
-            editMessage.setReplyMarkup(createBattleCreatorKeyboard(battle.getId(), inviteLink));
+        if (battle.getStatus() != COMPLETED) {
+            editMessage.setReplyMarkup(createBattleCreatorKeyboard(battle, inviteLink));
         }
         bot.execute(editMessage);
+    }
+
+    private String buildMatchLineText(Match match) {
+        String playerNames = match.getMatchPlayers().stream()
+                .map(MatchPlayer::getPlayerName)
+                .collect(Collectors.joining(" или "));
+
+        if (match.getType() == MatchType.BATTLE) {
+            return "⚔️ Батл №" + match.getId() + "\n\n" +
+                    "Кто победит в батле?\n\n" +
+                    buildBattleParticipantsText(match) + "\n\n" +
+                    "Решайся и голосуй звёздами!\n\n" +
+                    "Пополнить баланс звёзд можно перейдя в бота.";
+        }
+
+        return "Гонка №" + match.getId() + "\n\n" +
+                "❓❓❓   Кто победит?   ❓❓❓\n\n" +
+                playerNames +
+                "\n\n" +
+                "Решайся и голосуй звёздами!\n\n" +
+                "Пополнить баланс звёзд можно перейдя в бота.";
+    }
+
+    private String buildBattleParticipantsText(Match match) {
+        return match.getMatchPlayers().stream()
+                .sorted(Comparator.comparing(MatchPlayer::getNumber))
+                .map(matchPlayer -> {
+                    String username = matchPlayer.getOwnerUserChatId() == null
+                            ? "неизвестный пользователь"
+                            : userService.getUsernameOrFallback(matchPlayer.getOwnerUserChatId());
+                    return username + " (" + matchPlayer.getPlayerName() + ")";
+                })
+                .collect(Collectors.joining(" vs "));
     }
 
     private Integer sendRaceStateMessage(Long mainChannelChatId, EmojiRaceBot bot, Race race) {
@@ -613,7 +645,8 @@ public class MatchService {
         return markup;
     }
 
-    private InlineKeyboardMarkup createBattleCreatorKeyboard(Long battleId, String inviteLink) {
+    private InlineKeyboardMarkup createBattleCreatorKeyboard(Match battle, String inviteLink) {
+        Long battleId = battle.getId();
         String shareTemplate = "✨ Вызываю тебя на батл Emoji Race!%n" +
                 "Батл #%d уже ждёт тебя.%n" +
                 "Присоединяйся ко мне по ссылке выше ☝";
@@ -621,6 +654,15 @@ public class MatchService {
         String encodedInviteLink = URLEncoder.encode(inviteLink, StandardCharsets.UTF_8);
 
         String shareUrl = "https://t.me/share/url?url=" + encodedInviteLink + "&text=" + shareText;
+
+        if (battle.isBattleStartRequested() || battle.getStatus() == MatchStatus.LIVE) {
+            String matchUrl = battle.getChannelTimerMessageId() == null
+                    ? channelProperties.getChannelLink()
+                    : channelProperties.getChannelLink() + battle.getChannelTimerMessageId();
+            return new InlineKeyboardMarkup(List.of(
+                    List.of(InlineKeyboardButton.builder().text("📢 Перейти к матчу").url(matchUrl).build())
+            ));
+        }
 
         return new InlineKeyboardMarkup(List.of(
                 List.of(

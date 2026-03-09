@@ -439,8 +439,10 @@ public class ClientChannelService extends ChannelService {
             Match liveExists = matchRepository.findFirstByStatusOrderByCreatedDateAsc(my.abdrus.emojirace.bot.enumeration.MatchStatus.LIVE).orElse(null);
             if (liveExists == null) {
                 matchRepository.findById(battleId).ifPresent(match -> matchService.startLiveByActiveMatch(match, bot));
+                matchService.refreshBattleCreatorMessage(battleId, bot);
                 bot.execute(createAnswerAlert(callbackQuery, "Батл запущен!"));
             } else if (matchService.requestBattleStart(battleId, userChatId)) {
+                matchService.refreshBattleCreatorMessage(battleId, bot);
                 bot.execute(createAnswerAlert(callbackQuery, "Батл поставлен в очередь и стартует автоматически после текущей гонки."));
             } else {
                 bot.execute(createAnswerAlert(callbackQuery, "Не удалось поставить батл в очередь."));

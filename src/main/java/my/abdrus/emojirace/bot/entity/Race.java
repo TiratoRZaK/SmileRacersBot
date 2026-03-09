@@ -13,6 +13,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import my.abdrus.emojirace.bot.enumeration.BusterType;
+import my.abdrus.emojirace.bot.enumeration.MatchType;
 import my.abdrus.emojirace.config.RaceProperties;
 
 @Slf4j
@@ -149,8 +150,9 @@ public class Race {
 
     public String getRaceStateMessage() {
         StringBuilder text = new StringBuilder();
+        String eventName = match.getType() == MatchType.BATTLE ? "Батл" : "Гонка";
         text
-                .append("\uD83D\uDD25 Гонка №").append(match.getId()).append(" в самом разгаре! \uD83D\uDD25\n")
+                .append("\uD83D\uDD25 ").append(eventName).append(" №").append(match.getId()).append(" в самом разгаре! \uD83D\uDD25\n")
                 .append("Помоги своему фавориту придти на 🏁 первым!\n")
                 .append("\n")
                 .append("Используй бустеры на кнопках ниже:\n")
@@ -181,9 +183,10 @@ public class Race {
                 .max(Comparator.comparingDouble(player -> getScoreByNumber(player.getNumber())))
                 .ifPresent(matchPlayer ->  {
                     match.setWinner(matchPlayer.getNumber());
-                    text.append("🏁 Гонка №")
+                    String eventName = match.getType() == MatchType.BATTLE ? "Батл" : "Гонка";
+                    text.append("🏁 ").append(eventName).append(" №")
                             .append(match.getId())
-                            .append(" завершена! 🏁\n")
+                            .append(" завершен").append(match.getType() == MatchType.BATTLE ? "" : "а").append("! 🏁\n")
                             .append("Поздравляем победителя: ")
                             .append(matchPlayer.getPlayerName())
                             .append("!\n\n");
