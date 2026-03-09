@@ -69,4 +69,6 @@ public interface PaymentRequestRepository extends JpaRepository<PaymentRequest, 
               AND r.status IN ('PAYED', 'COMPLETED')
             """)
     Long sumBattleBank(@Param("match") Match match);
+
+    List<PaymentRequest> findAllByUserChatIdOrderByCreatedDateDesc(Long userChatId);
 }
