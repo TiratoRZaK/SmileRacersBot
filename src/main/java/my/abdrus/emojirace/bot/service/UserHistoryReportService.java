@@ -113,11 +113,11 @@ public class UserHistoryReportService {
 
     private void sendExcel(Long requesterChatId, Long userId, String userLabel, List<HistoryItem> history, EmojiRaceBot bot) {
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            XSSFSheet sheet = workbook.createSheet("History");
+            XSSFSheet sheet = workbook.createSheet("История операций");
             Row header = sheet.createRow(0);
             header.createCell(0).setCellValue("Дата");
             header.createCell(1).setCellValue("Операция");
-            header.createCell(2).setCellValue("Сумма (⭐)");
+            header.createCell(2).setCellValue("Сумма ⭐");
             header.createCell(3).setCellValue("Детали");
 
             for (int i = 0; i < history.size(); i++) {

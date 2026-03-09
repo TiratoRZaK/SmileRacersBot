@@ -213,7 +213,7 @@ public class ClientChannelService extends ChannelService {
                 BalanceTopup topup = new BalanceTopup();
                 topup.setUserChatId(userId);
                 topup.setSum((long) sum);
-                topup.setSource("admin_plus_command");
+                topup.setSource("Системная операция");
                 balanceTopupRepository.save(topup);
                 bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(message.getChatId().toString(), "Баланс успешно пополнен")).getMessageId());
             }
