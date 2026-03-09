@@ -32,4 +32,6 @@ public interface WithdrawRequestRepository extends JpaRepository<WithdrawRequest
             WHERE r.id = :id
             """)
     void setPayedStatus(@Param("id") Long id);
+
+    java.util.List<WithdrawRequest> findAllByUserChatIdOrderByCreatedDateDesc(Long userChatId);
 }
