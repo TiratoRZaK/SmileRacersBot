@@ -175,6 +175,7 @@ public class ClientChannelService extends ChannelService {
                 bot.deleteMessageScheduled(chatId, bot.execute(msg).getMessageId());
                 stateService.clear(chatId);
             }
+            bot.deleteMessageScheduled(chatId, messageId);
             return;
         } else if (session.state == StateService.State.WAITING_FOR_BATTLE_STAKE) {
             try {
@@ -244,7 +245,7 @@ public class ClientChannelService extends ChannelService {
             }
         } else if (text.equals("🆘 Помощь")) {
             SendMessage msg = new SendMessage(chatId.toString(), "Обратитесь к владельцу канала:");
-            message.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(InlineKeyboardButton.builder()
+            msg.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(InlineKeyboardButton.builder()
                     .text("👤 Связаться с владельцем")
                     .url(channelProperties.getHelpLink())
                     .build()))));
@@ -261,7 +262,8 @@ public class ClientChannelService extends ChannelService {
                 SendMessage msg = new SendMessage(chatId.toString(), "Ошибка оплаты. " + e.getMessage());
                 bot.deleteMessageScheduled(chatId, bot.execute(msg).getMessageId());
             }
-        } else if (text.equals("⚔️ Создать батл")) {
+        } else if (text.equals("⚔️ Создать батл с друзьями")) {
+            bot.deleteMessageScheduled(chatId, messageId);
             stateService.setWaitingAmount(chatId, StateService.State.WAITING_FOR_BATTLE_STAKE);
             bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Введите цену голоса за победителя батла в ⭐:" )).getMessageId());
         } else if (text.equals("\uD83D\uDC4A Показать текущую гонку")) {
@@ -634,40 +636,31 @@ public class ClientChannelService extends ChannelService {
         BotUser botUser = userService.addInfoIfNeed(from);
 
         Player favoritePlayer = botUser.getFavoritePlayer();
-        if (favoritePlayer == null) {
-            row1.add(new KeyboardButton("\uD83D\uDE0E Выбрать любимый смайл"));
-        } else {
-            row1.add(new KeyboardButton("\uD83D\uDE33 Сменить любимый смайл за 150 ⭐ (Текущий: " + favoritePlayer.getName() + ")"));
-        }
 
+        row1.add(new KeyboardButton("🆘 Помощь"));
+        if (userService.isAdmin(chatId)) {
+            row1.add(new KeyboardButton("📤 Выводы"));
+        }
         rows.add(row1);
 
         KeyboardRow row2 = new KeyboardRow();
-        row2.add(new KeyboardButton("🆘 Помощь"));
-        if (userService.isAdmin(chatId)) {
-            row2.add(new KeyboardButton("📤 Выводы"));
+        if (favoritePlayer == null) {
+            row2.add(new KeyboardButton("\uD83D\uDE0E Выбрать любимый смайл"));
+        } else {
+            row2.add(new KeyboardButton("\uD83D\uDE33 Сменить любимый смайл за 150 ⭐ (Текущий: " + favoritePlayer.getName() + ")"));
+            row2.add(new KeyboardButton("\uD83D\uDC4A Отправить " + favoritePlayer.getName() + " в очередь (10 ⭐)"));
         }
         rows.add(row2);
 
-        if (favoritePlayer != null) {
-            KeyboardRow row3 = new KeyboardRow();
-            row3.add(new KeyboardButton("\uD83D\uDC4A Отправить " + favoritePlayer.getName() + " в очередь за 10 ⭐"));
-            rows.add(row3);
-        }
-
-        KeyboardRow row4 = new KeyboardRow();
-        row4.add(new KeyboardButton("\uD83D\uDC4A Показать текущую гонку"));
-        rows.add(row4);
-
-        KeyboardRow row5 = new KeyboardRow();
-        row5.add(new KeyboardButton("⚔️ Создать батл"));
-        rows.add(row5);
-
+        KeyboardRow row3 = new KeyboardRow();
+        row3.add(new KeyboardButton("\uD83D\uDC4A Показать текущую гонку"));
+        row3.add(new KeyboardButton("⚔️ Создать батл с друзьями"));
+        rows.add(row3);
 
         ReplyKeyboardMarkup keyboard = new ReplyKeyboardMarkup();
         keyboard.setKeyboard(rows);
         keyboard.setIsPersistent(true);
-        keyboard.setResizeKeyboard(true);
+        keyboard.setResizeKeyboard(false);
         keyboard.setOneTimeKeyboard(false);
 
         SendMessage message = new SendMessage();
@@ -751,15 +744,16 @@ public class ClientChannelService extends ChannelService {
         InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
 
         InlineKeyboardButton addAccountBtn = new InlineKeyboardButton();
-        addAccountBtn.setText("Пополнить баланс звёздами");
+        addAccountBtn.setText("Пополнить баланс ⭐");
         addAccountBtn.setCallbackData("deposit_" + userId);
 
         InlineKeyboardButton withdrawBtn = new InlineKeyboardButton();
-        withdrawBtn.setText("Отправить запрос на вывод");
+        withdrawBtn.setText("Запрос на вывод \uD83D\uDCB3");
         withdrawBtn.setCallbackData("withdraw_" + userId);
 
         keyboard.setKeyboard(List.of(
-                List.of(addAccountBtn, withdrawBtn)
+                List.of(addAccountBtn),
+                List.of(withdrawBtn)
         ));
         return keyboard;
     }
