@@ -107,7 +107,7 @@ public class UserHistoryReportService {
 
         for (WithdrawRequest request : withdrawRequestRepository.findAllByUserChatIdOrderByCreatedDateDesc(userId)) {
             String details = switch (request.getStatus()) {
-                case PAYED -> "Вывод подтверждён";
+                case PAYED, COMPLETED -> "Вывод подтверждён";
                 case CANCELED -> "Вывод отменён";
                 case CREATED -> "Вывод в обработке";
             };
