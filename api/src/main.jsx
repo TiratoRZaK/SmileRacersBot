@@ -6,6 +6,7 @@ const API = '/api/miniapp'
 const tg = window.Telegram?.WebApp
 
 const getUserId = () => tg?.initDataUnsafe?.user?.id || Number(new URLSearchParams(location.search).get('userId') || 1)
+const isVisualEmoji = (value) => /\p{Emoji_Presentation}/u.test(value)
 
 function App() {
   const userId = useMemo(getUserId, [])
@@ -13,6 +14,15 @@ function App() {
   const [tab, setTab] = useState('race')
   const [message, setMessage] = useState('')
   const [spark, setSpark] = useState(null)
+  const [queueEmoji, setQueueEmoji] = useState('')
+  const [battleEmoji, setBattleEmoji] = useState('')
+  const [favoritePickerOpen, setFavoritePickerOpen] = useState(false)
+
+  const selectableEmojis = useMemo(() => {
+    const source = data?.allEmojis || []
+    const filtered = source.filter(isVisualEmoji)
+    return filtered.length ? filtered : source
+  }, [data?.allEmojis])
 
   const refresh = async () => {
     const res = await fetch(`${API}/bootstrap?userId=${userId}`)
@@ -23,6 +33,12 @@ function App() {
     tg?.ready()
     refresh()
   }, [])
+
+  useEffect(() => {
+    if (!selectableEmojis.length) return
+    setQueueEmoji((current) => (current && selectableEmojis.includes(current)) ? current : selectableEmojis[0])
+    setBattleEmoji((current) => (current && selectableEmojis.includes(current)) ? current : selectableEmojis[0])
+  }, [selectableEmojis])
 
   const act = async (path, body) => {
     const res = await fetch(`${API}/${path}?userId=${userId}`, {
@@ -39,49 +55,87 @@ function App() {
   if (!data) return <div className='loading'>Загрузка…</div>
 
   return <div className='app'>
-    <header>
-      <div>Баланс: <b>{data.balance} ⭐</b></div>
-      <div>Бесплатные бустеры: <b>{data.freeBoosters}</b></div>
+    <div className='aurora' />
+    <header className='top-card'>
+      <div>
+        <span className='label'>Баланс</span>
+        <b>{data.balance} ⭐</b>
+      </div>
+      <div>
+        <span className='label'>Бесплатные бустеры</span>
+        <b>{data.freeBoosters}</b>
+      </div>
     </header>
 
-    <nav>
-      <button className={tab==='race'?'active':''} onClick={() => setTab('race')}>Гонка</button>
-      <button className={tab==='account'?'active':''} onClick={() => setTab('account')}>Аккаунт</button>
+    <nav className='tabs'>
+      <button className={tab === 'race' ? 'active' : ''} onClick={() => setTab('race')}>Гонка</button>
+      <button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>Аккаунт</button>
     </nav>
 
-    {tab === 'race' && <section>
-      <h2>{data.race ? `Гонка #${data.race.matchId} (${data.race.type})` : 'Нет активной гонки'}</h2>
+    {tab === 'race' && <section className='panel'>
+      <h2>{data.race ? `Гонка #${data.race.matchId} · ${data.race.type}` : 'Нет активной гонки'}</h2>
+      <p className='subtitle'>Поддержи фаворита и ускорь гонку бустерами.</p>
       {data.race?.units?.map((u) => <div className='unit' key={u.playerNumber}>
-        <div className='name'>{u.playerName}</div>
-        <div className='score'>{u.score}</div>
-        {spark===u.playerNumber && <div className='spark'>✨</div>}
+        <div className='unit-head'>
+          <div className='name'>{u.playerName}</div>
+          <div className='score'>{u.score}</div>
+        </div>
+        <div className='meter'>
+          <div style={{ width: `${Math.min(100, u.score)}%` }} />
+        </div>
+        {spark === u.playerNumber && <div className='spark'>✨</div>}
         <div className='actions'>
           <button onClick={() => act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount: 10 })}>Голос 10⭐</button>
-          <button onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); setTimeout(()=>setSpark(null),700)}}>🐇</button>
-          <button onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); setTimeout(()=>setSpark(null),700)}}>🐢</button>
-          <button onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); setTimeout(()=>setSpark(null),700)}}>🛡</button>
+          <button onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}>🐇</button>
+          <button onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}>🐢</button>
+          <button onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}>🛡</button>
         </div>
       </div>)}
     </section>}
 
-    {tab === 'account' && <section>
-      <h2>Управление аккаунтом</h2>
-      <div className='grid'>
-        {data.allEmojis.map((name) => <button key={name} onClick={() => act('favorite', { playerName: name })}>{name}{data.favoriteEmoji===name?' ✅':''}</button>)}
+    {tab === 'account' && <section className='panel'>
+      <h2>Профиль и действия</h2>
+      <p className='subtitle'>Выбери любимчика, управляй балансом и создавай батлы.</p>
+
+      <h3>Любимый эмодзи</h3>
+      <div className='emoji-picker'>
+        <button className='picker-toggle' onClick={() => setFavoritePickerOpen((v) => !v)}>
+          <span>Текущий: {data.favoriteEmoji || '—'}</span>
+          <span>{favoritePickerOpen ? '▴' : '▾'}</span>
+        </button>
+        {favoritePickerOpen && <div className='emoji-rail'>
+          {selectableEmojis.map((name) => <button
+            key={name}
+            className={data.favoriteEmoji === name ? 'emoji-pill selected' : 'emoji-pill'}
+            onClick={async () => {
+              await act('favorite', { playerName: name })
+              setFavoritePickerOpen(false)
+            }}
+          >
+            {name}
+          </button>)}
+        </div>}
       </div>
+
+      <h3>Очередь</h3>
       <div className='row'>
-        <select id='q'>{data.allEmojis.map((e) => <option key={e}>{e}</option>)}</select>
-        <button onClick={() => act('queue', { playerName: document.getElementById('q').value })}>В очередь (10⭐)</button>
+        <select value={queueEmoji} onChange={(e) => setQueueEmoji(e.target.value)}>{selectableEmojis.map((e) => <option key={e}>{e}</option>)}</select>
+        <button onClick={() => act('queue', { playerName: queueEmoji })}>В очередь (10⭐)</button>
       </div>
+
+      <h3>Баланс</h3>
       <div className='row'>
         <button onClick={() => act('topup', { amount: 100 })}>Пополнить +100⭐</button>
         <button onClick={() => act('withdraw', { amount: 50 })}>Вывести 50⭐</button>
       </div>
+
+      <h3>Батл</h3>
       <div className='row'>
-        <select id='b'>{data.allEmojis.map((e) => <option key={e}>{e}</option>)}</select>
-        <button onClick={() => act('battle', { playerName: document.getElementById('b').value, stake: 100 })}>Создать батл 100⭐</button>
+        <select value={battleEmoji} onChange={(e) => setBattleEmoji(e.target.value)}>{selectableEmojis.map((e) => <option key={e}>{e}</option>)}</select>
+        <button onClick={() => act('battle', { playerName: battleEmoji, stake: 100 })}>Создать батл 100⭐</button>
       </div>
-      <button onClick={async () => setMessage((await (await fetch(`${API}/help`)).json()).message)}>Помощь</button>
+
+      <button className='help-btn' onClick={async () => setMessage((await (await fetch(`${API}/help`)).json()).message)}>Помощь</button>
     </section>}
 
     {message && <footer>{message}</footer>}
