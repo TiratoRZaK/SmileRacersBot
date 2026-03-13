@@ -340,7 +340,11 @@ public class MiniAppController {
                 ))
                 .toList();
 
-        return new MiniAppDtos.RaceCard(match.getId(), match.getStatus().name(), match.getType().name(), units);
+        Long trackLength = activeRace != null && activeRace.getMatch().getId().equals(match.getId())
+                ? Math.round(activeRace.getRaceSize())
+                : null;
+
+        return new MiniAppDtos.RaceCard(match.getId(), match.getStatus().name(), match.getType().name(), trackLength, units);
     }
 
     private Long resolveUserId(Long headerUserId, Long userIdParam) {

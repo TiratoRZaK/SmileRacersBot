@@ -25,6 +25,7 @@ public class Race {
     private final List<ConcurrentLinkedDeque<BusterType>> playerTickQueues;
     private final List<DoubleAdder> playerScores;
     private final List<AtomicInteger> playerShields;
+    @Getter
     private final Double raceSize;
     private final Double stepSize;
     private final Double bustSize;

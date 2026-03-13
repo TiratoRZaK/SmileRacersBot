@@ -7,6 +7,24 @@ const tg = window.Telegram?.WebApp
 const WITHDRAW_MIN = 100
 const TOPUP_MIN = 1
 const POLL_INTERVAL_MS = 3500
+const DEFAULT_TRACK_LENGTH = 62
+
+const RACE_TYPE_LABELS = {
+  REGULAR: 'Обычная',
+  SPRINT: 'Спринт',
+  MARATHON: 'Марафон'
+}
+
+const TRACK_THEMES = ['asphalt', 'grass', 'desert']
+
+const normalizeType = (type) => String(type || '').trim().toUpperCase()
+const getRaceTypeLabel = (type) => RACE_TYPE_LABELS[normalizeType(type)] || type || 'Неизвестно'
+
+const getTrackTheme = (race) => {
+  if (!race) return TRACK_THEMES[0]
+  const seed = Number(race.matchId || 0)
+  return TRACK_THEMES[Math.abs(seed) % TRACK_THEMES.length]
+}
 
 const getUserId = () => tg?.initDataUnsafe?.user?.id || Number(new URLSearchParams(location.search).get('userId') || 1)
 
@@ -96,6 +114,10 @@ function App() {
   if (!data) return <div className='loading'>Загрузка…</div>
 
   const raceEnded = !data.race || data.race.status !== 'CREATED'
+  const trackTheme = getTrackTheme(data.race)
+  const raceUnits = data.race?.units || []
+  const maxScore = raceUnits.reduce((max, unit) => Math.max(max, Number(unit.score) || 0), 0)
+  const finishScore = Math.max(Number(data.race?.trackLength) || DEFAULT_TRACK_LENGTH, maxScore, 1)
 
   return <div className='app'>
     <div className='aurora' />
@@ -116,26 +138,35 @@ function App() {
     </nav>
 
     {tab === 'race' && <section className='panel'>
-      <h2>{data.race ? `Гонка #${data.race.matchId} · ${data.race.type}` : 'Нет активной гонки'}</h2>
+      <h2>{data.race ? `Гонка #${data.race.matchId} · ${getRaceTypeLabel(data.race.type)}` : 'Нет активной гонки'}</h2>
       <p className='subtitle'>Голосование открыто только до старта. Экран синхронизируется каждые несколько секунд.</p>
       {!!data.race && raceEnded && <p className='badge'>Гонка уже началась или завершилась — голосование закрыто.</p>}
 
-      {data.race?.units?.map((u) => <div className='unit' key={u.playerNumber}>
+      <div className={`track track-${trackTheme}`}>
+      {raceUnits.map((u, index) => {
+        const score = Number(u.score) || 0
+        const percent = finishScore ? Math.min(100, Math.round(score / finishScore * 100)) : 0
+
+        return <div className='unit lane' key={u.playerNumber}>
         <div className='unit-head'>
           <div className='name'>{u.playerName}</div>
-          <div className='score'>{u.score}</div>
+          <div className='score'>{percent}%</div>
         </div>
         <div className='meter'>
-          <div style={{ width: `${Math.min(100, u.score)}%` }} />
+          <div style={{ width: `${percent}%` }} />
+          <div className='finish-line' />
         </div>
+        <div className='lane-index'>Полоса {index + 1}</div>
         {spark === u.playerNumber && <div className='spark'>✨</div>}
         <div className='actions'>
-          <button disabled={raceEnded} onClick={() => setVoteModalUnit(u)}>Отдать голос</button>
-          <button disabled={raceEnded} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}>🐇</button>
-          <button disabled={raceEnded} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}>🐢</button>
-          <button disabled={raceEnded} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}>🛡</button>
+          {!raceEnded && <button onClick={() => setVoteModalUnit(u)}>Отдать голос</button>}
+          <button className='booster booster-bust' disabled={raceEnded} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>⚡</span> Рывок</button>
+          <button className='booster booster-slow' disabled={raceEnded} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🧊</span> Лёд</button>
+          <button className='booster booster-shield' disabled={raceEnded} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🛡</span> Щит</button>
         </div>
-      </div>)}
+      </div>
+      })}
+      </div>
     </section>}
 
     {tab === 'account' && <section className='panel'>
