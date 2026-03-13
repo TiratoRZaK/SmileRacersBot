@@ -11,6 +11,7 @@ public class MiniAppDtos {
             Integer freeBoosters,
             String favoriteEmoji,
             RaceCard race,
+            RaceCard myBattle,
             List<String> allEmojis
     ) {}
 
@@ -19,6 +20,8 @@ public class MiniAppDtos {
             String status,
             String type,
             Long trackLength,
+            Long battleStake,
+            boolean battleStartRequested,
             List<RaceUnit> units
     ) {}
 
@@ -49,6 +52,8 @@ public class MiniAppDtos {
     public record ActiveWithdrawsResponse(List<WithdrawItem> items) {}
 
     public record CreateBattleRequest(String playerName, Long stake) {}
+
+    public record StartBattleRequest(Long matchId) {}
 
     public record ActionResponse(boolean success, String message) {}
 }
