@@ -23,7 +23,17 @@ const TRACK_THEME_LABELS = {
 
 const TRACK_THEMES = ['asphalt', 'grass', 'desert'];
 
-const getUserId = () => tg?.initDataUnsafe?.user?.id || Number(new URLSearchParams(location.search).get('userId') || 1);
+const telegramUser = tg?.initDataUnsafe?.user || null;
+const telegramUserId = telegramUser?.id || null;
+
+const getTelegramAccountLabel = (user) => {
+  if (!user) return 'Не удалось определить Telegram-аккаунт';
+  if (user.username) return `@${user.username}`;
+  const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
+  return fullName || `ID ${user.id}`;
+};
+
+const getUserId = () => telegramUserId || Number(new URLSearchParams(location.search).get('userId') || 1);
 
 const normalizeType = (type) => String(type || '').trim().toUpperCase();
 const getRaceTypeLabel = (type) => RACE_TYPE_LABELS[normalizeType(type)] || type || 'Неизвестно';
@@ -46,8 +56,15 @@ function App() {
   const [withdrawAmount, setWithdrawAmount] = useState(100);
   const [favoriteIndex, setFavoriteIndex] = useState(0);
 
+  const requestQuery = useMemo(() => new URLSearchParams({ userId: String(userId) }).toString(), [userId]);
+  const requestHeaders = useMemo(() => {
+    const headers = {};
+    if (telegramUserId) headers['X-Telegram-User-Id'] = String(telegramUserId);
+    return headers;
+  }, []);
+
   const refresh = async (silent = false, partial = false) => {
-    const bootstrapRes = await fetch(`${API}/bootstrap?userId=${userId}`);
+    const bootstrapRes = await fetch(`${API}/bootstrap?${requestQuery}`, { headers: requestHeaders });
     const bootstrapData = await bootstrapRes.json();
     if (partial) {
       setData(current => current ? {
@@ -58,7 +75,7 @@ function App() {
       } : bootstrapData);
     } else {
       setData(bootstrapData);
-      const withdrawRes = await fetch(`${API}/withdraw/active?userId=${userId}`);
+      const withdrawRes = await fetch(`${API}/withdraw/active?${requestQuery}`, { headers: requestHeaders });
       const withdrawData = await withdrawRes.json();
       setActiveWithdraws(withdrawData.items || []);
     }
@@ -88,9 +105,9 @@ function App() {
   }, [data?.favoriteEmoji, data?.allEmojis]);
 
   const act = async (path, body) => {
-    const r = await (await fetch(`${API}/${path}?userId=${userId}`, {
+    const r = await (await fetch(`${API}/${path}?${requestQuery}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...requestHeaders },
       body: JSON.stringify(body)
     })).json();
     setMessage(r.message);
@@ -198,6 +215,11 @@ function App() {
     ),
     tab === 'account' && h('section', { className: 'panel' },
       h('h2', null, 'Профиль и действия'),
+      h('h3', null, 'Текущий Telegram-аккаунт'),
+      h('p', { className: 'subtitle' }, `${getTelegramAccountLabel(telegramUser)}${telegramUser?.id ? ` · ID ${telegramUser.id}` : ''}`),
+      h('p', { className: 'subtitle' }, data.localTestMode
+        ? `Тестовый режим: баланс берётся из аккаунта владельца (ID ${data.userId}).`
+        : `Баланс и операции выполняются для текущего аккаунта (ID ${data.userId}).`),
       h('h3', null, 'Любимый смайл'),
       h('div', { className: 'emoji-slider-wrap' },
         h('input', {
