@@ -41,7 +41,8 @@ const getTrackTheme = (race) => {
   return TRACK_THEMES[Math.abs(seed) % TRACK_THEMES.length]
 }
 
-const getUserId = () => telegramUserId || Number(new URLSearchParams(location.search).get('userId') || 1)
+const queryUserId = Number(new URLSearchParams(location.search).get('userId') || 0)
+const getUserId = () => telegramUserId || (Number.isFinite(queryUserId) && queryUserId > 0 ? queryUserId : null)
 
 function App() {
   const userId = useMemo(getUserId, [])
@@ -56,17 +57,22 @@ function App() {
   const [withdrawAmount, setWithdrawAmount] = useState(100)
   const [favoriteIndex, setFavoriteIndex] = useState(0)
 
-  const requestQuery = useMemo(() => new URLSearchParams({ userId: String(userId) }).toString(), [userId])
+  const requestQuery = useMemo(() => {
+    const params = new URLSearchParams()
+    if (userId != null) params.set('userId', String(userId))
+    return params.toString()
+  }, [userId])
   const requestHeaders = useMemo(() => {
     const headers = {}
     if (telegramUserId) headers['X-Telegram-User-Id'] = String(telegramUserId)
+    if (tg?.initData) headers['X-Telegram-Init-Data'] = tg.initData
     return headers
   }, [])
 
   const refresh = async (silent = false) => {
     const [bootstrapRes, withdrawsRes] = await Promise.all([
-      fetch(`${API}/bootstrap?${requestQuery}`, { headers: requestHeaders }),
-      fetch(`${API}/withdraw/active?${requestQuery}`, { headers: requestHeaders })
+      fetch(`${API}/bootstrap${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders }),
+      fetch(`${API}/withdraw/active${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders })
     ])
     const bootstrapData = await bootstrapRes.json()
     setData(bootstrapData)
@@ -98,7 +104,7 @@ function App() {
   }, [data])
 
   const act = async (path, body) => {
-    const res = await fetch(`${API}/${path}?${requestQuery}`, {
+    const res = await fetch(`${API}/${path}${requestQuery ? `?${requestQuery}` : ''}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...requestHeaders },
       body: JSON.stringify(body)

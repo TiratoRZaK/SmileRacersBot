@@ -33,7 +33,8 @@ const getTelegramAccountLabel = (user) => {
   return fullName || `ID ${user.id}`;
 };
 
-const getUserId = () => telegramUserId || Number(new URLSearchParams(location.search).get('userId') || 1);
+const queryUserId = Number(new URLSearchParams(location.search).get('userId') || 0);
+const getUserId = () => telegramUserId || (Number.isFinite(queryUserId) && queryUserId > 0 ? queryUserId : null);
 
 const normalizeType = (type) => String(type || '').trim().toUpperCase();
 const getRaceTypeLabel = (type) => RACE_TYPE_LABELS[normalizeType(type)] || type || 'Неизвестно';
@@ -56,15 +57,20 @@ function App() {
   const [withdrawAmount, setWithdrawAmount] = useState(100);
   const [favoriteIndex, setFavoriteIndex] = useState(0);
 
-  const requestQuery = useMemo(() => new URLSearchParams({ userId: String(userId) }).toString(), [userId]);
+  const requestQuery = useMemo(() => {
+    const params = new URLSearchParams();
+    if (userId != null) params.set('userId', String(userId));
+    return params.toString();
+  }, [userId]);
   const requestHeaders = useMemo(() => {
     const headers = {};
     if (telegramUserId) headers['X-Telegram-User-Id'] = String(telegramUserId);
+    if (tg?.initData) headers['X-Telegram-Init-Data'] = tg.initData;
     return headers;
   }, []);
 
   const refresh = async (silent = false, partial = false) => {
-    const bootstrapRes = await fetch(`${API}/bootstrap?${requestQuery}`, { headers: requestHeaders });
+    const bootstrapRes = await fetch(`${API}/bootstrap${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders });
     const bootstrapData = await bootstrapRes.json();
     if (partial) {
       setData(current => current ? {
@@ -75,7 +81,7 @@ function App() {
       } : bootstrapData);
     } else {
       setData(bootstrapData);
-      const withdrawRes = await fetch(`${API}/withdraw/active?${requestQuery}`, { headers: requestHeaders });
+      const withdrawRes = await fetch(`${API}/withdraw/active${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders });
       const withdrawData = await withdrawRes.json();
       setActiveWithdraws(withdrawData.items || []);
     }
@@ -105,7 +111,7 @@ function App() {
   }, [data?.favoriteEmoji, data?.allEmojis]);
 
   const act = async (path, body) => {
-    const r = await (await fetch(`${API}/${path}?${requestQuery}`, {
+    const r = await (await fetch(`${API}/${path}${requestQuery ? `?${requestQuery}` : ''}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...requestHeaders },
       body: JSON.stringify(body)

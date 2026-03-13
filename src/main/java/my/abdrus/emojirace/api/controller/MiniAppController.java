@@ -4,6 +4,8 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import lombok.RequiredArgsConstructor;
 import my.abdrus.emojirace.api.dto.MiniAppDtos;
@@ -30,6 +32,7 @@ import my.abdrus.emojirace.bot.service.RaceService;
 import my.abdrus.emojirace.bot.service.UserService;
 import my.abdrus.emojirace.bot.service.WithdrawService;
 import my.abdrus.emojirace.config.BotProperties;
+import org.json.JSONObject;
 import my.abdrus.emojirace.config.ChannelProperties;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,6 +50,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 public class MiniAppController {
 
     private static final long FAVORITE_REPLACE_COST = 150L;
+    private static final Pattern USER_ID_PATTERN = Pattern.compile("\"id\"\\s*:\\s*(\\d+)");
 
     private final AccountService accountService;
     private final AccountRepository accountRepository;
@@ -353,10 +357,61 @@ public class MiniAppController {
     }
 
     private Long resolveUserId(Long headerUserId, Long userIdParam) {
+        Long userId;
         if (isLocalTestModeActive()) {
-            return Optional.ofNullable(botProperties.getLocalTestModeUserId()).orElse(740984236L);
+            userId = Optional.ofNullable(botProperties.getLocalTestModeUserId()).orElse(740984236L);
+            accountService.getByUserId(userId);
+            return userId;
         }
-        return Optional.ofNullable(headerUserId).or(() -> Optional.ofNullable(userIdParam)).orElse(1L);
+
+        userId = Optional.ofNullable(headerUserId)
+                .or(() -> Optional.ofNullable(extractTelegramInitDataUserId()))
+                .or(() -> Optional.ofNullable(userIdParam))
+                .orElseThrow(() -> new IllegalArgumentException("Не удалось определить Telegram user id."));
+        accountService.getByUserId(userId);
+        return userId;
+    }
+
+    private Long extractTelegramInitDataUserId() {
+        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs == null || attrs.getRequest() == null) {
+            return null;
+        }
+
+        String initData = Optional.ofNullable(attrs.getRequest().getHeader("X-Telegram-Init-Data"))
+                .orElse(attrs.getRequest().getParameter("tgWebAppData"));
+        if (initData == null || initData.isBlank()) {
+            return null;
+        }
+
+        String userJson = null;
+        for (String part : initData.split("&")) {
+            String[] keyValue = part.split("=", 2);
+            if (keyValue.length != 2 || !"user".equals(keyValue[0])) {
+                continue;
+            }
+            userJson = java.net.URLDecoder.decode(keyValue[1], java.nio.charset.StandardCharsets.UTF_8);
+            break;
+        }
+
+        if (userJson == null || userJson.isBlank()) {
+            return null;
+        }
+
+        try {
+            JSONObject userData = new JSONObject(userJson);
+            if (userData.has("id")) {
+                return userData.getLong("id");
+            }
+        } catch (Exception ignored) {
+            // fallback below
+        }
+
+        Matcher matcher = USER_ID_PATTERN.matcher(userJson);
+        if (matcher.find()) {
+            return Long.parseLong(matcher.group(1));
+        }
+        return null;
     }
 
     private boolean isLocalTestModeActive() {
