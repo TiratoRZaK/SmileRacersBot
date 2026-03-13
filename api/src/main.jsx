@@ -167,7 +167,7 @@ function App() {
           <div className='score'>{percent}%</div>
         </div>
         <div className='meter'>
-          <div style={{ width: `${percent}%` }} />
+          <div className='meter-fill' style={{ width: `${percent}%` }} />
           <div className='runner' style={{ left: `${percent}%` }}>{u.playerName}</div>
           <div className='finish-line' />
         </div>

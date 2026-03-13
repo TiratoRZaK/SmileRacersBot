@@ -141,7 +141,7 @@ function App() {
         h('div', { className: 'score' }, `${percent}%`)
       ),
       h('div', { className: 'meter' },
-        h('div', { style: { width: `${percent}%` } }),
+        h('div', { className: 'meter-fill', style: { width: `${percent}%` } }),
         h('div', { className: 'runner', style: { left: `${percent}%` } }, u.playerName),
         h('div', { className: 'finish-line' })
       ),
