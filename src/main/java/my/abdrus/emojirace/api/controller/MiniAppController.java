@@ -1,0 +1,289 @@
+package my.abdrus.emojirace.api.controller;
+
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import lombok.RequiredArgsConstructor;
+import my.abdrus.emojirace.api.dto.MiniAppDtos;
+import my.abdrus.emojirace.bot.entity.Account;
+import my.abdrus.emojirace.bot.entity.Match;
+import my.abdrus.emojirace.bot.entity.PaymentRequest;
+import my.abdrus.emojirace.bot.entity.Player;
+import my.abdrus.emojirace.bot.entity.Race;
+import my.abdrus.emojirace.bot.enumeration.BusterType;
+import my.abdrus.emojirace.bot.enumeration.MatchStatus;
+import my.abdrus.emojirace.bot.enumeration.PaymentRequestStatus;
+import my.abdrus.emojirace.bot.exception.PaymentException;
+import my.abdrus.emojirace.bot.repository.AccountRepository;
+import my.abdrus.emojirace.bot.repository.MatchRepository;
+import my.abdrus.emojirace.bot.repository.PaymentRequestRepository;
+import my.abdrus.emojirace.bot.repository.PlayerRepository;
+import my.abdrus.emojirace.bot.repository.UserRepository;
+import my.abdrus.emojirace.bot.service.AccountService;
+import my.abdrus.emojirace.bot.service.MatchGenerationService;
+import my.abdrus.emojirace.bot.service.MatchService;
+import my.abdrus.emojirace.bot.service.RaceService;
+import my.abdrus.emojirace.bot.service.UserService;
+import my.abdrus.emojirace.bot.service.WithdrawService;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/miniapp")
+@RequiredArgsConstructor
+public class MiniAppController {
+
+    private final AccountService accountService;
+    private final AccountRepository accountRepository;
+    private final UserService userService;
+    private final UserRepository userRepository;
+    private final MatchRepository matchRepository;
+    private final RaceService raceService;
+    private final PlayerRepository playerRepository;
+    private final PaymentRequestRepository paymentRequestRepository;
+    private final MatchGenerationService matchGenerationService;
+    private final MatchService matchService;
+    private final WithdrawService withdrawService;
+
+    @GetMapping("/bootstrap")
+    public MiniAppDtos.BootstrapResponse bootstrap(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        Account account = accountService.getByUserId(userId);
+        var user = userService.createIfNeed(userId);
+
+        Match selectedMatch = matchRepository.findFirstByStatusOrderByCreatedDateAsc(MatchStatus.LIVE)
+                .orElseGet(() -> matchRepository.findFirstByStatusAndTypeOrderByCreatedDateAsc(
+                        MatchStatus.CREATED,
+                        my.abdrus.emojirace.bot.enumeration.MatchType.BATTLE
+                ).orElseGet(() -> matchRepository.findFirstByStatusAndTypeOrderByCreatedDateAsc(
+                        MatchStatus.CREATED,
+                        my.abdrus.emojirace.bot.enumeration.MatchType.REGULAR
+                ).orElse(null)));
+
+        MiniAppDtos.RaceCard raceCard = toRaceCard(selectedMatch, raceService.getActiveRace());
+
+        List<String> emojis = playerRepository.findAll().stream()
+                .map(Player::getName)
+                .sorted(Comparator.naturalOrder())
+                .toList();
+
+        return new MiniAppDtos.BootstrapResponse(
+                userId,
+                account.getBalance(),
+                account.getFreeBustCount(),
+                user.getFavoritePlayer() == null ? null : user.getFavoritePlayer().getName(),
+                raceCard,
+                emojis
+        );
+    }
+
+    @PostMapping("/vote")
+    public MiniAppDtos.ActionResponse vote(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.VoteRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.matchId() == null || request.playerNumber() == null || request.amount() == null || request.amount() < 1) {
+            return new MiniAppDtos.ActionResponse(false, "Некорректные параметры голосования.");
+        }
+        Match match = matchRepository.findById(request.matchId()).orElse(null);
+        if (match == null) {
+            return new MiniAppDtos.ActionResponse(false, "Гонка не найдена.");
+        }
+        var matchPlayer = match.getPlayerByNumber(request.playerNumber());
+        if (matchPlayer == null) {
+            return new MiniAppDtos.ActionResponse(false, "Смайл не найден в этой гонке.");
+        }
+
+        PaymentRequest paymentRequest = new PaymentRequest();
+        paymentRequest.setMatchPlayer(matchPlayer);
+        paymentRequest.setStatus(PaymentRequestStatus.WAIT_PAYMENT);
+        paymentRequest.setSum(request.amount());
+        paymentRequest.setUserChatId(userId);
+        paymentRequest.setCreatedDate(new Date());
+        PaymentRequest saved = paymentRequestRepository.save(paymentRequest);
+
+        try {
+            accountService.pay(saved);
+            return new MiniAppDtos.ActionResponse(true, "Голос принят.");
+        } catch (PaymentException e) {
+            return new MiniAppDtos.ActionResponse(false, e.getMessage());
+        }
+    }
+
+    @PostMapping("/boost")
+    public MiniAppDtos.ActionResponse boost(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.BoostRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.playerNumber() == null || request.type() == null) {
+            return new MiniAppDtos.ActionResponse(false, "Некорректные параметры бустера.");
+        }
+        BusterType type;
+        try {
+            type = BusterType.valueOf(request.type().toUpperCase());
+        } catch (Exception e) {
+            return new MiniAppDtos.ActionResponse(false, "Неизвестный тип бустера.");
+        }
+
+        try {
+            Account account = accountService.getByUserId(userId);
+            if (account.getFreeBustCount() > 0) {
+                account.setFreeBustCount(account.getFreeBustCount() - 1);
+                accountRepository.save(account);
+            } else {
+                PaymentRequest paymentRequest = new PaymentRequest();
+                paymentRequest.setUserChatId(userId);
+                paymentRequest.setSum(type.getCost());
+                accountService.pay(paymentRequest);
+            }
+            raceService.addTickForPlayer(request.playerNumber(), type);
+            return new MiniAppDtos.ActionResponse(true, "Бустер активирован: " + type.getName());
+        } catch (PaymentException e) {
+            return new MiniAppDtos.ActionResponse(false, e.getMessage());
+        }
+    }
+
+    @PostMapping("/favorite")
+    public MiniAppDtos.ActionResponse setFavorite(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.FavoriteRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.playerName() == null) {
+            return new MiniAppDtos.ActionResponse(false, "Выберите смайл.");
+        }
+        Player player = playerRepository.findByName(request.playerName()).orElse(null);
+        if (player == null) {
+            return new MiniAppDtos.ActionResponse(false, "Смайл не найден.");
+        }
+        var user = userService.createIfNeed(userId);
+        user.setFavoritePlayer(player);
+        userRepository.save(user);
+        return new MiniAppDtos.ActionResponse(true, "Любимый смайл обновлён.");
+    }
+
+    @PostMapping("/queue")
+    public MiniAppDtos.ActionResponse queueFavorite(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.QueueRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.playerName() == null) {
+            return new MiniAppDtos.ActionResponse(false, "Выберите смайл.");
+        }
+        Player player = playerRepository.findByName(request.playerName()).orElse(null);
+        if (player == null) {
+            return new MiniAppDtos.ActionResponse(false, "Смайл не найден.");
+        }
+
+        PaymentRequest paymentRequest = new PaymentRequest();
+        paymentRequest.setUserChatId(userId);
+        paymentRequest.setSum(10L);
+        try {
+            accountService.pay(paymentRequest);
+        } catch (PaymentException e) {
+            return new MiniAppDtos.ActionResponse(false, e.getMessage());
+        }
+        int position = matchGenerationService.addPlayerToQueue(player);
+        return new MiniAppDtos.ActionResponse(true, "Смайл добавлен в очередь. Позиция: " + position);
+    }
+
+    @PostMapping("/topup")
+    public MiniAppDtos.ActionResponse topup(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.TopupRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.amount() == null || request.amount() < 1) {
+            return new MiniAppDtos.ActionResponse(false, "Сумма должна быть больше 0.");
+        }
+        accountService.addBalance(userId, request.amount());
+        return new MiniAppDtos.ActionResponse(true, "Баланс пополнен на демо-режиме.");
+    }
+
+    @PostMapping("/withdraw")
+    public MiniAppDtos.ActionResponse withdraw(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.WithdrawRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.amount() == null || request.amount() < 1) {
+            return new MiniAppDtos.ActionResponse(false, "Сумма должна быть больше 0.");
+        }
+        try {
+            Long id = withdrawService.sendWithdrawRequestToAdmin(userId, request.amount(), new Date());
+            return new MiniAppDtos.ActionResponse(true, "Запрос на вывод создан: #" + id);
+        } catch (Exception e) {
+            return new MiniAppDtos.ActionResponse(false, e.getMessage());
+        }
+    }
+
+    @PostMapping("/battle")
+    public MiniAppDtos.ActionResponse createBattle(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.CreateBattleRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.playerName() == null || request.stake() == null || request.stake() < 1) {
+            return new MiniAppDtos.ActionResponse(false, "Некорректные параметры батла.");
+        }
+        Player player = playerRepository.findByName(request.playerName()).orElse(null);
+        if (player == null) {
+            return new MiniAppDtos.ActionResponse(false, "Смайл не найден.");
+        }
+        try {
+            Match battle = matchService.createBattle(userId, player, request.stake());
+            return new MiniAppDtos.ActionResponse(true, "Батл создан: #" + battle.getId());
+        } catch (PaymentException e) {
+            return new MiniAppDtos.ActionResponse(false, e.getMessage());
+        }
+    }
+
+    @GetMapping("/help")
+    public MiniAppDtos.ActionResponse help() {
+        return new MiniAppDtos.ActionResponse(true,
+                "Миниапп поддерживает гонки, голоса, бустеры, любимый смайл, очередь, батлы, пополнение и вывод.");
+    }
+
+    private MiniAppDtos.RaceCard toRaceCard(Match match, Race activeRace) {
+        if (match == null) {
+            return null;
+        }
+        List<MiniAppDtos.RaceUnit> units = Optional.ofNullable(match.getMatchPlayers()).orElse(List.of()).stream()
+                .sorted(Comparator.comparingInt(mp -> mp.getNumber() == null ? 0 : mp.getNumber()))
+                .map(mp -> new MiniAppDtos.RaceUnit(
+                        mp.getNumber(),
+                        mp.getPlayerName(),
+                        activeRace != null && activeRace.getMatch().getId().equals(match.getId())
+                                ? activeRace.getScoreByNumber(mp.getNumber())
+                                : 0L
+                ))
+                .collect(Collectors.toList());
+
+        return new MiniAppDtos.RaceCard(match.getId(), match.getStatus().name(), match.getType().name(), units);
+    }
+
+    private Long resolveUserId(Long headerUserId, Long userIdParam) {
+        return Optional.ofNullable(headerUserId).or(() -> Optional.ofNullable(userIdParam)).orElse(1L);
+    }
+}
