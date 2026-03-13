@@ -44,6 +44,16 @@ const getTrackTheme = (race) => {
   return TRACK_THEMES[Math.abs(seed) % TRACK_THEMES.length];
 };
 
+
+const getBattleStateLabel = (battle) => {
+  if (!battle) return '';
+  if (battle.status === 'LIVE') return '🚦 Батл уже начался';
+  if (battle.status === 'COMPLETED') return '🏁 Батл завершён';
+  if (battle.battleStartRequested) return '⏳ Батл ждёт очереди на запуск';
+  if ((battle.units?.length || 0) < 2) return 'Нужно минимум 2 участника для старта';
+  return 'Готов к старту. Нажмите «Старт батла»';
+};
+
 function App() {
   const userId = useMemo(getUserId, []);
   const [data, setData] = useState();
@@ -77,7 +87,8 @@ function App() {
         ...current,
         balance: bootstrapData.balance,
         freeBoosters: bootstrapData.freeBoosters,
-        race: bootstrapData.race
+        race: bootstrapData.race,
+        myBattle: bootstrapData.myBattle
       } : bootstrapData);
     } else {
       setData(bootstrapData);
@@ -122,6 +133,30 @@ function App() {
     }
     await refresh(true);
     return r;
+  };
+
+
+  const myBattle = data?.myBattle || null;
+  const myBattleCanStart = !!myBattle && myBattle.status === 'CREATED' && !myBattle.battleStartRequested;
+  const myBattleCanInvite = !!myBattle?.inviteLink;
+
+  const requestBattleStartFromUi = async () => {
+    if (!myBattle) {
+      setMessage('Сначала создайте батл, затем можно стартовать и приглашать друзей.');
+      return;
+    }
+    await act('battle/start', { matchId: myBattle.matchId });
+  };
+
+  const openBattleInvite = (battle) => {
+    if (!battle?.inviteLink) {
+      setMessage('Ссылка приглашения для батла недоступна.');
+      return;
+    }
+    const shareText = encodeURIComponent(`✨ Вызываю тебя на батл Emoji Race!\nБатл #${battle.matchId} уже ждёт тебя.`);
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(battle.inviteLink)}&text=${shareText}`;
+    if (tg?.openLink) tg.openLink(shareUrl);
+    else window.open(shareUrl, '_blank');
   };
 
   const openHelp = async () => {
@@ -217,7 +252,17 @@ function App() {
       data.race && h('p', { className: 'race-theme-label' }, `Стиль: ${TRACK_THEME_LABELS[trackTheme]}`),
       data.race && h('p', { className: 'race-intro' }, `🔥 Гонка в самом разгаре! 🔥\nПомоги своему фавориту придти на 🏁 первым!\n\nИспользуй бустеры на кнопках ниже:\n 🐇 (10⭐️) - временно ускоряет выбранный смайл\n 🐢 (10⭐️) - временно замедляет выбранный смайл\n 🪖 (40⭐️) - позволяет защититься от 5-ти 🐢`),
       data.race && raceEnded && h('p', { className: 'badge' }, 'Голосование закрыто, но бустеры активны.'),
-      h('div', { className: `track track-${trackTheme}` }, ...raceRows)
+      h('div', { className: `track track-${trackTheme}` }, ...raceRows),
+      myBattle && h('div', { className: 'my-battle-card' },
+        h('h3', null, `⚔️ Ваш батл #${myBattle.matchId}`),
+        h('p', { className: 'subtitle' }, `Голос за победу: ${myBattle.battleStake || 0} ⭐`),
+        h('p', { className: 'subtitle' }, getBattleStateLabel(myBattle)),
+        h('div', { className: 'battle-participants' }, ...(myBattle.units || []).map(u => h('span', { key: u.playerNumber, className: 'chip' }, u.playerName))),
+        h('div', { className: 'row' },
+          h('button', { disabled: !myBattleCanInvite, onClick: () => openBattleInvite(myBattle) }, 'Пригласить друзей'),
+          h('button', { disabled: !myBattleCanStart, onClick: requestBattleStartFromUi }, 'Старт батла')
+        )
+      )
     ),
     tab === 'account' && h('section', { className: 'panel' },
       h('h2', null, 'Профиль и действия'),
@@ -280,6 +325,11 @@ function App() {
         h('select', { value: battleEmoji, onChange: e => setBattleEmoji(e.target.value) }, ...(data.allEmojis || []).map(e => h('option', { key: e }, e))),
         h('button', { onClick: () => act('battle', { playerName: battleEmoji, stake: 100 }) }, 'Создать батл 100⭐')
       ),
+      h('div', { className: 'row' },
+        h('button', { disabled: !myBattleCanInvite, onClick: () => openBattleInvite(myBattle) }, myBattle ? `Пригласить друзей в батл #${myBattle.matchId}` : 'Пригласить друзей'),
+        h('button', { disabled: !myBattleCanStart, onClick: requestBattleStartFromUi }, 'Старт батла')
+      ),
+      !myBattle && h('p', { className: 'subtitle' }, 'Сначала создайте батл, затем появится ссылка приглашения и станет доступен старт.'),
       h('button', { className: 'help-btn', onClick: openHelp }, 'Связаться с поддержкой')
     ),
     message && h('div', { className: 'toast' }, message)
