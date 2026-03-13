@@ -116,6 +116,7 @@ function App() {
   if (!data) return h('div', { className: 'loading' }, 'Загрузка…');
 
   const raceEnded = !data.race || data.race.status !== 'CREATED';
+  const boostersDisabled = !data.race;
   const maxWithdraw = data?.balance || WITHDRAW_MIN;
   const clampedWithdraw = Math.max(WITHDRAW_MIN, Math.min(withdrawAmount || WITHDRAW_MIN, maxWithdraw));
 
@@ -139,23 +140,23 @@ function App() {
       ),
       h('div', { className: 'lane-index' }, `Полоса ${index + 1}`),
       spark === u.playerNumber && h('div', { className: 'spark' }, '✨'),
-      h('div', { className: 'actions' },
+      h('div', { className: 'actions booster-actions' },
         !raceEnded && h('button', { onClick: () => setVoteModalUnit(u) }, 'Отдать голос'),
         h('button', {
           className: 'booster booster-bust',
-          disabled: raceEnded,
+          disabled: boostersDisabled,
           onClick: async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700); }
-        }, h('span', null, '⚡'), ' Рывок'),
+        }, h('span', null, '🐇'), ' ДЛЯ ', u.playerName),
         h('button', {
           className: 'booster booster-slow',
-          disabled: raceEnded,
+          disabled: boostersDisabled,
           onClick: async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700); }
-        }, h('span', null, '🧊'), ' Лёд'),
+        }, h('span', null, '🐢'), ' ДЛЯ ', u.playerName),
         h('button', {
           className: 'booster booster-shield',
-          disabled: raceEnded,
+          disabled: boostersDisabled,
           onClick: async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700); }
-        }, h('span', null, '🛡'), ' Щит')
+        }, h('span', null, '🪖'), ' ДЛЯ ', u.playerName)
       )
     );
   });
@@ -172,8 +173,8 @@ function App() {
     ),
     tab === 'race' && h('section', { className: 'panel' },
       h('h2', null, data.race ? `Гонка #${data.race.matchId} · ${getRaceTypeLabel(data.race.type)}` : 'Нет активной гонки'),
-      h('p', { className: 'subtitle' }, 'Голосование открыто только до старта. Экран синхронизируется каждые несколько секунд.'),
-      data.race && raceEnded && h('p', { className: 'badge' }, 'Гонка уже началась или завершилась — голосование закрыто.'),
+      data.race && h('p', { className: 'race-intro' }, `🔥 Гонка №${data.race.matchId} в самом разгаре! 🔥\nПомоги своему фавориту придти на 🏁 первым!\n\nИспользуй бустеры на кнопках ниже:\n 🐇 (10⭐️) - временно ускоряет выбранный смайл\n 🐢 (10⭐️) - временно замедляет выбранный смайл\n 🪖 (40⭐️) - позволяет защититься от 5-ти 🐢`),
+      data.race && raceEnded && h('p', { className: 'badge' }, 'Голосование закрыто, но бустеры активны.'),
       h('div', { className: `track track-${trackTheme}` }, ...raceRows)
     ),
     tab === 'account' && h('section', { className: 'panel' },

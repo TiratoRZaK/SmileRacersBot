@@ -13,18 +13,8 @@ public class MainChannelService extends ChannelService {
      * Проверить что обновление пришло в основной канал.
      */
     public boolean isMainChannel(@NotNull Update update) {
-        if (update.hasChannelPost()) {
-            return channelProperties.getMainChannelChatId().equals(update.getChannelPost().getChatId());
-        }
-
-        if (update.hasCallbackQuery()
-                && update.getCallbackQuery().getMessage() != null
-                && update.getCallbackQuery().getMessage().getChatId() != null) {
-            return channelProperties.getMainChannelChatId()
-                    .equals(update.getCallbackQuery().getMessage().getChatId());
-        }
-
-        return false;
+        return update.hasChannelPost()
+                && channelProperties.getMainChannelChatId().equals(update.getChannelPost().getChatId());
     }
 
     @Override

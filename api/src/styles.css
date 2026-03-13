@@ -225,13 +225,20 @@ h3 {
   min-width: 46px;
 }
 
+.booster-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .booster {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   border: 1px solid rgba(255, 255, 255, .2);
   font-size: 12px;
   padding: 10px 12px;
+  min-width: 124px;
 }
 
 .booster span {
@@ -293,6 +300,13 @@ select:focus {
   right: 8px;
   top: 8px;
   animation: pop .7s ease;
+}
+
+
+.race-intro {
+  white-space: pre-line;
+  margin-top: 10px;
+  line-height: 1.45;
 }
 
 .badge {
@@ -374,4 +388,15 @@ footer {
   to {
     transform: translateY(2%);
   }
+}
+
+.slider-meta {
+  margin-top: 6px;
+  opacity: .75;
+  font-size: 12px;
+  text-align: center;
+}
+
+.slider-controls button {
+  flex: 1;
 }
