@@ -7,6 +7,7 @@ const tg = window.Telegram?.WebApp
 const WITHDRAW_MIN = 100
 const TOPUP_MIN = 1
 const POLL_INTERVAL_MS = 3500
+const DEFAULT_TRACK_LENGTH = 62
 
 const RACE_TYPE_LABELS = {
   REGULAR: 'Обычная',
@@ -16,7 +17,8 @@ const RACE_TYPE_LABELS = {
 
 const TRACK_THEMES = ['asphalt', 'grass', 'desert']
 
-const getRaceTypeLabel = (type) => RACE_TYPE_LABELS[type] || type || 'Неизвестно'
+const normalizeType = (type) => String(type || '').trim().toUpperCase()
+const getRaceTypeLabel = (type) => RACE_TYPE_LABELS[normalizeType(type)] || type || 'Неизвестно'
 
 const getTrackTheme = (race) => {
   if (!race) return TRACK_THEMES[0]
@@ -40,22 +42,15 @@ function App() {
   const [voteModalUnit, setVoteModalUnit] = useState(null)
   const [favoriteIndex, setFavoriteIndex] = useState(0)
 
-  const refresh = async (silent = false, partial = false) => {
-    const bootstrapRes = await fetch(`${API}/bootstrap?userId=${userId}`)
+  const refresh = async (silent = false) => {
+    const [bootstrapRes, withdrawsRes] = await Promise.all([
+      fetch(`${API}/bootstrap?userId=${userId}`),
+      fetch(`${API}/withdraw/active?userId=${userId}`)
+    ])
     const bootstrapData = await bootstrapRes.json()
-    if (partial) {
-      setData((current) => current ? {
-        ...current,
-        balance: bootstrapData.balance,
-        freeBoosters: bootstrapData.freeBoosters,
-        race: bootstrapData.race
-      } : bootstrapData)
-    } else {
-      setData(bootstrapData)
-      const withdrawRes = await fetch(`${API}/withdraw/active?userId=${userId}`)
-      const withdrawData = await withdrawRes.json()
-      setActiveWithdraws(withdrawData.items || [])
-    }
+    setData(bootstrapData)
+    const withdrawData = await withdrawsRes.json()
+    setActiveWithdraws(withdrawData.items || [])
     if (!silent && !bootstrapData.race && tab === 'race') {
       setMessage('Сейчас нет активной гонки. Обновим автоматически, как только стартует следующая.')
     }
@@ -68,10 +63,10 @@ function App() {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      refresh(true, true).catch(() => null)
+      refresh(true).catch(() => null)
     }, POLL_INTERVAL_MS)
     return () => clearInterval(timer)
-  }, [userId])
+  }, [userId, tab])
 
   useEffect(() => {
     if (!data?.allEmojis?.length) return
@@ -79,7 +74,7 @@ function App() {
     const currentFavorite = data.favoriteEmoji || data.allEmojis[0]
     const idx = Math.max(0, data.allEmojis.indexOf(currentFavorite))
     setFavoriteIndex(idx)
-  }, [data?.favoriteEmoji, data?.allEmojis])
+  }, [data])
 
   const act = async (path, body) => {
     const res = await fetch(`${API}/${path}?userId=${userId}`, {
@@ -122,7 +117,7 @@ function App() {
   const trackTheme = getTrackTheme(data.race)
   const raceUnits = data.race?.units || []
   const maxScore = raceUnits.reduce((max, unit) => Math.max(max, Number(unit.score) || 0), 0)
-  const finishScore = Math.max(100, maxScore)
+  const finishScore = Math.max(Number(data.race?.trackLength) || DEFAULT_TRACK_LENGTH, maxScore, 1)
 
   return <div className='app'>
     <div className='aurora' />

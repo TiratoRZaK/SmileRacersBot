@@ -17,6 +17,7 @@ public class MiniAppDtos {
             Long matchId,
             String status,
             String type,
+            Long trackLength,
             List<RaceUnit> units
     ) {}
 

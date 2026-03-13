@@ -7,7 +7,25 @@ const tg = window.Telegram?.WebApp;
 const WITHDRAW_MIN = 100;
 const TOPUP_MIN = 1;
 const POLL_INTERVAL_MS = 3500;
+const DEFAULT_TRACK_LENGTH = 62;
+
+const RACE_TYPE_LABELS = {
+  REGULAR: 'Обычная',
+  SPRINT: 'Спринт',
+  MARATHON: 'Марафон'
+};
+
+const TRACK_THEMES = ['asphalt', 'grass', 'desert'];
+
 const getUserId = () => tg?.initDataUnsafe?.user?.id || Number(new URLSearchParams(location.search).get('userId') || 1);
+
+const normalizeType = (type) => String(type || '').trim().toUpperCase();
+const getRaceTypeLabel = (type) => RACE_TYPE_LABELS[normalizeType(type)] || type || 'Неизвестно';
+const getTrackTheme = (race) => {
+  if (!race) return TRACK_THEMES[0];
+  const seed = Number(race.matchId || 0);
+  return TRACK_THEMES[Math.abs(seed) % TRACK_THEMES.length];
+};
 
 function App() {
   const userId = useMemo(getUserId, []);
@@ -101,20 +119,46 @@ function App() {
   const maxWithdraw = data?.balance || WITHDRAW_MIN;
   const clampedWithdraw = Math.max(WITHDRAW_MIN, Math.min(withdrawAmount || WITHDRAW_MIN, maxWithdraw));
 
-  const raceUnits = (data.race?.units || []).map(u => h('div', { className: 'unit', key: u.playerNumber },
-    h('div', { className: 'unit-head' },
-      h('div', { className: 'name' }, u.playerName),
-      h('div', { className: 'score' }, u.score)
-    ),
-    h('div', { className: 'meter' }, h('div', { style: { width: `${Math.min(100, u.score)}%` } })),
-    spark === u.playerNumber && h('div', { className: 'spark' }, '✨'),
-    h('div', { className: 'actions' },
-      h('button', { disabled: raceEnded, onClick: () => setVoteModalUnit(u) }, 'Отдать голос'),
-      h('button', { disabled: raceEnded, onClick: async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700); } }, '🐇'),
-      h('button', { disabled: raceEnded, onClick: async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700); } }, '🐢'),
-      h('button', { disabled: raceEnded, onClick: async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700); } }, '🛡')
-    )
-  ));
+  const raceUnits = data.race?.units || [];
+  const maxScore = raceUnits.reduce((max, u) => Math.max(max, Number(u.score) || 0), 0);
+  const finishScore = Math.max(Number(data.race?.trackLength) || DEFAULT_TRACK_LENGTH, maxScore, 1);
+  const trackTheme = getTrackTheme(data.race);
+
+  const raceRows = raceUnits.map((u, index) => {
+    const score = Number(u.score) || 0;
+    const percent = Math.max(0, Math.min(100, Math.round((score / finishScore) * 100)));
+
+    return h('div', { className: 'unit lane', key: u.playerNumber },
+      h('div', { className: 'unit-head' },
+        h('div', { className: 'name' }, u.playerName),
+        h('div', { className: 'score' }, `${percent}%`)
+      ),
+      h('div', { className: 'meter' },
+        h('div', { style: { width: `${percent}%` } }),
+        h('div', { className: 'finish-line' })
+      ),
+      h('div', { className: 'lane-index' }, `Полоса ${index + 1}`),
+      spark === u.playerNumber && h('div', { className: 'spark' }, '✨'),
+      h('div', { className: 'actions' },
+        !raceEnded && h('button', { onClick: () => setVoteModalUnit(u) }, 'Отдать голос'),
+        h('button', {
+          className: 'booster booster-bust',
+          disabled: raceEnded,
+          onClick: async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700); }
+        }, h('span', null, '⚡'), ' Рывок'),
+        h('button', {
+          className: 'booster booster-slow',
+          disabled: raceEnded,
+          onClick: async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700); }
+        }, h('span', null, '🧊'), ' Лёд'),
+        h('button', {
+          className: 'booster booster-shield',
+          disabled: raceEnded,
+          onClick: async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700); }
+        }, h('span', null, '🛡'), ' Щит')
+      )
+    );
+  });
 
   return h('div', { className: 'app' },
     h('div', { className: 'aurora' }),
@@ -127,10 +171,10 @@ function App() {
       h('button', { className: tab === 'account' ? 'active' : '', onClick: () => setTab('account') }, 'Аккаунт')
     ),
     tab === 'race' && h('section', { className: 'panel' },
-      h('h2', null, data.race ? `Гонка #${data.race.matchId} · ${data.race.type}` : 'Нет активной гонки'),
+      h('h2', null, data.race ? `Гонка #${data.race.matchId} · ${getRaceTypeLabel(data.race.type)}` : 'Нет активной гонки'),
       h('p', { className: 'subtitle' }, 'Голосование открыто только до старта. Экран синхронизируется каждые несколько секунд.'),
       data.race && raceEnded && h('p', { className: 'badge' }, 'Гонка уже началась или завершилась — голосование закрыто.'),
-      ...raceUnits
+      h('div', { className: `track track-${trackTheme}` }, ...raceRows)
     ),
     tab === 'account' && h('section', { className: 'panel' },
       h('h2', null, 'Профиль и действия'),

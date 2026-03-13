@@ -126,8 +126,44 @@ h3 {
   margin-top: 12px;
   border-radius: 16px;
   padding: 12px;
-  background: rgba(6, 13, 40, .55);
-  border: 1px solid rgba(255, 255, 255, .13);
+  background: rgba(5, 8, 25, .66);
+  border: 1px solid rgba(255, 255, 255, .16);
+}
+
+.track {
+  margin-top: 12px;
+  border-radius: 18px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, .16);
+}
+
+.track-asphalt {
+  background: linear-gradient(180deg, rgba(38, 44, 58, .55), rgba(22, 25, 36, .45));
+}
+
+.track-grass {
+  background: linear-gradient(180deg, rgba(18, 72, 48, .54), rgba(9, 44, 28, .42));
+}
+
+.track-desert {
+  background: linear-gradient(180deg, rgba(129, 88, 43, .45), rgba(92, 62, 26, .38));
+}
+
+.lane {
+  margin-top: 8px;
+}
+
+.lane::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: -5px;
+  border-top: 1px dashed rgba(255, 255, 255, .25);
+}
+
+.track .lane:first-child::before {
+  display: none;
 }
 
 .unit-head {
@@ -146,17 +182,35 @@ h3 {
 }
 
 .meter {
-  height: 8px;
+  position: relative;
+  height: 11px;
   margin-top: 10px;
   border-radius: 999px;
   overflow: hidden;
-  background: rgba(255, 255, 255, .12);
+  background: rgba(255, 255, 255, .16);
+  border: 1px solid rgba(255, 255, 255, .14);
 }
 
 .meter>div {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #24d0ff, #e879f9);
+  background: linear-gradient(90deg, #24d0ff, #bff5ff 55%, #e879f9);
+}
+
+.finish-line {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 12px;
+  height: 100%;
+  background-image: linear-gradient(45deg, #fff 25%, #111 25%, #111 50%, #fff 50%, #fff 75%, #111 75%, #111);
+  background-size: 8px 8px;
+}
+
+.lane-index {
+  margin-top: 6px;
+  font-size: 11px;
+  opacity: .75;
 }
 
 .actions,
@@ -169,6 +223,31 @@ h3 {
 
 .actions button:not(:first-child) {
   min-width: 46px;
+}
+
+.booster {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, .2);
+  font-size: 12px;
+  padding: 10px 12px;
+}
+
+.booster span {
+  font-size: 16px;
+}
+
+.booster-bust {
+  background: linear-gradient(135deg, rgba(239, 68, 68, .58), rgba(249, 115, 22, .52));
+}
+
+.booster-slow {
+  background: linear-gradient(135deg, rgba(14, 165, 233, .5), rgba(59, 130, 246, .42));
+}
+
+.booster-shield {
+  background: linear-gradient(135deg, rgba(139, 92, 246, .55), rgba(79, 70, 229, .45));
 }
 
 .grid {
@@ -236,7 +315,6 @@ select:focus {
 
 .emoji-slider {
   width: 100%;
-  height: 12px;
   accent-color: #38bdf8;
 }
 
@@ -298,12 +376,11 @@ footer {
   }
 }
 
-
 .slider-meta {
   margin-top: 6px;
+  opacity: .75;
   font-size: 12px;
   text-align: center;
-  opacity: .8;
 }
 
 .slider-controls button {
