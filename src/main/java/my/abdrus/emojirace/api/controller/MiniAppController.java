@@ -4,7 +4,6 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
 import my.abdrus.emojirace.api.dto.MiniAppDtos;
@@ -275,10 +274,10 @@ public class MiniAppController {
                         mp.getNumber(),
                         mp.getPlayerName(),
                         activeRace != null && activeRace.getMatch().getId().equals(match.getId())
-                                ? activeRace.getScoreByNumber(mp.getNumber())
+                                ? Math.round(activeRace.getScoreByNumber(mp.getNumber()))
                                 : 0L
                 ))
-                .collect(Collectors.toList());
+                .toList();
 
         return new MiniAppDtos.RaceCard(match.getId(), match.getStatus().name(), match.getType().name(), units);
     }
