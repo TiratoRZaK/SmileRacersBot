@@ -34,10 +34,6 @@ public class AccountService {
         if (result == 0) {
             throw new PaymentException(PaymentExceptionType.BALANCE_UPDATED);
         }
-
-        paymentRequest.setStatus(PaymentRequestStatus.PAYED);
-        paymentRequest.setPayedDate(new Date());
-        paymentRequestRepository.save(paymentRequest);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

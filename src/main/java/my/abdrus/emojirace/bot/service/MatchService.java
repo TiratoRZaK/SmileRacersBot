@@ -213,6 +213,9 @@ public class MatchService {
         paymentRequest.setCreatedDate(new Date());
         PaymentRequest saved = paymentRequestRepository.save(paymentRequest);
         accountService.pay(saved);
+        paymentRequest.setStatus(PaymentRequestStatus.PAYED);
+        paymentRequest.setPayedDate(new Date());
+        paymentRequestRepository.save(paymentRequest);
     }
 
     public Integer sendActiveMatchStateToChannel(Long chatId,
