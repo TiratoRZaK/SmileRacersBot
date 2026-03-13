@@ -1,6 +1,5 @@
 package my.abdrus.emojirace.api.controller;
 
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
@@ -30,6 +29,7 @@ import my.abdrus.emojirace.bot.service.MatchService;
 import my.abdrus.emojirace.bot.service.RaceService;
 import my.abdrus.emojirace.bot.service.UserService;
 import my.abdrus.emojirace.bot.service.WithdrawService;
+import my.abdrus.emojirace.config.ChannelProperties;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -57,6 +57,7 @@ public class MiniAppController {
     private final MatchService matchService;
     private final WithdrawService withdrawService;
     private final InvoiceService invoiceService;
+    private final ChannelProperties channelProperties;
 
     @GetMapping("/bootstrap")
     public MiniAppDtos.BootstrapResponse bootstrap(
@@ -67,11 +68,14 @@ public class MiniAppController {
         Account account = accountService.getByUserId(userId);
         var user = userService.createIfNeed(userId);
 
-        Match selectedMatch = matchRepository
-                .findFirstByStatusInOrderByCreatedDateDesc(Arrays.asList(MatchStatus.values()))
+        Race activeRace = raceService.getActiveRace();
+        Match selectedMatch = activeRace != null
+                ? activeRace.getMatch()
+                : matchRepository
+                .findFirstByStatusInOrderByCreatedDateDesc(List.of(MatchStatus.CREATED, MatchStatus.LIVE))
                 .orElse(null);
 
-        MiniAppDtos.RaceCard raceCard = toRaceCard(selectedMatch, raceService.getActiveRace());
+        MiniAppDtos.RaceCard raceCard = toRaceCard(selectedMatch, activeRace);
 
         List<String> emojis = playerRepository.findAll().stream()
                 .map(Player::getName)
@@ -101,6 +105,9 @@ public class MiniAppController {
         Match match = matchRepository.findById(request.matchId()).orElse(null);
         if (match == null) {
             return new MiniAppDtos.ActionResponse(false, "Гонка не найдена.");
+        }
+        if (!MatchStatus.CREATED.equals(match.getStatus())) {
+            return new MiniAppDtos.ActionResponse(false, "Голосование закрыто для этой гонки.");
         }
         var matchPlayer = match.getPlayerByNumber(request.playerNumber());
         if (matchPlayer == null) {
@@ -315,8 +322,7 @@ public class MiniAppController {
 
     @GetMapping("/help")
     public MiniAppDtos.ActionResponse help() {
-        return new MiniAppDtos.ActionResponse(true,
-                "Миниапп поддерживает гонки, голоса, бустеры, любимый смайл, очередь, батлы, пополнение и вывод.");
+        return new MiniAppDtos.ActionResponse(true, channelProperties.getHelpLink());
     }
 
     private MiniAppDtos.RaceCard toRaceCard(Match match, Race activeRace) {
