@@ -112,7 +112,6 @@ function App() {
 
   if (!data) return <div className='loading'>Загрузка…</div>
 
-  const raceEnded = !data.race || data.race.status !== 'CREATED'
   const raceBeforeStart = data.race?.status === 'CREATED'
   const boostersDisabled = !data.race || raceBeforeStart
   const trackTheme = getTrackTheme(data.race)
@@ -148,12 +147,11 @@ function App() {
  🐇 (10⭐️) - временно ускоряет выбранный смайл
  🐢 (10⭐️) - временно замедляет выбранный смайл
  🪖 (40⭐️) - позволяет защититься от 5-ти 🐢`}</p>}
-      {!!data.race && raceEnded && <p className='badge'>Голосование закрыто, но бустеры активны.</p>}
-
       <div className={`track track-${trackTheme}`}>
       {raceUnits.map((u, index) => {
         const score = Number(u.score) || 0
         const percent = finishScore ? Math.min(100, Math.round(score / finishScore * 100)) : 0
+        const runnerLeft = `${2 + percent * 0.96}%`
 
         return <div className='unit lane' key={u.playerNumber}>
         <div className='unit-head'>
@@ -162,7 +160,7 @@ function App() {
         </div>
         <div className='meter'>
           <div className='meter-fill' style={{ width: `${percent}%` }} />
-          <div className='runner' style={{ left: `${percent}%` }}>{u.playerName}</div>
+          <div className='runner' style={{ left: runnerLeft }}>{u.playerName}</div>
           <div className='finish-line' />
         </div>
         {spark === u.playerNumber && <div className='spark'>✨</div>}
@@ -187,10 +185,12 @@ function App() {
             Отдать голос
           </button>
         </div>}
-        {!raceBeforeStart && <div className='booster-actions'>
-          <button className='booster booster-bust' disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🐇</span> ДЛЯ {u.playerName}</button>
-          <button className='booster booster-slow' disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🐢</span> ДЛЯ {u.playerName}</button>
-          <button className='booster booster-shield' disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🪖</span> ДЛЯ {u.playerName}</button>
+        {!raceBeforeStart && <div className='booster-shell'>
+          <div className='booster-actions'>
+            <button className='booster booster-bust' disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🐇</span> ДЛЯ {u.playerName}</button>
+            <button className='booster booster-slow' disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🐢</span> ДЛЯ {u.playerName}</button>
+            <button className='booster booster-shield' disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🪖</span> ДЛЯ {u.playerName}</button>
+          </div>
         </div>}
       </div>
       })}

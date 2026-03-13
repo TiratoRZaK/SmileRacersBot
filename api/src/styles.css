@@ -124,10 +124,10 @@ h3 {
 .unit {
   position: relative;
   margin-top: 12px;
-  border-radius: 16px;
+  border-radius: 0;
   padding: 12px;
-  background: rgba(5, 8, 25, .66);
-  border: 1px solid rgba(255, 255, 255, .16);
+  background: transparent;
+  border: 0;
 }
 
 .track {
@@ -135,6 +135,10 @@ h3 {
   border-radius: 18px;
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, .16);
+}
+
+.track .unit:first-child {
+  margin-top: 0;
 }
 
 .track-asphalt {
@@ -186,7 +190,7 @@ h3 {
   height: 11px;
   margin-top: 10px;
   border-radius: 999px;
-  overflow: hidden;
+  overflow: visible;
   background: rgba(255, 255, 255, .16);
   border: 1px solid rgba(255, 255, 255, .14);
 }
@@ -212,9 +216,9 @@ h3 {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
-  font-size: 14px;
+  font-size: 18px;
   line-height: 1;
-  z-index: 2;
+  z-index: 5;
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .55));
   pointer-events: none;
 }
@@ -235,10 +239,29 @@ h3 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 0;
+}
+
+.booster-shell {
+  position: relative;
+  margin-top: 8px;
+  padding: 10px 0 4px;
+}
+
+.booster-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 14px 14px 28px 28px;
+  border: 1px solid rgba(255, 255, 255, .15);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .03));
+  clip-path: ellipse(92% 100% at 50% 0%);
+  pointer-events: none;
 }
 
 .booster {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
