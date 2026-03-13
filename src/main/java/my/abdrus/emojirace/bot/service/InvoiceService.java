@@ -45,4 +45,32 @@ public class InvoiceService {
         }
         return null;
     }
+
+
+    public String createDepositInvoiceLink(Long userId, Long amount) {
+        String url = "https://api.telegram.org/bot" + botProperties.getToken() + "/createInvoiceLink";
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("title", "Пополнить баланс");
+        request.put("description", "Оплатить " + amount + " ⭐");
+        request.put("payload", "deposit_" + userId + "_" + amount);
+        request.put("currency", "XTR");
+        request.put("provider_token", "");
+        request.put("prices", List.of(
+                Map.of(
+                        "label", "Stars",
+                        "amount", amount
+                )
+        ));
+
+        var response = restTemplate.postForObject(url, request, String.class);
+        if (response != null) {
+            var json = new JSONObject(response);
+            if (json.getBoolean("ok")) {
+                return json.getString("result");
+            }
+        }
+        return null;
+    }
+
 }
