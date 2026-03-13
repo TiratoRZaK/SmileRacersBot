@@ -173,7 +173,7 @@ public class MiniAppController {
             return new MiniAppDtos.ActionResponse(false, "Смайл не найден.");
         }
         var user = userService.createIfNeed(userId);
-        if (user.getFavoritePlayer() != null && !user.getFavoritePlayer().getId().equals(player.getId())) {
+        if (user.getFavoritePlayer() != null && !user.getFavoritePlayer().getName().equals(player.getName())) {
             PaymentRequest paymentRequest = new PaymentRequest();
             paymentRequest.setUserChatId(userId);
             paymentRequest.setSum(FAVORITE_REPLACE_COST);
