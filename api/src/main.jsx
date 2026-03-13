@@ -24,15 +24,22 @@ function App() {
   const [voteModalUnit, setVoteModalUnit] = useState(null)
   const [favoriteIndex, setFavoriteIndex] = useState(0)
 
-  const refresh = async (silent = false) => {
-    const [bootstrapRes, withdrawsRes] = await Promise.all([
-      fetch(`${API}/bootstrap?userId=${userId}`),
-      fetch(`${API}/withdraw/active?userId=${userId}`)
-    ])
+  const refresh = async (silent = false, partial = false) => {
+    const bootstrapRes = await fetch(`${API}/bootstrap?userId=${userId}`)
     const bootstrapData = await bootstrapRes.json()
-    setData(bootstrapData)
-    const withdrawData = await withdrawsRes.json()
-    setActiveWithdraws(withdrawData.items || [])
+    if (partial) {
+      setData((current) => current ? {
+        ...current,
+        balance: bootstrapData.balance,
+        freeBoosters: bootstrapData.freeBoosters,
+        race: bootstrapData.race
+      } : bootstrapData)
+    } else {
+      setData(bootstrapData)
+      const withdrawRes = await fetch(`${API}/withdraw/active?userId=${userId}`)
+      const withdrawData = await withdrawRes.json()
+      setActiveWithdraws(withdrawData.items || [])
+    }
     if (!silent && !bootstrapData.race && tab === 'race') {
       setMessage('Сейчас нет активной гонки. Обновим автоматически, как только стартует следующая.')
     }
@@ -45,10 +52,10 @@ function App() {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      refresh(true).catch(() => null)
+      refresh(true, true).catch(() => null)
     }, POLL_INTERVAL_MS)
     return () => clearInterval(timer)
-  }, [userId, tab])
+  }, [userId])
 
   useEffect(() => {
     if (!data?.allEmojis?.length) return
@@ -56,7 +63,7 @@ function App() {
     const currentFavorite = data.favoriteEmoji || data.allEmojis[0]
     const idx = Math.max(0, data.allEmojis.indexOf(currentFavorite))
     setFavoriteIndex(idx)
-  }, [data])
+  }, [data?.favoriteEmoji, data?.allEmojis])
 
   const act = async (path, body) => {
     const res = await fetch(`${API}/${path}?userId=${userId}`, {
