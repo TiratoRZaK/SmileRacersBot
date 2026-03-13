@@ -38,6 +38,14 @@ public class MiniAppDtos {
 
     public record TopupRequest(Long amount) {}
 
+    public record CancelWithdrawRequest(Long requestId) {}
+
+    public record TopupLinkResponse(boolean success, String message, String invoiceLink) {}
+
+    public record WithdrawItem(Long id, Long amount, String status, Long createdAtMs) {}
+
+    public record ActiveWithdrawsResponse(List<WithdrawItem> items) {}
+
     public record CreateBattleRequest(String playerName, Long stake) {}
 
     public record ActionResponse(boolean success, String message) {}

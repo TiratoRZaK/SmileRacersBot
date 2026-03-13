@@ -69,7 +69,8 @@ b {
 }
 
 button,
-select {
+select,
+.field {
   border: 0;
   color: #ecf4ff;
   background: rgba(255, 255, 255, .1);
@@ -180,8 +181,33 @@ h3 {
   background: linear-gradient(120deg, rgba(36, 176, 255, .85), rgba(180, 78, 255, .82));
 }
 
-select {
+select, .field {
   flex: 1;
+}
+
+.field {
+  border: 1px solid rgba(255,255,255,.22);
+  outline: none;
+  color: #ecf4ff;
+  background: rgba(9, 16, 46, .72);
+  box-shadow: inset 0 1px 8px rgba(0,0,0,.28);
+}
+
+.field:focus,
+select:focus {
+  border-color: rgba(86, 206, 255, .85);
+  box-shadow: 0 0 0 2px rgba(44, 170, 255, .22);
+}
+
+.picker {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.grid-2 {
+  grid-template-columns: repeat(2, minmax(0,1fr));
 }
 
 .row button {

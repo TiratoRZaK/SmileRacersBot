@@ -1,5 +1,6 @@
 package my.abdrus.emojirace.api.controller;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
@@ -15,6 +16,7 @@ import my.abdrus.emojirace.bot.entity.Race;
 import my.abdrus.emojirace.bot.enumeration.BusterType;
 import my.abdrus.emojirace.bot.enumeration.MatchStatus;
 import my.abdrus.emojirace.bot.enumeration.PaymentRequestStatus;
+import my.abdrus.emojirace.bot.enumeration.WithdrawRequestStatus;
 import my.abdrus.emojirace.bot.exception.PaymentException;
 import my.abdrus.emojirace.bot.repository.AccountRepository;
 import my.abdrus.emojirace.bot.repository.MatchRepository;
@@ -22,6 +24,7 @@ import my.abdrus.emojirace.bot.repository.PaymentRequestRepository;
 import my.abdrus.emojirace.bot.repository.PlayerRepository;
 import my.abdrus.emojirace.bot.repository.UserRepository;
 import my.abdrus.emojirace.bot.service.AccountService;
+import my.abdrus.emojirace.bot.service.InvoiceService;
 import my.abdrus.emojirace.bot.service.MatchGenerationService;
 import my.abdrus.emojirace.bot.service.MatchService;
 import my.abdrus.emojirace.bot.service.RaceService;
@@ -40,6 +43,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class MiniAppController {
 
+    private static final long FAVORITE_REPLACE_COST = 150L;
+
     private final AccountService accountService;
     private final AccountRepository accountRepository;
     private final UserService userService;
@@ -51,6 +56,7 @@ public class MiniAppController {
     private final MatchGenerationService matchGenerationService;
     private final MatchService matchService;
     private final WithdrawService withdrawService;
+    private final InvoiceService invoiceService;
 
     @GetMapping("/bootstrap")
     public MiniAppDtos.BootstrapResponse bootstrap(
@@ -61,14 +67,9 @@ public class MiniAppController {
         Account account = accountService.getByUserId(userId);
         var user = userService.createIfNeed(userId);
 
-        Match selectedMatch = matchRepository.findFirstByStatusOrderByCreatedDateAsc(MatchStatus.LIVE)
-                .orElseGet(() -> matchRepository.findFirstByStatusAndTypeOrderByCreatedDateAsc(
-                        MatchStatus.CREATED,
-                        my.abdrus.emojirace.bot.enumeration.MatchType.BATTLE
-                ).orElseGet(() -> matchRepository.findFirstByStatusAndTypeOrderByCreatedDateAsc(
-                        MatchStatus.CREATED,
-                        my.abdrus.emojirace.bot.enumeration.MatchType.REGULAR
-                ).orElse(null)));
+        Match selectedMatch = matchRepository
+                .findFirstByStatusInOrderByCreatedDateDesc(Arrays.asList(MatchStatus.values()))
+                .orElse(null);
 
         MiniAppDtos.RaceCard raceCard = toRaceCard(selectedMatch, raceService.getActiveRace());
 
@@ -172,6 +173,17 @@ public class MiniAppController {
             return new MiniAppDtos.ActionResponse(false, "Смайл не найден.");
         }
         var user = userService.createIfNeed(userId);
+        if (user.getFavoritePlayer() != null && !user.getFavoritePlayer().getId().equals(player.getId())) {
+            PaymentRequest paymentRequest = new PaymentRequest();
+            paymentRequest.setUserChatId(userId);
+            paymentRequest.setSum(FAVORITE_REPLACE_COST);
+            try {
+                accountService.pay(paymentRequest);
+            } catch (PaymentException e) {
+                return new MiniAppDtos.ActionResponse(false, e.getMessage());
+            }
+        }
+
         user.setFavoritePlayer(player);
         userRepository.save(user);
         return new MiniAppDtos.ActionResponse(true, "Любимый смайл обновлён.");
@@ -184,12 +196,14 @@ public class MiniAppController {
             @RequestBody MiniAppDtos.QueueRequest request
     ) {
         Long userId = resolveUserId(headerUserId, userIdParam);
-        if (request == null || request.playerName() == null) {
-            return new MiniAppDtos.ActionResponse(false, "Выберите смайл.");
+        var user = userService.createIfNeed(userId);
+        if (user.getFavoritePlayer() == null) {
+            return new MiniAppDtos.ActionResponse(false, "Сначала выберите любимый смайл.");
         }
-        Player player = playerRepository.findByName(request.playerName()).orElse(null);
-        if (player == null) {
-            return new MiniAppDtos.ActionResponse(false, "Смайл не найден.");
+
+        if (request != null && request.playerName() != null
+                && !request.playerName().equals(user.getFavoritePlayer().getName())) {
+            return new MiniAppDtos.ActionResponse(false, "В очередь можно отправить только любимый смайл.");
         }
 
         PaymentRequest paymentRequest = new PaymentRequest();
@@ -200,22 +214,25 @@ public class MiniAppController {
         } catch (PaymentException e) {
             return new MiniAppDtos.ActionResponse(false, e.getMessage());
         }
-        int position = matchGenerationService.addPlayerToQueue(player);
+        int position = matchGenerationService.addPlayerToQueue(user.getFavoritePlayer());
         return new MiniAppDtos.ActionResponse(true, "Смайл добавлен в очередь. Позиция: " + position);
     }
 
     @PostMapping("/topup")
-    public MiniAppDtos.ActionResponse topup(
+    public MiniAppDtos.TopupLinkResponse topup(
             @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
             @RequestParam(value = "userId", required = false) Long userIdParam,
             @RequestBody MiniAppDtos.TopupRequest request
     ) {
         Long userId = resolveUserId(headerUserId, userIdParam);
         if (request == null || request.amount() == null || request.amount() < 1) {
-            return new MiniAppDtos.ActionResponse(false, "Сумма должна быть больше 0.");
+            return new MiniAppDtos.TopupLinkResponse(false, "Сумма должна быть больше 0.", null);
         }
-        accountService.addBalance(userId, request.amount());
-        return new MiniAppDtos.ActionResponse(true, "Баланс пополнен на демо-режиме.");
+        String invoiceLink = invoiceService.createDepositInvoiceLink(userId, request.amount());
+        if (invoiceLink == null) {
+            return new MiniAppDtos.TopupLinkResponse(false, "Не удалось сформировать ссылку на оплату.", null);
+        }
+        return new MiniAppDtos.TopupLinkResponse(true, "Ссылка на пополнение сформирована.", invoiceLink);
     }
 
     @PostMapping("/withdraw")
@@ -225,8 +242,11 @@ public class MiniAppController {
             @RequestBody MiniAppDtos.WithdrawRequest request
     ) {
         Long userId = resolveUserId(headerUserId, userIdParam);
-        if (request == null || request.amount() == null || request.amount() < 1) {
-            return new MiniAppDtos.ActionResponse(false, "Сумма должна быть больше 0.");
+        if (request == null || request.amount() == null || request.amount() < 100) {
+            return new MiniAppDtos.ActionResponse(false, "Сумма вывода должна быть не меньше 100 ⭐.");
+        }
+        if (accountService.getBalanceByUserChatId(userId).compareTo(request.amount()) < 0) {
+            return new MiniAppDtos.ActionResponse(false, "Недостаточно средств на балансе.");
         }
         try {
             Long id = withdrawService.sendWithdrawRequestToAdmin(userId, request.amount(), new Date());
@@ -234,6 +254,41 @@ public class MiniAppController {
         } catch (Exception e) {
             return new MiniAppDtos.ActionResponse(false, e.getMessage());
         }
+    }
+
+    @GetMapping("/withdraw/active")
+    public MiniAppDtos.ActiveWithdrawsResponse activeWithdraws(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        var items = withdrawService.findByUser(userId).stream()
+                .filter(request -> WithdrawRequestStatus.CREATED.equals(request.getStatus()))
+                .map(request -> new MiniAppDtos.WithdrawItem(
+                        request.getId(),
+                        request.getSum(),
+                        request.getStatus().name(),
+                        request.getCreatedDate() == null ? null : request.getCreatedDate().getTime()
+                ))
+                .toList();
+        return new MiniAppDtos.ActiveWithdrawsResponse(items);
+    }
+
+    @PostMapping("/withdraw/cancel")
+    public MiniAppDtos.ActionResponse cancelWithdraw(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.CancelWithdrawRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.requestId() == null) {
+            return new MiniAppDtos.ActionResponse(false, "Некорректный запрос на отмену вывода.");
+        }
+        boolean canceled = withdrawService.cancelByUserForMiniApp(userId, request.requestId());
+        if (!canceled) {
+            return new MiniAppDtos.ActionResponse(false, "Не удалось отменить вывод.");
+        }
+        return new MiniAppDtos.ActionResponse(true, "Запрос на вывод отменён.");
     }
 
     @PostMapping("/battle")
