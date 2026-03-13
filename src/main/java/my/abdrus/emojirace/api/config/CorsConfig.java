@@ -14,6 +14,8 @@ public class CorsConfig {
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
                     .allowedOrigins("http://localhost:5173")
+                    .allowedOrigins("https://localhost:8080")
+                    .allowedOrigins("http://localhost:8080")
                     .allowedOrigins("https://smile-racers-ui.vercel.app")
                     .allowedMethods("GET", "POST", "PUT", "DELETE")
                     .allowCredentials(true);
