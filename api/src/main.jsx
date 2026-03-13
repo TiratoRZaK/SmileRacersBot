@@ -44,6 +44,16 @@ const getTrackTheme = (race) => {
 const queryUserId = Number(new URLSearchParams(location.search).get('userId') || 0)
 const getUserId = () => telegramUserId || (Number.isFinite(queryUserId) && queryUserId > 0 ? queryUserId : null)
 
+
+const getBattleStateLabel = (battle) => {
+  if (!battle) return ''
+  if (battle.status === 'LIVE') return '🚦 Батл уже начался'
+  if (battle.status === 'COMPLETED') return '🏁 Батл завершён'
+  if (battle.battleStartRequested) return '⏳ Батл ждёт очереди на запуск'
+  if ((battle.units?.length || 0) < 2) return 'Нужно минимум 2 участника для старта'
+  return 'Готов к старту. Нажмите «Старт батла»'
+}
+
 function App() {
   const userId = useMemo(getUserId, [])
   const [data, setData] = useState(null)
@@ -135,6 +145,8 @@ function App() {
   if (!data) return <div className='loading'>Загрузка…</div>
 
   const raceBeforeStart = data.race?.status === 'CREATED'
+  const myBattle = data.myBattle || null
+  const myBattleCanStart = !!myBattle && myBattle.status === 'CREATED' && !myBattle.battleStartRequested && (myBattle.units?.length || 0) > 1
   const boostersDisabled = !data.race || raceBeforeStart
   const trackTheme = getTrackTheme(data.race)
   const raceUnits = data.race?.units || []
@@ -217,6 +229,23 @@ function App() {
       </div>
       })}
       </div>
+
+      {myBattle && <div className='my-battle-card'>
+        <h3>⚔️ Ваш батл #{myBattle.matchId}</h3>
+        <p className='subtitle'>Голос за победу: {myBattle.battleStake || 0} ⭐</p>
+        <p className='subtitle'>{getBattleStateLabel(myBattle)}</p>
+        <div className='battle-participants'>
+          {(myBattle.units || []).map((u) => <span key={u.playerNumber} className='chip'>{u.playerName}</span>)}
+        </div>
+        <div className='row'>
+          <button
+            disabled={!myBattleCanStart}
+            onClick={() => act('battle/start', { matchId: myBattle.matchId })}
+          >
+            Старт батла
+          </button>
+        </div>
+      </div>}
     </section>}
 
     {tab === 'account' && <section className='panel'>

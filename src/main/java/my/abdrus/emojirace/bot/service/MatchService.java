@@ -564,7 +564,12 @@ public class MatchService {
                 .append("Голос за победу: ").append(voteForVictory).append(" ⭐\n")
                 .append("Общий банк: ").append(battleBank).append(" ⭐\n")
                 .append("Участники:\n").append(participants).append("\n\n")
-                .append("Ссылка для друга:\n").append(inviteLink);
+                .append("Ссылка для друга:\n").append(inviteLink)
+                .append("\n\n")
+                .append("Как начать батл:\n")
+                .append("1) Пригласите друзей по кнопке ниже\n")
+                .append("2) Дождитесь минимум 2 участников\n")
+                .append("3) Нажмите 'Старт батла'");
 
         if (battle.getStatus() == COMPLETED) {
             MatchPlayer winner = battle.getPlayerByNumber(battle.getWinner());
@@ -683,6 +688,9 @@ public class MatchService {
                 List.of(
                         InlineKeyboardButton.builder().text("Старт батла").callbackData("battleStart_" + battleId).build(),
                         InlineKeyboardButton.builder().text("Отменить батл").callbackData("battleCancel_" + battleId).build()
+                ),
+                List.of(
+                        InlineKeyboardButton.builder().text("🔗 Открыть ссылку батла").url(inviteLink).build()
                 ),
                 List.of(
                         InlineKeyboardButton.builder().text("Пригласить друзей").url(shareUrl).build()

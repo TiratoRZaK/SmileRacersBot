@@ -13,6 +13,7 @@ import my.abdrus.emojirace.bot.entity.Account;
 import my.abdrus.emojirace.bot.entity.Match;
 import my.abdrus.emojirace.bot.entity.PaymentRequest;
 import my.abdrus.emojirace.bot.entity.Player;
+import my.abdrus.emojirace.bot.EmojiRaceBot;
 import my.abdrus.emojirace.bot.entity.Race;
 import my.abdrus.emojirace.bot.enumeration.BusterType;
 import my.abdrus.emojirace.bot.enumeration.MatchStatus;
@@ -52,6 +53,7 @@ public class MiniAppController {
     private static final long FAVORITE_REPLACE_COST = 150L;
     private static final Pattern USER_ID_PATTERN = Pattern.compile("\"id\"\\s*:\\s*(\\d+)");
 
+    private final EmojiRaceBot bot;
     private final AccountService accountService;
     private final AccountRepository accountRepository;
     private final UserService userService;
@@ -84,6 +86,10 @@ public class MiniAppController {
                 .orElse(null);
 
         MiniAppDtos.RaceCard raceCard = toRaceCard(selectedMatch, activeRace);
+        MiniAppDtos.RaceCard myBattleCard = matchRepository
+                .findFirstByTypeAndStatusAndCreatorUserChatIdOrderByCreatedDateDesc(my.abdrus.emojirace.bot.enumeration.MatchType.BATTLE, MatchStatus.CREATED, userId)
+                .map(match -> toRaceCard(match, activeRace))
+                .orElse(null);
 
         List<String> emojis = playerRepository.findAll().stream()
                 .map(Player::getName)
@@ -97,6 +103,7 @@ public class MiniAppController {
                 account.getFreeBustCount(),
                 user.getFavoritePlayer() == null ? null : user.getFavoritePlayer().getName(),
                 raceCard,
+                myBattleCard,
                 emojis
         );
     }
@@ -323,10 +330,39 @@ public class MiniAppController {
         }
         try {
             Match battle = matchService.createBattle(userId, player, request.stake());
+            if (battle == null) {
+                return new MiniAppDtos.ActionResponse(false, "У вас уже есть открытый батл. Завершите его или отмените.");
+            }
             return new MiniAppDtos.ActionResponse(true, "Батл создан: #" + battle.getId());
         } catch (PaymentException e) {
             return new MiniAppDtos.ActionResponse(false, e.getMessage());
         }
+    }
+
+    @PostMapping("/battle/start")
+    public MiniAppDtos.ActionResponse startBattle(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.StartBattleRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.matchId() == null) {
+            return new MiniAppDtos.ActionResponse(false, "Некорректный запрос на старт батла.");
+        }
+        if (!matchService.canStartBattle(request.matchId(), userId)) {
+            return new MiniAppDtos.ActionResponse(false, "Старт недоступен: нужен создатель и минимум 2 участника.");
+        }
+
+        Match liveExists = matchRepository.findFirstByStatusOrderByCreatedDateAsc(MatchStatus.LIVE).orElse(null);
+        if (liveExists == null) {
+            matchRepository.findById(request.matchId()).ifPresent(match -> matchService.startLiveByActiveMatch(match, bot));
+            return new MiniAppDtos.ActionResponse(true, "Батл запущен!");
+        }
+
+        if (matchService.requestBattleStart(request.matchId(), userId)) {
+            return new MiniAppDtos.ActionResponse(true, "Батл ждёт очереди и стартует автоматически после текущей гонки.");
+        }
+        return new MiniAppDtos.ActionResponse(false, "Не удалось поставить батл в очередь.");
     }
 
     @GetMapping("/help")
@@ -353,7 +389,15 @@ public class MiniAppController {
                 ? Math.round(activeRace.getRaceSize())
                 : null;
 
-        return new MiniAppDtos.RaceCard(match.getId(), match.getStatus().name(), match.getType().name(), trackLength, units);
+        return new MiniAppDtos.RaceCard(
+                match.getId(),
+                match.getStatus().name(),
+                match.getType().name(),
+                trackLength,
+                match.getBattleStake(),
+                match.isBattleStartRequested(),
+                units
+        );
     }
 
     private Long resolveUserId(Long headerUserId, Long userIdParam) {
