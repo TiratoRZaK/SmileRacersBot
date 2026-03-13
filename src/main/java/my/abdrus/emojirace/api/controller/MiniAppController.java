@@ -1,5 +1,6 @@
 package my.abdrus.emojirace.api.controller;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
@@ -66,14 +67,9 @@ public class MiniAppController {
         Account account = accountService.getByUserId(userId);
         var user = userService.createIfNeed(userId);
 
-        Match selectedMatch = matchRepository.findFirstByStatusOrderByCreatedDateAsc(MatchStatus.LIVE)
-                .orElseGet(() -> matchRepository.findFirstByStatusAndTypeOrderByCreatedDateAsc(
-                        MatchStatus.CREATED,
-                        my.abdrus.emojirace.bot.enumeration.MatchType.BATTLE
-                ).orElseGet(() -> matchRepository.findFirstByStatusAndTypeOrderByCreatedDateAsc(
-                        MatchStatus.CREATED,
-                        my.abdrus.emojirace.bot.enumeration.MatchType.REGULAR
-                ).orElse(null)));
+        Match selectedMatch = matchRepository
+                .findFirstByStatusInOrderByCreatedDateDesc(Arrays.asList(MatchStatus.values()))
+                .orElse(null);
 
         MiniAppDtos.RaceCard raceCard = toRaceCard(selectedMatch, raceService.getActiveRace());
 
