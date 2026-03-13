@@ -138,15 +138,15 @@ h3 {
 }
 
 .track-asphalt {
-  background: linear-gradient(180deg, rgba(38, 44, 58, .55), rgba(22, 25, 36, .45));
+  background: radial-gradient(circle at 10% 20%, rgba(148, 163, 184, .2), transparent 35%), linear-gradient(180deg, rgba(52, 59, 75, .78), rgba(28, 33, 46, .62));
 }
 
 .track-grass {
-  background: linear-gradient(180deg, rgba(18, 72, 48, .54), rgba(9, 44, 28, .42));
+  background: radial-gradient(circle at 15% 25%, rgba(134, 239, 172, .2), transparent 35%), linear-gradient(180deg, rgba(35, 117, 64, .72), rgba(20, 76, 42, .6));
 }
 
 .track-desert {
-  background: linear-gradient(180deg, rgba(129, 88, 43, .45), rgba(92, 62, 26, .38));
+  background: radial-gradient(circle at 15% 20%, rgba(254, 243, 199, .26), transparent 36%), linear-gradient(180deg, rgba(173, 125, 66, .74), rgba(132, 88, 41, .62));
 }
 
 .lane {
@@ -191,7 +191,7 @@ h3 {
   border: 1px solid rgba(255, 255, 255, .14);
 }
 
-.meter>div {
+.meter-fill {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, #24d0ff, #bff5ff 55%, #e879f9);
@@ -205,12 +205,18 @@ h3 {
   height: 100%;
   background-image: linear-gradient(45deg, #fff 25%, #111 25%, #111 50%, #fff 50%, #fff 75%, #111 75%, #111);
   background-size: 8px 8px;
+  z-index: 3;
 }
 
-.lane-index {
-  margin-top: 6px;
-  font-size: 11px;
-  opacity: .75;
+.runner {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
+  line-height: 1;
+  z-index: 2;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .55));
+  pointer-events: none;
 }
 
 .actions,
@@ -225,13 +231,22 @@ h3 {
   min-width: 46px;
 }
 
+.booster-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .booster {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  width: 100%;
   border: 1px solid rgba(255, 255, 255, .2);
   font-size: 12px;
-  padding: 10px 12px;
+  padding: 10px 8px;
 }
 
 .booster span {
@@ -293,6 +308,81 @@ select:focus {
   right: 8px;
   top: 8px;
   animation: pop .7s ease;
+}
+
+
+.race-intro {
+  white-space: pre-line;
+  margin-top: 10px;
+  line-height: 1.45;
+}
+
+
+.race-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.race-panel::before,
+.race-panel::after {
+  position: absolute;
+  font-size: 22px;
+  opacity: .28;
+  pointer-events: none;
+}
+
+.race-theme-label {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: .9;
+}
+
+.race-theme-asphalt {
+  background: linear-gradient(155deg, rgba(51, 62, 84, .72), rgba(23, 31, 49, .66));
+}
+
+.race-theme-asphalt::before {
+  content: '🏎️';
+  right: 12px;
+  top: 10px;
+}
+
+.race-theme-asphalt::after {
+  content: '🛞';
+  left: 12px;
+  bottom: 10px;
+}
+
+.race-theme-grass {
+  background: linear-gradient(155deg, rgba(44, 118, 74, .7), rgba(24, 75, 45, .62));
+}
+
+.race-theme-grass::before {
+  content: '🌳';
+  right: 10px;
+  top: 10px;
+}
+
+.race-theme-grass::after {
+  content: '🦋';
+  left: 10px;
+  bottom: 10px;
+}
+
+.race-theme-desert {
+  background: linear-gradient(155deg, rgba(201, 163, 99, .72), rgba(154, 113, 57, .6));
+}
+
+.race-theme-desert::before {
+  content: '🌵';
+  right: 12px;
+  top: 10px;
+}
+
+.race-theme-desert::after {
+  content: '🦎';
+  left: 12px;
+  bottom: 10px;
 }
 
 .badge {
