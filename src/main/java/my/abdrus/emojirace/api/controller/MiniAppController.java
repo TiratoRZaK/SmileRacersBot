@@ -88,7 +88,11 @@ public class MiniAppController {
 
         MiniAppDtos.RaceCard raceCard = toRaceCard(selectedMatch, activeRace);
         MiniAppDtos.RaceCard myBattleCard = matchRepository
-                .findFirstByTypeAndStatusAndCreatorUserChatIdOrderByCreatedDateDesc(MatchType.BATTLE, MatchStatus.CREATED, userId)
+                .findFirstByTypeAndCreatorUserChatIdAndStatusInOrderByCreatedDateDesc(
+                        MatchType.BATTLE,
+                        userId,
+                        List.of(MatchStatus.CREATED, MatchStatus.LIVE)
+                )
                 .map(match -> toRaceCard(match, activeRace))
                 .orElse(null);
 

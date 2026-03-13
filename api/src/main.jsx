@@ -132,6 +132,14 @@ function App() {
   const clampedWithdraw = Math.max(WITHDRAW_MIN, Math.min(withdrawAmount || WITHDRAW_MIN, maxWithdraw))
 
 
+  const requestBattleStartFromUi = async () => {
+    if (!myBattle) {
+      setMessage('Сначала создайте батл, затем можно стартовать и приглашать друзей.')
+      return
+    }
+    await act('battle/start', { matchId: myBattle.matchId })
+  }
+
   const openBattleInvite = (battle) => {
     if (!battle?.inviteLink) {
       setMessage('Ссылка приглашения для батла недоступна.')
@@ -159,6 +167,7 @@ function App() {
   const raceBeforeStart = data.race?.status === 'CREATED'
   const myBattle = data.myBattle || null
   const myBattleCanStart = !!myBattle && myBattle.status === 'CREATED' && !myBattle.battleStartRequested
+  const myBattleCanInvite = !!myBattle?.inviteLink
   const boostersDisabled = !data.race || raceBeforeStart
   const trackTheme = getTrackTheme(data.race)
   const raceUnits = data.race?.units || []
@@ -250,10 +259,10 @@ function App() {
           {(myBattle.units || []).map((u) => <span key={u.playerNumber} className='chip'>{u.playerName}</span>)}
         </div>
         <div className='row'>
-          <button onClick={() => openBattleInvite(myBattle)}>Пригласить друзей</button>
+          <button disabled={!myBattleCanInvite} onClick={() => openBattleInvite(myBattle)}>Пригласить друзей</button>
           <button
             disabled={!myBattleCanStart}
-            onClick={() => act('battle/start', { matchId: myBattle.matchId })}
+            onClick={requestBattleStartFromUi}
           >
             Старт батла
           </button>
@@ -326,10 +335,13 @@ function App() {
         <select value={battleEmoji} onChange={(e) => setBattleEmoji(e.target.value)}>{data.allEmojis.map((e) => <option key={e}>{e}</option>)}</select>
         <button onClick={() => act('battle', { playerName: battleEmoji, stake: 100 })}>Создать батл 100⭐</button>
       </div>
-      {myBattle && <div className='row'>
-        <button onClick={() => openBattleInvite(myBattle)}>Пригласить друзей в батл #{myBattle.matchId}</button>
-        <button disabled={!myBattleCanStart} onClick={() => act('battle/start', { matchId: myBattle.matchId })}>Старт батла</button>
-      </div>}
+      <div className='row'>
+        <button disabled={!myBattleCanInvite} onClick={() => openBattleInvite(myBattle)}>
+          {myBattle ? `Пригласить друзей в батл #${myBattle.matchId}` : 'Пригласить друзей'}
+        </button>
+        <button disabled={!myBattleCanStart} onClick={requestBattleStartFromUi}>Старт батла</button>
+      </div>
+      {!myBattle && <p className='subtitle'>Сначала создайте батл, затем появится ссылка приглашения и станет доступен старт.</p>}
 
       <button className='help-btn' onClick={openHelp}>Связаться с поддержкой</button>
     </section>}
