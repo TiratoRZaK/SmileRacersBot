@@ -17,6 +17,7 @@ import my.abdrus.emojirace.bot.EmojiRaceBot;
 import my.abdrus.emojirace.bot.entity.Race;
 import my.abdrus.emojirace.bot.enumeration.BusterType;
 import my.abdrus.emojirace.bot.enumeration.MatchStatus;
+import my.abdrus.emojirace.bot.enumeration.MatchType;
 import my.abdrus.emojirace.bot.enumeration.PaymentRequestStatus;
 import my.abdrus.emojirace.bot.enumeration.WithdrawRequestStatus;
 import my.abdrus.emojirace.bot.exception.PaymentException;
@@ -87,7 +88,7 @@ public class MiniAppController {
 
         MiniAppDtos.RaceCard raceCard = toRaceCard(selectedMatch, activeRace);
         MiniAppDtos.RaceCard myBattleCard = matchRepository
-                .findFirstByTypeAndStatusAndCreatorUserChatIdOrderByCreatedDateDesc(my.abdrus.emojirace.bot.enumeration.MatchType.BATTLE, MatchStatus.CREATED, userId)
+                .findFirstByTypeAndStatusAndCreatorUserChatIdOrderByCreatedDateDesc(MatchType.BATTLE, MatchStatus.CREATED, userId)
                 .map(match -> toRaceCard(match, activeRace))
                 .orElse(null);
 
@@ -389,6 +390,10 @@ public class MiniAppController {
                 ? Math.round(activeRace.getRaceSize())
                 : null;
 
+        String inviteLink = match.getType() == MatchType.BATTLE
+                ? channelProperties.getBotLink() + "?start=join_battle_" + match.getId()
+                : null;
+
         return new MiniAppDtos.RaceCard(
                 match.getId(),
                 match.getStatus().name(),
@@ -396,6 +401,7 @@ public class MiniAppController {
                 trackLength,
                 match.getBattleStake(),
                 match.isBattleStartRequested(),
+                inviteLink,
                 units
         );
     }

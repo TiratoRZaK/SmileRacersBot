@@ -22,6 +22,7 @@ public class MiniAppDtos {
             Long trackLength,
             Long battleStake,
             boolean battleStartRequested,
+            String inviteLink,
             List<RaceUnit> units
     ) {}
 
