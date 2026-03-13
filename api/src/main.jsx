@@ -42,10 +42,9 @@ function App() {
   const [message, setMessage] = useState('')
   const [spark, setSpark] = useState(null)
   const [battleEmoji, setBattleEmoji] = useState('')
-  const [voteAmount, setVoteAmount] = useState(10)
+  const [voteInputs, setVoteInputs] = useState({})
   const [topupAmount, setTopupAmount] = useState(100)
   const [withdrawAmount, setWithdrawAmount] = useState(100)
-  const [voteModalUnit, setVoteModalUnit] = useState(null)
   const [favoriteIndex, setFavoriteIndex] = useState(0)
 
   const refresh = async (silent = false) => {
@@ -100,12 +99,6 @@ function App() {
   const maxWithdraw = data?.balance || WITHDRAW_MIN
   const clampedWithdraw = Math.max(WITHDRAW_MIN, Math.min(withdrawAmount || WITHDRAW_MIN, maxWithdraw))
 
-  const voteAction = async () => {
-    if (!data?.race || !voteModalUnit) return
-    await act('vote', { matchId: data.race.matchId, playerNumber: voteModalUnit.playerNumber, amount: voteAmount })
-    setVoteModalUnit(null)
-  }
-
   const openHelp = async () => {
     const response = await fetch(`${API}/help`)
     const payload = await response.json()
@@ -120,7 +113,8 @@ function App() {
   if (!data) return <div className='loading'>Загрузка…</div>
 
   const raceEnded = !data.race || data.race.status !== 'CREATED'
-  const boostersDisabled = !data.race
+  const raceBeforeStart = data.race?.status === 'CREATED'
+  const boostersDisabled = !data.race || raceBeforeStart
   const trackTheme = getTrackTheme(data.race)
   const raceUnits = data.race?.units || []
   const maxScore = raceUnits.reduce((max, unit) => Math.max(max, Number(unit.score) || 0), 0)
@@ -172,12 +166,32 @@ function App() {
           <div className='finish-line' />
         </div>
         {spark === u.playerNumber && <div className='spark'>✨</div>}
-        {!raceEnded && <div className='actions'><button onClick={() => setVoteModalUnit(u)}>Отдать голос</button></div>}
-        <div className='booster-actions'>
+        {raceBeforeStart && <div className='vote-inline'>
+          <input
+            className='field'
+            type='number'
+            min='1'
+            max={Math.max(1, data.balance || 1)}
+            step='1'
+            value={voteInputs[u.playerNumber] ?? 1}
+            onChange={(e) => {
+              const raw = Number(e.target.value || 1)
+              const next = Math.max(1, Math.min(raw, Math.max(1, data.balance || 1)))
+              setVoteInputs((current) => ({ ...current, [u.playerNumber]: next }))
+            }}
+          />
+          <button
+            disabled={!data.balance || data.balance < 1}
+            onClick={() => act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount: voteInputs[u.playerNumber] ?? 1 })}
+          >
+            Отдать голос
+          </button>
+        </div>}
+        {!raceBeforeStart && <div className='booster-actions'>
           <button className='booster booster-bust' disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🐇</span> ДЛЯ {u.playerName}</button>
           <button className='booster booster-slow' disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🐢</span> ДЛЯ {u.playerName}</button>
           <button className='booster booster-shield' disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🪖</span> ДЛЯ {u.playerName}</button>
-        </div>
+        </div>}
       </div>
       })}
       </div>
@@ -241,19 +255,9 @@ function App() {
       <button className='help-btn' onClick={openHelp}>Связаться с поддержкой</button>
     </section>}
 
-    {voteModalUnit && <div className='modal-backdrop' onClick={() => setVoteModalUnit(null)}>
-      <div className='modal' onClick={(e) => e.stopPropagation()}>
-        <h3>Отдать голос</h3>
-        <p className='subtitle'>Вы выбрали: {voteModalUnit.playerName}</p>
-        <input className='field' type='number' min='1' step='1' value={voteAmount} onChange={(e) => setVoteAmount(Math.max(1, Number(e.target.value || 1)))} />
-        <div className='actions'>
-          <button onClick={() => setVoteModalUnit(null)}>Отмена</button>
-          <button onClick={voteAction}>Подтвердить</button>
-        </div>
-      </div>
-    </div>}
 
-    {message && <footer>{message}</footer>}
+
+    {message && <div className='toast'>{message}</div>}
   </div>
 }
 

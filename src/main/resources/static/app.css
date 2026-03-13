@@ -33,7 +33,7 @@ body {
 
 .top-card,
 .panel,
-footer,
+.toast,
 .modal {
   backdrop-filter: blur(18px);
   background: linear-gradient(135deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .05));
@@ -262,6 +262,17 @@ h3 {
   background: linear-gradient(135deg, rgba(139, 92, 246, .55), rgba(79, 70, 229, .45));
 }
 
+.vote-inline {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.vote-inline button {
+  white-space: nowrap;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -427,11 +438,16 @@ select:focus {
   padding: 14px;
 }
 
-footer {
-  margin-top: 12px;
+.toast {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(430px, calc(100% - 24px));
   border-radius: 16px;
   padding: 12px;
   font-weight: 600;
+  z-index: 20;
 }
 
 .loading {

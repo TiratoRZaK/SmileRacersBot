@@ -13,4 +13,6 @@ public class BotProperties {
 
     private String username;
     private String token;
+    private boolean localTestModeEnabled;
+    private Long localTestModeUserId;
 }

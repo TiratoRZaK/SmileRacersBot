@@ -6,6 +6,7 @@ public class MiniAppDtos {
 
     public record BootstrapResponse(
             Long userId,
+            boolean localTestMode,
             Long balance,
             Integer freeBoosters,
             String favoriteEmoji,
