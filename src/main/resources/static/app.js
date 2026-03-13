@@ -138,6 +138,11 @@ function App() {
           className: 'emoji-slider'
         }),
         h('div', { className: 'emoji-preview' }, data.allEmojis[favoriteIndex]),
+        h('div', { className: 'slider-meta' }, `Смайл ${favoriteIndex + 1} из ${data.allEmojis.length}`),
+        h('div', { className: 'row slider-controls' },
+          h('button', { disabled: favoriteIndex <= 0, onClick: () => setFavoriteIndex(Math.max(0, favoriteIndex - 1)) }, '← Назад'),
+          h('button', { disabled: favoriteIndex >= data.allEmojis.length - 1, onClick: () => setFavoriteIndex(Math.min(data.allEmojis.length - 1, favoriteIndex + 1)) }, 'Вперёд →')
+        ),
         h('div', { className: 'row' },
           h('button', { onClick: () => act('favorite', { playerName: data.allEmojis[favoriteIndex] }) }, 'Сохранить любимый смайл')
         )
