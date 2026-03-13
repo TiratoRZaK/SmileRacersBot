@@ -15,6 +15,12 @@ const RACE_TYPE_LABELS = {
   MARATHON: 'Марафон'
 };
 
+const TRACK_THEME_LABELS = {
+  asphalt: 'Трасса',
+  grass: 'Газон',
+  desert: 'Пустыня'
+};
+
 const TRACK_THEMES = ['asphalt', 'grass', 'desert'];
 
 const getUserId = () => tg?.initDataUnsafe?.user?.id || Number(new URLSearchParams(location.search).get('userId') || 1);
@@ -136,12 +142,14 @@ function App() {
       ),
       h('div', { className: 'meter' },
         h('div', { style: { width: `${percent}%` } }),
+        h('div', { className: 'runner', style: { left: `${percent}%` } }, u.playerName),
         h('div', { className: 'finish-line' })
       ),
-      h('div', { className: 'lane-index' }, `Полоса ${index + 1}`),
       spark === u.playerNumber && h('div', { className: 'spark' }, '✨'),
-      h('div', { className: 'actions booster-actions' },
-        !raceEnded && h('button', { onClick: () => setVoteModalUnit(u) }, 'Отдать голос'),
+      !raceEnded && h('div', { className: 'actions' },
+        h('button', { onClick: () => setVoteModalUnit(u) }, 'Отдать голос')
+      ),
+      h('div', { className: 'booster-actions' },
         h('button', {
           className: 'booster booster-bust',
           disabled: boostersDisabled,
@@ -171,9 +179,10 @@ function App() {
       h('button', { className: tab === 'race' ? 'active' : '', onClick: () => setTab('race') }, 'Гонка'),
       h('button', { className: tab === 'account' ? 'active' : '', onClick: () => setTab('account') }, 'Аккаунт')
     ),
-    tab === 'race' && h('section', { className: 'panel' },
+    tab === 'race' && h('section', { className: `panel race-panel race-theme-${trackTheme}` },
       h('h2', null, data.race ? `Гонка #${data.race.matchId} · ${getRaceTypeLabel(data.race.type)}` : 'Нет активной гонки'),
-      data.race && h('p', { className: 'race-intro' }, `🔥 Гонка №${data.race.matchId} в самом разгаре! 🔥\nПомоги своему фавориту придти на 🏁 первым!\n\nИспользуй бустеры на кнопках ниже:\n 🐇 (10⭐️) - временно ускоряет выбранный смайл\n 🐢 (10⭐️) - временно замедляет выбранный смайл\n 🪖 (40⭐️) - позволяет защититься от 5-ти 🐢`),
+      data.race && h('p', { className: 'race-theme-label' }, `Стиль: ${TRACK_THEME_LABELS[trackTheme]}`),
+      data.race && h('p', { className: 'race-intro' }, `🔥 Гонка в самом разгаре! 🔥\nПомоги своему фавориту придти на 🏁 первым!\n\nИспользуй бустеры на кнопках ниже:\n 🐇 (10⭐️) - временно ускоряет выбранный смайл\n 🐢 (10⭐️) - временно замедляет выбранный смайл\n 🪖 (40⭐️) - позволяет защититься от 5-ти 🐢`),
       data.race && raceEnded && h('p', { className: 'badge' }, 'Голосование закрыто, но бустеры активны.'),
       h('div', { className: `track track-${trackTheme}` }, ...raceRows)
     ),
