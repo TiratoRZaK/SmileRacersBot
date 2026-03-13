@@ -41,10 +41,9 @@ function App() {
   const [message, setMessage] = useState('');
   const [spark, setSpark] = useState(null);
   const [battleEmoji, setBattleEmoji] = useState('');
-  const [voteAmount, setVoteAmount] = useState(10);
+  const [voteInputs, setVoteInputs] = useState({});
   const [topupAmount, setTopupAmount] = useState(100);
   const [withdrawAmount, setWithdrawAmount] = useState(100);
-  const [voteModalUnit, setVoteModalUnit] = useState(null);
   const [favoriteIndex, setFavoriteIndex] = useState(0);
 
   const refresh = async (silent = false, partial = false) => {
@@ -113,16 +112,11 @@ function App() {
     setMessage('Ссылка на поддержку временно недоступна.');
   };
 
-  const voteAction = async () => {
-    if (!data?.race || !voteModalUnit) return;
-    await act('vote', { matchId: data.race.matchId, playerNumber: voteModalUnit.playerNumber, amount: voteAmount });
-    setVoteModalUnit(null);
-  };
-
   if (!data) return h('div', { className: 'loading' }, 'Загрузка…');
 
   const raceEnded = !data.race || data.race.status !== 'CREATED';
-  const boostersDisabled = !data.race;
+  const raceBeforeStart = data.race?.status === 'CREATED';
+  const boostersDisabled = !data.race || raceBeforeStart;
   const maxWithdraw = data?.balance || WITHDRAW_MIN;
   const clampedWithdraw = Math.max(WITHDRAW_MIN, Math.min(withdrawAmount || WITHDRAW_MIN, maxWithdraw));
 
@@ -146,10 +140,26 @@ function App() {
         h('div', { className: 'finish-line' })
       ),
       spark === u.playerNumber && h('div', { className: 'spark' }, '✨'),
-      !raceEnded && h('div', { className: 'actions' },
-        h('button', { onClick: () => setVoteModalUnit(u) }, 'Отдать голос')
+      raceBeforeStart && h('div', { className: 'vote-inline' },
+        h('input', {
+          className: 'field',
+          type: 'number',
+          min: 1,
+          max: Math.max(1, data.balance || 1),
+          step: 1,
+          value: voteInputs[u.playerNumber] ?? 1,
+          onChange: e => {
+            const raw = Number(e.target.value || 1);
+            const next = Math.max(1, Math.min(raw, Math.max(1, data.balance || 1)));
+            setVoteInputs(current => ({ ...current, [u.playerNumber]: next }));
+          }
+        }),
+        h('button', {
+          disabled: !data.balance || data.balance < 1,
+          onClick: () => act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount: voteInputs[u.playerNumber] ?? 1 })
+        }, 'Отдать голос')
       ),
-      h('div', { className: 'booster-actions' },
+      !raceBeforeStart && h('div', { className: 'booster-actions' },
         h('button', {
           className: 'booster booster-bust',
           disabled: boostersDisabled,
@@ -244,18 +254,7 @@ function App() {
       ),
       h('button', { className: 'help-btn', onClick: openHelp }, 'Связаться с поддержкой')
     ),
-    voteModalUnit && h('div', { className: 'modal-backdrop', onClick: () => setVoteModalUnit(null) },
-      h('div', { className: 'modal', onClick: e => e.stopPropagation() },
-        h('h3', null, 'Отдать голос'),
-        h('p', { className: 'subtitle' }, `Вы выбрали: ${voteModalUnit.playerName}`),
-        h('input', { className: 'field', type: 'number', min: 1, step: 1, value: voteAmount, onChange: e => setVoteAmount(Math.max(1, Number(e.target.value || 1))) }),
-        h('div', { className: 'actions' },
-          h('button', { onClick: () => setVoteModalUnit(null) }, 'Отмена'),
-          h('button', { onClick: voteAction }, 'Подтвердить')
-        )
-      )
-    ),
-    message && h('footer', null, message)
+    message && h('div', { className: 'toast' }, message)
   );
 }
 

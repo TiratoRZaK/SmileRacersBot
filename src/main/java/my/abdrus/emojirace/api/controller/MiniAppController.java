@@ -29,6 +29,7 @@ import my.abdrus.emojirace.bot.service.MatchService;
 import my.abdrus.emojirace.bot.service.RaceService;
 import my.abdrus.emojirace.bot.service.UserService;
 import my.abdrus.emojirace.bot.service.WithdrawService;
+import my.abdrus.emojirace.config.BotProperties;
 import my.abdrus.emojirace.config.ChannelProperties;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -37,6 +38,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @RestController
 @RequestMapping("/api/miniapp")
@@ -58,6 +61,7 @@ public class MiniAppController {
     private final WithdrawService withdrawService;
     private final InvoiceService invoiceService;
     private final ChannelProperties channelProperties;
+    private final BotProperties botProperties;
 
     @GetMapping("/bootstrap")
     public MiniAppDtos.BootstrapResponse bootstrap(
@@ -84,6 +88,7 @@ public class MiniAppController {
 
         return new MiniAppDtos.BootstrapResponse(
                 userId,
+                isLocalTestModeActive(),
                 account.getBalance(),
                 account.getFreeBustCount(),
                 user.getFavoritePlayer() == null ? null : user.getFavoritePlayer().getName(),
@@ -348,6 +353,21 @@ public class MiniAppController {
     }
 
     private Long resolveUserId(Long headerUserId, Long userIdParam) {
+        if (isLocalTestModeActive()) {
+            return Optional.ofNullable(botProperties.getLocalTestModeUserId()).orElse(740984236L);
+        }
         return Optional.ofNullable(headerUserId).or(() -> Optional.ofNullable(userIdParam)).orElse(1L);
+    }
+
+    private boolean isLocalTestModeActive() {
+        if (!botProperties.isLocalTestModeEnabled()) {
+            return false;
+        }
+        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs == null || attrs.getRequest() == null) {
+            return false;
+        }
+        String host = Optional.ofNullable(attrs.getRequest().getServerName()).orElse("").toLowerCase();
+        return "localhost".equals(host) || "127.0.0.1".equals(host) || "0:0:0:0:0:0:0:1".equals(host) || "::1".equals(host);
     }
 }
