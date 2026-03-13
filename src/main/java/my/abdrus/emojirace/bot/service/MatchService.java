@@ -699,7 +699,7 @@ public class MatchService {
 
     private InlineKeyboardButton createBusterButton(BusterType busterType, MatchPlayer matchPlayer, Match match) {
         var button = new InlineKeyboardButton();
-        button.setText(busterType.getName() + " для " + matchPlayer.getPlayerName());
+        button.setText(busterType.getName() + " ДЛЯ " + matchPlayer.getPlayerName());
         button.setCallbackData(busterType.getQuery() + "_" + matchPlayer.getNumber() + "_" + match.getId());
         return button;
     }
