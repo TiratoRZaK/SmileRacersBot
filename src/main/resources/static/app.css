@@ -1,0 +1,10 @@
+:root{font-family:Inter,system-ui;background:#0f172a;color:#e2e8f0}
+body{margin:0}
+.app{padding:12px;max-width:720px;margin:0 auto}
+header{display:flex;justify-content:space-between;background:#1e293b;padding:10px;border-radius:12px}
+nav{display:flex;gap:8px;margin:12px 0}.tab{background:#334155;color:#fff;border:0;padding:8px 10px;border-radius:10px}
+.active{background:#7c3aed}.card{position:relative;background:#1e293b;padding:10px;border-radius:12px;margin:8px 0}
+.actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.spark{position:absolute;right:8px;top:8px;animation:pop .7s ease}
+@keyframes pop{0%{transform:scale(.2);opacity:0}100%{transform:scale(1.8);opacity:0}}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.row{display:flex;gap:8px;margin:10px 0}
+button,select{background:#334155;color:#fff;border:0;padding:8px 10px;border-radius:10px} footer{margin-top:12px;background:#065f46;padding:8px;border-radius:10px}
