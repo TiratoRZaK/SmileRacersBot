@@ -44,6 +44,16 @@ const getTrackTheme = (race) => {
 const queryUserId = Number(new URLSearchParams(location.search).get('userId') || 0)
 const getUserId = () => telegramUserId || (Number.isFinite(queryUserId) && queryUserId > 0 ? queryUserId : null)
 
+
+const getBattleStateLabel = (battle) => {
+  if (!battle) return ''
+  if (battle.status === 'LIVE') return '🚦 Батл уже начался'
+  if (battle.status === 'COMPLETED') return '🏁 Батл завершён'
+  if (battle.battleStartRequested) return '⏳ Батл ждёт очереди на запуск'
+  if ((battle.units?.length || 0) < 2) return 'Нужно минимум 2 участника для старта'
+  return 'Готов к старту. Нажмите «Старт батла»'
+}
+
 function App() {
   const userId = useMemo(getUserId, [])
   const [data, setData] = useState(null)
@@ -121,6 +131,18 @@ function App() {
   const maxWithdraw = data?.balance || WITHDRAW_MIN
   const clampedWithdraw = Math.max(WITHDRAW_MIN, Math.min(withdrawAmount || WITHDRAW_MIN, maxWithdraw))
 
+
+  const openBattleInvite = (battle) => {
+    if (!battle?.inviteLink) {
+      setMessage('Ссылка приглашения для батла недоступна.')
+      return
+    }
+    const shareText = encodeURIComponent(`✨ Вызываю тебя на батл Emoji Race!\nБатл #${battle.matchId} уже ждёт тебя.`)
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(battle.inviteLink)}&text=${shareText}`
+    if (tg?.openLink) tg.openLink(shareUrl)
+    else window.open(shareUrl, '_blank')
+  }
+
   const openHelp = async () => {
     const response = await fetch(`${API}/help`)
     const payload = await response.json()
@@ -135,6 +157,8 @@ function App() {
   if (!data) return <div className='loading'>Загрузка…</div>
 
   const raceBeforeStart = data.race?.status === 'CREATED'
+  const myBattle = data.myBattle || null
+  const myBattleCanStart = !!myBattle && myBattle.status === 'CREATED' && !myBattle.battleStartRequested
   const boostersDisabled = !data.race || raceBeforeStart
   const trackTheme = getTrackTheme(data.race)
   const raceUnits = data.race?.units || []
@@ -217,6 +241,24 @@ function App() {
       </div>
       })}
       </div>
+
+      {myBattle && <div className='my-battle-card'>
+        <h3>⚔️ Ваш батл #{myBattle.matchId}</h3>
+        <p className='subtitle'>Голос за победу: {myBattle.battleStake || 0} ⭐</p>
+        <p className='subtitle'>{getBattleStateLabel(myBattle)}</p>
+        <div className='battle-participants'>
+          {(myBattle.units || []).map((u) => <span key={u.playerNumber} className='chip'>{u.playerName}</span>)}
+        </div>
+        <div className='row'>
+          <button onClick={() => openBattleInvite(myBattle)}>Пригласить друзей</button>
+          <button
+            disabled={!myBattleCanStart}
+            onClick={() => act('battle/start', { matchId: myBattle.matchId })}
+          >
+            Старт батла
+          </button>
+        </div>
+      </div>}
     </section>}
 
     {tab === 'account' && <section className='panel'>
@@ -284,6 +326,10 @@ function App() {
         <select value={battleEmoji} onChange={(e) => setBattleEmoji(e.target.value)}>{data.allEmojis.map((e) => <option key={e}>{e}</option>)}</select>
         <button onClick={() => act('battle', { playerName: battleEmoji, stake: 100 })}>Создать батл 100⭐</button>
       </div>
+      {myBattle && <div className='row'>
+        <button onClick={() => openBattleInvite(myBattle)}>Пригласить друзей в батл #{myBattle.matchId}</button>
+        <button disabled={!myBattleCanStart} onClick={() => act('battle/start', { matchId: myBattle.matchId })}>Старт батла</button>
+      </div>}
 
       <button className='help-btn' onClick={openHelp}>Связаться с поддержкой</button>
     </section>}
