@@ -104,4 +104,27 @@ public class WithdrawService {
                 "✅ Вывод #" + withdrawRequest.getId() + " отменён, сумма возвращена пользователю.")).getMessageId());
     }
 
+
+
+    public List<WithdrawRequest> findByUser(Long userChatId) {
+        return withdrawRequestRepository.findAllByUserChatIdOrderByCreatedDateDesc(userChatId);
+    }
+
+    public boolean cancelByUserForMiniApp(Long userChatId, Long requestId) {
+        WithdrawRequest withdrawRequest = withdrawRequestRepository.findById(requestId).orElse(null);
+        if (withdrawRequest == null) {
+            return false;
+        }
+        if (!withdrawRequest.getUserChatId().equals(userChatId)) {
+            return false;
+        }
+        if (!WithdrawRequestStatus.CREATED.equals(withdrawRequest.getStatus())) {
+            return false;
+        }
+        withdrawRequest.setStatus(WithdrawRequestStatus.CANCELED);
+        withdrawRequestRepository.save(withdrawRequest);
+        accountService.addBalance(withdrawRequest.getUserChatId(), withdrawRequest.getSum());
+        return true;
+    }
+
 }
