@@ -25,6 +25,15 @@ const TRACK_THEMES = ['asphalt', 'grass', 'desert']
 
 const normalizeType = (type) => String(type || '').trim().toUpperCase()
 const getRaceTypeLabel = (type) => RACE_TYPE_LABELS[normalizeType(type)] || type || 'Неизвестно'
+const telegramUser = tg?.initDataUnsafe?.user || null
+const telegramUserId = telegramUser?.id || null
+
+const getTelegramAccountLabel = (user) => {
+  if (!user) return 'Не удалось определить Telegram-аккаунт'
+  if (user.username) return `@${user.username}`
+  const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim()
+  return fullName || `ID ${user.id}`
+}
 
 const getTrackTheme = (race) => {
   if (!race) return TRACK_THEMES[0]
@@ -32,7 +41,7 @@ const getTrackTheme = (race) => {
   return TRACK_THEMES[Math.abs(seed) % TRACK_THEMES.length]
 }
 
-const getUserId = () => tg?.initDataUnsafe?.user?.id || Number(new URLSearchParams(location.search).get('userId') || 1)
+const getUserId = () => telegramUserId || Number(new URLSearchParams(location.search).get('userId') || 1)
 
 function App() {
   const userId = useMemo(getUserId, [])
@@ -47,10 +56,17 @@ function App() {
   const [withdrawAmount, setWithdrawAmount] = useState(100)
   const [favoriteIndex, setFavoriteIndex] = useState(0)
 
+  const requestQuery = useMemo(() => new URLSearchParams({ userId: String(userId) }).toString(), [userId])
+  const requestHeaders = useMemo(() => {
+    const headers = {}
+    if (telegramUserId) headers['X-Telegram-User-Id'] = String(telegramUserId)
+    return headers
+  }, [])
+
   const refresh = async (silent = false) => {
     const [bootstrapRes, withdrawsRes] = await Promise.all([
-      fetch(`${API}/bootstrap?userId=${userId}`),
-      fetch(`${API}/withdraw/active?userId=${userId}`)
+      fetch(`${API}/bootstrap?${requestQuery}`, { headers: requestHeaders }),
+      fetch(`${API}/withdraw/active?${requestQuery}`, { headers: requestHeaders })
     ])
     const bootstrapData = await bootstrapRes.json()
     setData(bootstrapData)
@@ -82,9 +98,9 @@ function App() {
   }, [data])
 
   const act = async (path, body) => {
-    const res = await fetch(`${API}/${path}?userId=${userId}`, {
+    const res = await fetch(`${API}/${path}?${requestQuery}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...requestHeaders },
       body: JSON.stringify(body)
     })
     const r = await res.json()
@@ -199,6 +215,17 @@ function App() {
 
     {tab === 'account' && <section className='panel'>
       <h2>Профиль и действия</h2>
+
+      <h3>Текущий Telegram-аккаунт</h3>
+      <p className='subtitle'>
+        {getTelegramAccountLabel(telegramUser)}
+        {telegramUser?.id ? ` · ID ${telegramUser.id}` : ''}
+      </p>
+      <p className='subtitle'>
+        {data.localTestMode
+          ? `Тестовый режим: баланс берётся из аккаунта владельца (ID ${data.userId}).`
+          : `Баланс и операции выполняются для текущего аккаунта (ID ${data.userId}).`}
+      </p>
 
       <h3>Любимый смайл</h3>
       <div className='emoji-slider-wrap'>
