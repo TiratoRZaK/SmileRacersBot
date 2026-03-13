@@ -387,6 +387,10 @@ public class ClientChannelService extends ChannelService {
 
             try {
                 Match battle = matchService.createBattle(userChatId, selectedPlayer, stake);
+                if (battle == null) {
+                    bot.execute(createAnswerAlert(callbackQuery, "Вы уже участвуете в другом открытом батле."));
+                    return true;
+                }
                 matchService.refreshBattleCreatorMessage(battle.getId(), bot);
                 pendingBattleStake.remove(userChatId);
                 dependMessageService.deleteDependMessage(userChatId, DependMessageCode.SELECT_BATTLE_PLAYER, bot);

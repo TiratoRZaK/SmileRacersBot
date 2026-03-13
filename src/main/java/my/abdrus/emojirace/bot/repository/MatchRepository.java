@@ -30,4 +30,6 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
     Optional<Match> findFirstByStatusAndTypeOrderByCreatedDateAsc(MatchStatus status, MatchType type);
 
     Optional<Match> findFirstByStatusAndTypeAndBattleStartRequestedTrueOrderByCreatedDateAsc(MatchStatus status, MatchType type);
+
+    boolean existsByTypeAndStatusAndMatchPlayers_OwnerUserChatId(MatchType type, MatchStatus status, Long ownerUserChatId);
 }

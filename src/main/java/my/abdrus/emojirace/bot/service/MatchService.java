@@ -107,6 +107,9 @@ public class MatchService {
 
     @Transactional
     public Match createBattle(Long creatorUserChatId, Player creatorPlayer, long stake) throws PaymentException {
+        if (isUserInCreatedBattle(creatorUserChatId)) {
+            return null;
+        }
         MatchPlayer creatorMatchPlayer = new MatchPlayer(creatorPlayer, 1);
         creatorMatchPlayer.setOwnerUserChatId(creatorUserChatId);
         creatorMatchPlayer.setScore(stake);
@@ -130,6 +133,9 @@ public class MatchService {
     public boolean joinBattle(Long matchId, Long userChatId, Player player, long stake) throws PaymentException {
         Match match = matchRepository.findById(matchId).orElse(null);
         if (match == null || match.getType() != MatchType.BATTLE || match.getStatus() != CREATED) {
+            return false;
+        }
+        if (isUserInCreatedBattle(userChatId)) {
             return false;
         }
         boolean emojiExists = match.getMatchPlayers().stream().anyMatch(mp -> mp.getPlayerName().equals(player.getName()));
@@ -191,6 +197,11 @@ public class MatchService {
         match.setBattleStartRequested(true);
         matchRepository.save(match);
         return true;
+    }
+
+
+    private boolean isUserInCreatedBattle(Long userChatId) {
+        return matchRepository.existsByTypeAndStatusAndMatchPlayers_OwnerUserChatId(MatchType.BATTLE, CREATED, userChatId);
     }
 
     public List<Player> getAvailableBattlePlayers(Long matchId) {
