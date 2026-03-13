@@ -16,31 +16,17 @@
         "vite": "^5.4.11"
       }
     },
+    "node_modules/@vitejs/plugin-react": {
+      "version": "4.3.4",
+      "dev": true
+    },
     "node_modules/react": {
       "version": "18.3.1"
     },
     "node_modules/react-dom": {
       "version": "18.3.1"
     },
-    "node_modules/@vitejs/plugin-react": {
-      "version": "4.3.4"
-    },
     "node_modules/vite": {
-      "version": "5.4.11"
-    }
-  },
-  "dependencies": {
-    "react": {
-      "version": "18.3.1"
-    },
-    "react-dom": {
-      "version": "18.3.1"
-    },
-    "@vitejs/plugin-react": {
-      "version": "4.3.4",
-      "dev": true
-    },
-    "vite": {
       "version": "5.4.11",
       "dev": true
     }

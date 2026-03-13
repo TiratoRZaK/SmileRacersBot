@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "cd api && npm install",
-  "buildCommand": "cd api && npm install && npm run build",
+  "installCommand": "echo skip-install",
+  "buildCommand": "cd api && npm install --include=dev && npm run build",
   "outputDirectory": "src/main/resources/static"
 }
