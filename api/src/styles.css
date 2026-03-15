@@ -293,20 +293,8 @@ h3 {
 }
 
 .booster-shell {
-  position: relative;
   margin-top: 8px;
-  padding: 10px 0 4px;
-}
-
-.booster-shell::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 14px 14px 28px 28px;
-  border: 1px solid rgba(255, 255, 255, .15);
-  background: linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .03));
-  clip-path: ellipse(92% 100% at 50% 0%);
-  pointer-events: none;
+  padding: 2px 0;
 }
 
 .booster {
@@ -318,7 +306,7 @@ h3 {
   width: 52px;
   height: 52px;
   margin: 0 auto;
-  border: 1px solid rgba(255, 255, 255, .24);
+  border: 0;
   border-radius: 16px;
   padding: 0;
 }
@@ -326,6 +314,29 @@ h3 {
 .booster span {
   font-size: 28px;
   line-height: 1;
+}
+
+.booster-sparks {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  transform: translateX(-50%);
+  font-size: 14px;
+  line-height: 1;
+  pointer-events: none;
+  animation: boosterSpark .65s ease-out forwards;
+}
+
+.booster:active::after {
+  content: '✨✨✨';
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  transform: translateX(-50%);
+  font-size: 14px;
+  line-height: 1;
+  pointer-events: none;
+  animation: boosterSpark .65s ease-out forwards;
 }
 
 .booster-bust {
@@ -344,7 +355,17 @@ h3 {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
+  margin-top: 6px;
+}
+
+.vote-inline-wrap {
   margin-top: 10px;
+}
+
+.vote-caption {
+  font-size: 12px;
+  opacity: .92;
+  text-align: center;
 }
 
 .vote-inline button {
@@ -401,6 +422,7 @@ select:focus {
   white-space: pre-line;
   margin-top: 10px;
   line-height: 1.45;
+  text-align: center;
 }
 
 .booster-legend {
@@ -411,6 +433,7 @@ select:focus {
   margin-bottom: 8px;
   font-size: 12px;
   opacity: .9;
+  justify-content: center;
 }
 
 .booster-legend span {
@@ -597,6 +620,22 @@ select:focus {
   }
 }
 
+@keyframes boosterSpark {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 6px) scale(.6);
+  }
+
+  25% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 24px) scale(1.2);
+  }
+}
+
 .slider-meta {
   margin-top: 6px;
   opacity: .75;
@@ -625,6 +664,14 @@ select:focus {
 
 .recent-results {
   margin-top: 14px;
+}
+
+.next-race-hint {
+  margin-bottom: 10px;
+  text-align: center;
+  line-height: 1.35;
+  font-size: 13px;
+  opacity: .9;
 }
 
 .recent-result-card {
@@ -659,8 +706,42 @@ select:focus {
 }
 
 .notifications-panel {
+  margin-top: 12px;
   margin-bottom: 12px;
 }
+
+.finish-celebration {
+  margin-top: 12px;
+  border-radius: 16px;
+  padding: 16px 12px;
+  text-align: center;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .06));
+  border: 1px solid rgba(255, 255, 255, .2);
+  position: relative;
+  overflow: hidden;
+}
+
+.finish-celebration h3 {
+  margin: 0;
+  text-transform: none;
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.finish-celebration .subtitle {
+  margin-top: 8px;
+  opacity: .9;
+}
+
+.confetti {
+  position: absolute;
+  font-size: 24px;
+  animation: float 1.5s ease-in-out infinite alternate;
+}
+
+.confetti-a { top: 8px; left: 18px; }
+.confetti-b { top: 12px; right: 18px; }
+.confetti-c { bottom: 8px; left: 50%; transform: translateX(-50%); }
 
 .notifications-header {
   display: flex;

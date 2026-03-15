@@ -32,6 +32,8 @@ const TRACK_THEME_BACKGROUNDS = {
 const TOAST_AUTO_CLOSE_MS = 4500
 const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'battle', 'battle/start', 'topup'])
 
+const formatStars = (value) => new Intl.NumberFormat('ru-RU').format(Number(value) || 0)
+
 const createSeededRandom = (seed) => {
   let value = Math.max(1, Number(seed) || 1)
   return () => {
@@ -138,6 +140,7 @@ function App() {
   const [savedNotifications, setSavedNotifications] = useState([])
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [spark, setSpark] = useState(null)
+  const [boosterBurst, setBoosterBurst] = useState(null)
   const [battleEmoji, setBattleEmoji] = useState('')
   const [voteInputs, setVoteInputs] = useState({})
   const [topupAmount, setTopupAmount] = useState(100)
@@ -215,6 +218,7 @@ function App() {
     if (!persist) {
       setTimeout(() => removeToast(id), TOAST_AUTO_CLOSE_MS)
     }
+    return id
   }
 
   const act = async (path, body) => {
@@ -224,11 +228,27 @@ function App() {
       body: JSON.stringify(body)
     })
     const r = await res.json()
-    notify(r.message, { persist: !res.ok || PERSISTENT_ACTIONS.has(path) })
+    if (path === 'vote' && res.ok && body?.amount && body?.playerNumber) {
+      const votedUnit = (data?.race?.units || []).find((u) => u.playerNumber === body.playerNumber)
+      const target = votedUnit?.playerName || `участника #${body.playerNumber}`
+      notify(`✅ Принято: ${formatStars(body.amount)} ⭐ за ${target}`)
+    } else if (path === 'boost' && res.ok) {
+      const toastId = notify(r.message)
+      if (toastId != null) {
+        setTimeout(() => removeToast(toastId), 250)
+      }
+    } else {
+      notify(r.message, { persist: !res.ok || PERSISTENT_ACTIONS.has(path) })
+    }
     if (r.invoiceLink) {
       tg?.openLink ? tg.openLink(r.invoiceLink) : window.open(r.invoiceLink, '_blank')
     }
     await refresh(true)
+    if (path === 'vote' && res.ok) {
+      setTimeout(() => {
+        refresh(true).catch(() => null)
+      }, 400)
+    }
     return r
   }
 
@@ -289,6 +309,20 @@ function App() {
   }
 
   const unreadCount = savedNotifications.filter((item) => !item.read).length
+  const latestResult = !data.race ? (data.recentResults || [])[0] : null
+  const finishCelebration = latestResult?.winnerName ? {
+    matchId: latestResult.matchId,
+    winnerName: latestResult.winnerName,
+    raceType: getRaceTypeLabel(latestResult.type)
+  } : null
+
+  const triggerBoosterBurst = (playerNumber, type) => {
+    const id = `${playerNumber}-${type}-${Date.now()}`
+    setBoosterBurst(id)
+    setTimeout(() => {
+      setBoosterBurst((current) => (current === id ? null : current))
+    }, 650)
+  }
 
   return <div className='app'>
     <div className='aurora' />
@@ -354,8 +388,8 @@ function App() {
         <span><b>🐢</b> замедлить</span>
         <span><b>🪖</b> защитить</span>
       </div>}
-      <div className={`track track-${trackTheme}`} style={trackBackgroundStyle}>
-      {raceUnits.map((u, index) => {
+      {!!data.race && <div className={`track track-${trackTheme}`} style={trackBackgroundStyle}>
+      {raceUnits.map((u) => {
         const score = Number(u.score) || 0
         const percent = finishScore ? Math.min(100, Math.round(score / finishScore * 100)) : 0
         const runnerLeft = `${2 + percent * 0.96}%`
@@ -370,7 +404,11 @@ function App() {
           <div className='finish-line' />
         </div>
         {spark === u.playerNumber && <div className='spark'>✨</div>}
-        {raceBeforeStart && <div className='vote-inline'>
+        {raceBeforeStart && <div className='vote-inline-wrap'>
+          <div className='vote-caption'>
+            <span>Твой голос: {formatStars(u.myVotes)} ⭐</span>
+          </div>
+          <div className='vote-inline'>
           <input
             className='field'
             type='number'
@@ -386,21 +424,25 @@ function App() {
           />
           <button
             disabled={!data.balance || data.balance < 1}
-            onClick={() => act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount: voteInputs[u.playerNumber] ?? 1 })}
+            onClick={async () => {
+              await act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount: voteInputs[u.playerNumber] ?? 1 })
+              setVoteInputs((current) => ({ ...current, [u.playerNumber]: 1 }))
+            }}
           >
             Отдать голос
           </button>
+          </div>
         </div>}
         {!raceBeforeStart && <div className='booster-shell'>
           <div className='booster-actions'>
-            <button className='booster booster-bust' aria-label={`Ускорить ${u.playerName}`} title={`Ускорить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🐇</span></button>
-            <button className='booster booster-slow' aria-label={`Замедлить ${u.playerName}`} title={`Замедлить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🐢</span></button>
-            <button className='booster booster-shield' aria-label={`Защитить ${u.playerName}`} title={`Защитить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🪖</span></button>
+            <button className='booster booster-bust' aria-label={`Ускорить ${u.playerName}`} title={`Ускорить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); triggerBoosterBurst(u.playerNumber, 'BUST'); setTimeout(() => setSpark(null), 700) }}><span>🐇</span>{String(boosterBurst || '').startsWith(`${u.playerNumber}-BUST`) && <span className='booster-sparks'>✨✨✨</span>}</button>
+            <button className='booster booster-slow' aria-label={`Замедлить ${u.playerName}`} title={`Замедлить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); triggerBoosterBurst(u.playerNumber, 'SLOW'); setTimeout(() => setSpark(null), 700) }}><span>🐢</span>{String(boosterBurst || '').startsWith(`${u.playerNumber}-SLOW`) && <span className='booster-sparks'>✨✨✨</span>}</button>
+            <button className='booster booster-shield' aria-label={`Защитить ${u.playerName}`} title={`Защитить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); triggerBoosterBurst(u.playerNumber, 'SHIELD'); setTimeout(() => setSpark(null), 700) }}><span>🪖</span>{String(boosterBurst || '').startsWith(`${u.playerNumber}-SHIELD`) && <span className='booster-sparks'>✨✨✨</span>}</button>
           </div>
         </div>}
       </div>
       })}
-      </div>
+      </div>}
 
       {myBattle && raceBeforeStart && <div className='my-battle-card'>
         <h3>⚔️ Ваш батл #{myBattle.matchId}</h3>
@@ -425,6 +467,17 @@ function App() {
       </div>}
 
       {!data.race && (data.recentResults || []).length > 0 && <div className='recent-results'>
+        <p className='next-race-hint'>
+          Следующая гонка стартует примерно через {data.generationIntervalMinutes || 3} мин. ⚡
+          Или создай свой батл и катай с друзьями уже сейчас!
+        </p>
+        {!!finishCelebration && <div className='finish-celebration'>
+          <div className='confetti confetti-a'>🎆</div>
+          <div className='confetti confetti-b'>🎇</div>
+          <div className='confetti confetti-c'>✨</div>
+          <h3>🏆 Победитель: {finishCelebration.winnerName}</h3>
+          <p className='subtitle'>Гонка #{finishCelebration.matchId} · {finishCelebration.raceType} завершена.</p>
+        </div>}
         <h3>Последние гонки</h3>
         {(data.recentResults || []).map((result) => <div key={result.matchId} className='recent-result-card'>
           <div className='recent-result-title'>#{result.matchId} · {getRaceTypeLabel(result.type)}</div>
