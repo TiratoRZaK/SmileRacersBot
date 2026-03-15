@@ -139,8 +139,6 @@ function App() {
   const [toasts, setToasts] = useState([])
   const [savedNotifications, setSavedNotifications] = useState([])
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
-  const [spark, setSpark] = useState(null)
-  const [boosterBurst, setBoosterBurst] = useState(null)
   const [battleEmoji, setBattleEmoji] = useState('')
   const [voteInputs, setVoteInputs] = useState({})
   const [topupAmount, setTopupAmount] = useState(100)
@@ -316,14 +314,6 @@ function App() {
     raceType: getRaceTypeLabel(latestResult.type)
   } : null
 
-  const triggerBoosterBurst = (playerNumber, type) => {
-    const id = `${playerNumber}-${type}-${Date.now()}`
-    setBoosterBurst(id)
-    setTimeout(() => {
-      setBoosterBurst((current) => (current === id ? null : current))
-    }, 650)
-  }
-
   return <div className='app'>
     <div className='aurora' />
     <header className='top-card'>
@@ -393,6 +383,10 @@ function App() {
         const score = Number(u.score) || 0
         const percent = finishScore ? Math.min(100, Math.round(score / finishScore * 100)) : 0
         const runnerLeft = `${2 + percent * 0.96}%`
+        const activeBooster = String(u.activeBooster || 'NONE').toUpperCase()
+        const shieldsCount = Math.max(0, Number(u.playerShields) || 0)
+        const shieldSlots = 5
+        const consumedShields = shieldsCount > shieldSlots ? 0 : shieldSlots - shieldsCount
 
         return <div className='unit lane' key={u.playerNumber}>
         <div className='unit-head'>
@@ -400,10 +394,19 @@ function App() {
         </div>
         <div className='meter'>
           <div className='meter-fill' style={{ width: `${percent}%` }} />
+          {activeBooster === 'BUST' && <>
+            <div className='track-booster track-booster-bust'>➤➤➤</div>
+            <div className='track-booster-sparks'>✨ ✨</div>
+          </>}
+          {activeBooster === 'SLOW' && <div className='track-booster track-booster-slow'>⬅⬅⬅</div>}
           <div className='runner' style={{ left: runnerLeft }}>{u.playerName}</div>
+          {shieldsCount > 0 && <div className='runner-shields' style={{ left: runnerLeft }}>
+            {shieldsCount > shieldSlots
+              ? <div className='shield-counter'>🛡️ × {shieldsCount}</div>
+              : Array.from({ length: shieldSlots }, (_, index) => <span key={index} className={`shield-chip ${index < consumedShields ? 'used' : ''}`}>🛡️</span>)}
+          </div>}
           <div className='finish-line' />
         </div>
-        {spark === u.playerNumber && <div className='spark'>✨</div>}
         {raceBeforeStart && <div className='vote-inline-wrap'>
           <div className='vote-caption'>
             <span>Твой голос: {formatStars(u.myVotes)} ⭐</span>
@@ -435,9 +438,9 @@ function App() {
         </div>}
         {!raceBeforeStart && <div className='booster-shell'>
           <div className='booster-actions'>
-            <button className='booster booster-bust' aria-label={`Ускорить ${u.playerName}`} title={`Ускорить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); triggerBoosterBurst(u.playerNumber, 'BUST'); setTimeout(() => setSpark(null), 700) }}><span>🐇</span>{String(boosterBurst || '').startsWith(`${u.playerNumber}-BUST`) && <span className='booster-sparks'>✨✨✨</span>}</button>
-            <button className='booster booster-slow' aria-label={`Замедлить ${u.playerName}`} title={`Замедлить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); triggerBoosterBurst(u.playerNumber, 'SLOW'); setTimeout(() => setSpark(null), 700) }}><span>🐢</span>{String(boosterBurst || '').startsWith(`${u.playerNumber}-SLOW`) && <span className='booster-sparks'>✨✨✨</span>}</button>
-            <button className='booster booster-shield' aria-label={`Защитить ${u.playerName}`} title={`Защитить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); triggerBoosterBurst(u.playerNumber, 'SHIELD'); setTimeout(() => setSpark(null), 700) }}><span>🪖</span>{String(boosterBurst || '').startsWith(`${u.playerNumber}-SHIELD`) && <span className='booster-sparks'>✨✨✨</span>}</button>
+            <button className='booster booster-bust' aria-label={`Ускорить ${u.playerName}`} title={`Ускорить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }) }}><span>🐇</span></button>
+            <button className='booster booster-slow' aria-label={`Замедлить ${u.playerName}`} title={`Замедлить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }) }}><span>🐢</span></button>
+            <button className='booster booster-shield' aria-label={`Защитить ${u.playerName}`} title={`Защитить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }) }}><span>🪖</span></button>
           </div>
         </div>}
       </div>
@@ -469,7 +472,7 @@ function App() {
       {!data.race && (data.recentResults || []).length > 0 && <div className='recent-results'>
         <p className='next-race-hint'>
           Следующая гонка стартует примерно через {data.generationIntervalMinutes || 3} мин. ⚡
-          Или создай свой батл и катай с друзьями уже сейчас!
+          А пока создай свой батл и катай с друзьями уже сейчас!
         </p>
         {!!finishCelebration && <div className='finish-celebration'>
           <div className='confetti confetti-a'>🎆</div>

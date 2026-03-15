@@ -34,7 +34,9 @@ public class MiniAppDtos {
             String ownerName,
             Long ownerUserId,
             Long score,
-            Long myVotes
+            Long myVotes,
+            Integer playerShields,
+            String activeBooster
     ) {}
 
     public record RaceResultCard(

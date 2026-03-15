@@ -418,7 +418,13 @@ public class MiniAppController {
                         activeRace != null && activeRace.getMatch().getId().equals(match.getId())
                                 ? Math.round(activeRace.getScoreByNumber(mp.getNumber()))
                                 : 0L,
-                        paymentRequestRepository.sumMyVotesByMatchPlayer(mp, userId)
+                        paymentRequestRepository.sumMyVotesByMatchPlayer(mp, userId),
+                        activeRace != null && activeRace.getMatch().getId().equals(match.getId())
+                                ? activeRace.getShieldsByNumber(mp.getNumber())
+                                : 0,
+                        activeRace != null && activeRace.getMatch().getId().equals(match.getId())
+                                ? activeRace.getLastAppliedBusterByNumber(mp.getNumber()).name()
+                                : null
                 ))
                 .toList();
 
@@ -456,7 +462,9 @@ public class MiniAppController {
                         mp.getOwnerUserChatId() == null ? null : userService.getUsernameOrFallback(mp.getOwnerUserChatId()),
                         mp.getOwnerUserChatId(),
                         mp.getScore(),
-                        0L
+                        0L,
+                        0,
+                        null
                 ))
                 .toList();
 
