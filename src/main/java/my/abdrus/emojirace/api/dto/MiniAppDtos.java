@@ -7,6 +7,7 @@ public class MiniAppDtos {
     public record BootstrapResponse(
             Long userId,
             boolean localTestMode,
+            Integer generationIntervalMinutes,
             Long balance,
             Integer freeBoosters,
             String favoriteEmoji,
@@ -32,7 +33,8 @@ public class MiniAppDtos {
             String playerName,
             String ownerName,
             Long ownerUserId,
-            Long score
+            Long score,
+            Long myVotes
     ) {}
 
     public record RaceResultCard(
