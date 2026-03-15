@@ -45,7 +45,6 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
-import org.telegram.telegrambots.meta.api.objects.webapp.WebAppInfo;
 
 import static my.abdrus.emojirace.bot.enumeration.MatchStatus.COMPLETED;
 import static my.abdrus.emojirace.bot.enumeration.MatchStatus.CREATED;
@@ -749,8 +748,6 @@ public class MatchService {
         return InlineKeyboardButton.builder()
                 .text("📢 Перейти к матчу")
                 .url(messageLink)
-//                .webApp(new WebAppInfo("https://smile-racers-test-ui.vercel.app/"))
-//                .webApp(new WebAppInfo("https://smile-racers-ui.vercel.app/"))
                 .build();
     }
 
