@@ -316,6 +316,29 @@ h3 {
   line-height: 1;
 }
 
+.booster-sparks {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  transform: translateX(-50%);
+  font-size: 14px;
+  line-height: 1;
+  pointer-events: none;
+  animation: boosterSpark .65s ease-out forwards;
+}
+
+.booster:active::after {
+  content: '✨✨✨';
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  transform: translateX(-50%);
+  font-size: 14px;
+  line-height: 1;
+  pointer-events: none;
+  animation: boosterSpark .65s ease-out forwards;
+}
+
 .booster-bust {
   background: linear-gradient(135deg, rgba(239, 68, 68, .58), rgba(249, 115, 22, .52));
 }
@@ -594,6 +617,22 @@ select:focus {
 
   to {
     transform: translateY(2%);
+  }
+}
+
+@keyframes boosterSpark {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 6px) scale(.6);
+  }
+
+  25% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 24px) scale(1.2);
   }
 }
 
