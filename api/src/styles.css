@@ -42,11 +42,46 @@ body {
 }
 
 .top-card {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   gap: 12px;
   padding: 14px;
   border-radius: 20px;
+}
+
+.top-card-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.top-card-actions {
+  position: relative;
+}
+
+.bell-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 12px;
+  font-size: 20px;
+  position: relative;
+}
+
+.bell-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #ef4444;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  padding: 0 4px;
 }
 
 .label {
@@ -502,15 +537,35 @@ select:focus {
 }
 
 .toast {
+  width: min(430px, calc(100% - 12px));
+  border-radius: 16px;
+  padding: 12px;
+  font-weight: 600;
+  z-index: 20;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.toasts {
   position: fixed;
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
   width: min(430px, calc(100% - 24px));
-  border-radius: 16px;
-  padding: 12px;
-  font-weight: 600;
-  z-index: 20;
+  z-index: 30;
+  display: grid;
+  gap: 8px;
+}
+
+.toast-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  padding: 0;
+  flex: 0 0 auto;
 }
 
 .loading {
@@ -601,4 +656,36 @@ select:focus {
   flex: 0 0 auto;
   background: rgba(239, 68, 68, .24);
   border: 1px solid rgba(248, 113, 113, .45);
+}
+
+.notifications-panel {
+  margin-bottom: 12px;
+}
+
+.notifications-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.notifications-header h3 {
+  margin: 0;
+}
+
+.notifications-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.notification-item {
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid rgba(255, 255, 255, .16);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }

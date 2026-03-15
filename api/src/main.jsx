@@ -29,6 +29,9 @@ const TRACK_THEME_BACKGROUNDS = {
   desert: ['#c9a363', '#9d7040']
 }
 
+const TOAST_AUTO_CLOSE_MS = 4500
+const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'battle', 'battle/start', 'topup'])
+
 const createSeededRandom = (seed) => {
   let value = Math.max(1, Number(seed) || 1)
   return () => {
@@ -131,7 +134,9 @@ function App() {
   const [data, setData] = useState(null)
   const [activeWithdraws, setActiveWithdraws] = useState([])
   const [tab, setTab] = useState('race')
-  const [message, setMessage] = useState('')
+  const [toasts, setToasts] = useState([])
+  const [savedNotifications, setSavedNotifications] = useState([])
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [spark, setSpark] = useState(null)
   const [battleEmoji, setBattleEmoji] = useState('')
   const [voteInputs, setVoteInputs] = useState({})
@@ -182,6 +187,36 @@ function App() {
     setFavoriteIndex(idx)
   }, [data])
 
+  useEffect(() => {
+    if (!isNotificationsOpen) return
+    setSavedNotifications((current) => current.map((item) => ({ ...item, read: true })))
+  }, [isNotificationsOpen])
+
+  const removeToast = (id) => {
+    setToasts((current) => current.filter((item) => item.id !== id))
+  }
+
+  const notify = (text, options = {}) => {
+    const { persist = false } = options
+    if (!text) return
+    const id = Date.now() + Math.floor(Math.random() * 10000)
+    const notification = {
+      id,
+      text,
+      persist,
+      createdAt: new Date().toISOString(),
+      read: false
+    }
+
+    setToasts((current) => [...current, notification])
+    if (persist) {
+      setSavedNotifications((current) => [notification, ...current])
+    }
+    if (!persist) {
+      setTimeout(() => removeToast(id), TOAST_AUTO_CLOSE_MS)
+    }
+  }
+
   const act = async (path, body) => {
     const res = await fetch(`${API}/${path}${requestQuery ? `?${requestQuery}` : ''}`, {
       method: 'POST',
@@ -189,7 +224,7 @@ function App() {
       body: JSON.stringify(body)
     })
     const r = await res.json()
-    setMessage(r.message)
+    notify(r.message, { persist: !res.ok || PERSISTENT_ACTIONS.has(path) })
     if (r.invoiceLink) {
       tg?.openLink ? tg.openLink(r.invoiceLink) : window.open(r.invoiceLink, '_blank')
     }
@@ -203,7 +238,7 @@ function App() {
 
   const requestBattleStartFromUi = async () => {
     if (!myBattle) {
-      setMessage('Сначала создайте батл, затем можно стартовать и приглашать друзей.')
+      notify('Сначала создайте батл, затем можно стартовать и приглашать друзей.', { persist: true })
       return
     }
     await act('battle/start', { matchId: myBattle.matchId })
@@ -217,7 +252,7 @@ function App() {
 
   const openBattleInvite = (battle) => {
     if (!battle?.inviteLink) {
-      setMessage('Ссылка приглашения для батла недоступна.')
+      notify('Ссылка приглашения для батла недоступна.', { persist: true })
       return
     }
     const shareText = encodeURIComponent(`✨ Вызываю тебя на батл Emoji Race!\nБатл #${battle.matchId} уже ждёт тебя.`)
@@ -234,7 +269,7 @@ function App() {
       tg?.openLink ? tg.openLink(link) : window.open(link, '_blank')
       return
     }
-    setMessage('Ссылка на поддержку временно недоступна.')
+    notify('Ссылка на поддержку временно недоступна.')
   }
 
   if (!data) return <div className='loading'>Загрузка…</div>
@@ -253,18 +288,51 @@ function App() {
     backgroundImage: buildTrackBackgroundImage(trackTheme, raceUnits, data.race?.matchId || 1)
   }
 
+  const unreadCount = savedNotifications.filter((item) => !item.read).length
+
   return <div className='app'>
     <div className='aurora' />
     <header className='top-card'>
-      <div>
-        <span className='label'>Баланс</span>
-        <b>{data.balance} ⭐</b>
+      <div className='top-card-main'>
+        <div>
+          <span className='label'>Баланс</span>
+          <b>{data.balance} ⭐</b>
+        </div>
+        <div>
+          <span className='label'>Бесплатные бустеры</span>
+          <b>{data.freeBoosters}</b>
+        </div>
       </div>
-      <div>
-        <span className='label'>Бесплатные бустеры</span>
-        <b>{data.freeBoosters}</b>
+      <div className='top-card-actions'>
+        <button className='bell-btn' onClick={() => setIsNotificationsOpen((current) => !current)}>
+          🔔
+          {unreadCount > 0 && <span className='bell-badge'>{unreadCount}</span>}
+        </button>
       </div>
     </header>
+
+    {isNotificationsOpen && <section className='panel notifications-panel'>
+      <div className='notifications-header'>
+        <h3>Уведомления</h3>
+        <button
+          className='chip'
+          disabled={!savedNotifications.length}
+          onClick={() => setSavedNotifications([])}
+        >
+          Очистить все
+        </button>
+      </div>
+      {!savedNotifications.length && <p className='subtitle'>Пока нет сохранённых уведомлений.</p>}
+      <div className='notifications-list'>
+        {savedNotifications.map((item) => <div key={item.id} className='notification-item'>
+          <div>
+            <p>{item.text}</p>
+            <p className='subtitle'>{new Date(item.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</p>
+          </div>
+          <button className='chip danger-chip' onClick={() => setSavedNotifications((current) => current.filter((n) => n.id !== item.id))}>Удалить</button>
+        </div>)}
+      </div>
+    </section>}
 
     <nav className='tabs'>
       <button className={tab === 'race' ? 'active' : ''} onClick={() => setTab('race')}>Гонка</button>
@@ -453,9 +521,12 @@ function App() {
       <button className='help-btn' onClick={openHelp}>Связаться с поддержкой</button>
     </section>}
 
-
-
-    {message && <div className='toast'>{message}</div>}
+    <div className='toasts'>
+      {toasts.map((toast) => <div key={toast.id} className='toast' onClick={() => removeToast(toast.id)}>
+        <span>{toast.text}</span>
+        <button className='toast-close' onClick={(e) => { e.stopPropagation(); removeToast(toast.id) }}>✕</button>
+      </div>)}
+    </div>
   </div>
 }
 
