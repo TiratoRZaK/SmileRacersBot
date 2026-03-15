@@ -25,6 +25,7 @@ public class Race {
     private final List<ConcurrentLinkedDeque<BusterType>> playerTickQueues;
     private final List<DoubleAdder> playerScores;
     private final List<AtomicInteger> playerShields;
+    private final List<BusterType> lastAppliedBusters;
     @Getter
     private final Double raceSize;
     private final Double stepSize;
@@ -47,6 +48,7 @@ public class Race {
         this.playerScores = new ArrayList<>();
         this.playerTickQueues = new ArrayList<>();
         this.playerShields = new ArrayList<>();
+        this.lastAppliedBusters = new ArrayList<>();
 
         if (topPaymentPlayer != null) {
             this.topPaymentPlayerNumber = topPaymentPlayer.getNumber();
@@ -60,6 +62,7 @@ public class Race {
             playerTickQueues.add(new ConcurrentLinkedDeque<>());
             playerScores.add(new DoubleAdder());
             playerShields.add(new AtomicInteger(0));
+            lastAppliedBusters.add(BusterType.NONE);
         });
         generateDefaultTicks();
     }
@@ -83,14 +86,17 @@ public class Race {
             if (BusterType.NONE.equals(busterType) && random.nextInt(99) > replaceBustChance) {
                 busterType = random.nextBoolean() ? BusterType.BUST : BusterType.SLOW;
             }
-            step(i, busterType, random, minScore, maxScore);
+            BusterType tickBusterType = step(i, busterType, random, minScore, maxScore);
+            lastAppliedBusters.set(i, tickBusterType);
         }
     }
 
-    public void step(Integer playerIndex, BusterType busterType, Random random, double minScore, double maxScore) {
+    public BusterType step(Integer playerIndex, BusterType busterType, Random random, double minScore, double maxScore) {
         double standardTickSize = random.nextDouble(stepSize);
 
-        double additionalTickSize = getAdditionalTickSize(playerIndex, busterType);
+        var appliedBooster = new AtomicInteger(0);
+        double additionalTickSize = getAdditionalTickSize(playerIndex, busterType, appliedBooster);
+        BusterType resultBusterType = resolveInitialBoosterType(busterType, appliedBooster.get());
 
         DoubleAdder score = playerScores.get(playerIndex);
         double tickSize = standardTickSize + additionalTickSize;
@@ -104,10 +110,12 @@ public class Race {
 
         if (score.doubleValue() == maxScore && random.nextInt(99) > equalizeBustChance) {
             tickSize = tickSize - bustSize;
+            resultBusterType = BusterType.SLOW;
         }
 
         if (score.doubleValue() == minScore && random.nextInt(99) > equalizeBustChance) {
             tickSize = tickSize + bustSize;
+            resultBusterType = BusterType.BUST;
         }
 
         if (tickSize > maxTickSize) {
@@ -115,9 +123,20 @@ public class Race {
         }
 
         score.add(tickSize);
+        return resultBusterType;
     }
 
-    private double getAdditionalTickSize(Integer playerIndex, BusterType busterType) {
+    private BusterType resolveInitialBoosterType(BusterType busterType, int appliedBooster) {
+        if (appliedBooster == 1) {
+            return BusterType.SHIELD;
+        }
+        if (appliedBooster == 2) {
+            return BusterType.NONE;
+        }
+        return busterType == null ? BusterType.NONE : busterType;
+    }
+
+    private double getAdditionalTickSize(Integer playerIndex, BusterType busterType, AtomicInteger appliedBooster) {
         double additionalTickSize = 0d;
         if (busterType != null) {
             additionalTickSize = switch (busterType) {
@@ -128,12 +147,17 @@ public class Race {
                     var currentShieldCount = playerShields.get(playerIndex);
                     if (currentShieldCount.get() > 0) {
                         currentShieldCount.decrementAndGet();
+                        appliedBooster.set(2);
                         yield 0d;
                     } else {
                         yield isTopPaymentPlayerNumber(playerIndex + 1)
                                 ? -slowSize - 0.25
                                 : -slowSize;
                     }
+                }
+                case SHIELD -> {
+                    appliedBooster.set(1);
+                    yield 0d;
                 }
                 default -> 0d;
             };
@@ -212,6 +236,14 @@ public class Race {
 
     public Double getScoreByNumber(Integer number) {
         return playerScores.get(number - 1).doubleValue();
+    }
+
+    public Integer getShieldsByNumber(Integer number) {
+        return playerShields.get(number - 1).get();
+    }
+
+    public BusterType getLastAppliedBusterByNumber(Integer number) {
+        return lastAppliedBusters.get(number - 1);
     }
 
     private boolean isTopPaymentPlayerNumber(int number) {
