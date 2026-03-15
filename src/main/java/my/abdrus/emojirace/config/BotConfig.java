@@ -13,9 +13,9 @@ import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 public class BotConfig {
 
     @Bean
-    public TelegramBotsApi telegramBotsApi(EmojiRaceBot smileRaceBot) throws Exception {
+    public TelegramBotsApi telegramBotsApi(EmojiRaceBot emojiRaceBot) throws Exception {
         TelegramBotsApi botsApi = new TelegramBotsApi(DefaultBotSession.class);
-        botsApi.registerBot(smileRaceBot);
+        botsApi.registerBot(emojiRaceBot);
         return botsApi;
     }
 
