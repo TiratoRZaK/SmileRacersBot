@@ -135,6 +135,7 @@ h3 {
   border-radius: 18px;
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, .16);
+  overflow: visible;
 }
 
 .track .unit:first-child {
@@ -172,7 +173,7 @@ h3 {
 
 .unit-head {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
 }
 
 .name {
@@ -203,20 +204,34 @@ h3 {
 
 .finish-line {
   position: absolute;
-  right: 0;
-  top: 0;
+  right: -2px;
+  top: 50%;
+  width: 2px;
+  height: 28px;
+  background: rgba(255, 255, 255, .9);
+  transform: translateY(-50%);
+  border-radius: 999px;
+  z-index: 4;
+}
+
+.finish-line::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 2px;
   width: 12px;
-  height: 100%;
+  height: 9px;
+  border-radius: 1px;
   background-image: linear-gradient(45deg, #fff 25%, #111 25%, #111 50%, #fff 50%, #fff 75%, #111 75%, #111);
-  background-size: 8px 8px;
-  z-index: 3;
+  background-size: 6px 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
 }
 
 .runner {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
-  font-size: 18px;
+  font-size: 34px;
   line-height: 1;
   z-index: 5;
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .55));
@@ -265,15 +280,17 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  width: 100%;
-  border: 1px solid rgba(255, 255, 255, .2);
-  font-size: 12px;
-  padding: 10px 8px;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto;
+  border: 1px solid rgba(255, 255, 255, .24);
+  border-radius: 16px;
+  padding: 0;
 }
 
 .booster span {
-  font-size: 16px;
+  font-size: 28px;
+  line-height: 1;
 }
 
 .booster-bust {
@@ -349,6 +366,26 @@ select:focus {
   white-space: pre-line;
   margin-top: 10px;
   line-height: 1.45;
+}
+
+.booster-legend {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  opacity: .9;
+}
+
+.booster-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .14);
 }
 
 
@@ -529,4 +566,39 @@ select:focus {
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 10px;
+}
+
+.recent-results {
+  margin-top: 14px;
+}
+
+.recent-result-card {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(255, 255, 255, .06);
+}
+
+.recent-result-title {
+  font-weight: 700;
+}
+
+.battle-participants-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.battle-participant-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.danger-chip {
+  flex: 0 0 auto;
+  background: rgba(239, 68, 68, .24);
+  border: 1px solid rgba(248, 113, 113, .45);
 }

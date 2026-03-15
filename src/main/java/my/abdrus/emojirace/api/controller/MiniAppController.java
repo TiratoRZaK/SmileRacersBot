@@ -12,6 +12,7 @@ import my.abdrus.emojirace.api.dto.MiniAppDtos;
 import my.abdrus.emojirace.bot.entity.Account;
 import my.abdrus.emojirace.bot.entity.Match;
 import my.abdrus.emojirace.bot.entity.PaymentRequest;
+import my.abdrus.emojirace.bot.entity.MatchPlayer;
 import my.abdrus.emojirace.bot.entity.Player;
 import my.abdrus.emojirace.bot.EmojiRaceBot;
 import my.abdrus.emojirace.bot.entity.Race;
@@ -101,6 +102,12 @@ public class MiniAppController {
                 .sorted(Comparator.naturalOrder())
                 .toList();
 
+        List<MiniAppDtos.RaceResultCard> recentResults = activeRace == null
+                ? matchRepository.findTop5ByStatusOrderByCreatedDateDesc(MatchStatus.COMPLETED).stream()
+                .map(this::toRaceResultCard)
+                .toList()
+                : List.of();
+
         return new MiniAppDtos.BootstrapResponse(
                 userId,
                 isLocalTestModeActive(),
@@ -109,6 +116,7 @@ public class MiniAppController {
                 user.getFavoritePlayer() == null ? null : user.getFavoritePlayer().getName(),
                 raceCard,
                 myBattleCard,
+                recentResults,
                 emojis
         );
     }
@@ -370,6 +378,24 @@ public class MiniAppController {
         return new MiniAppDtos.ActionResponse(false, "Не удалось поставить батл в очередь.");
     }
 
+    @PostMapping("/battle/remove-participant")
+    public MiniAppDtos.ActionResponse removeBattleParticipant(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.RemoveBattleParticipantRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.matchId() == null || request.playerNumber() == null) {
+            return new MiniAppDtos.ActionResponse(false, "Некорректный запрос на исключение участника.");
+        }
+
+        boolean removed = matchService.removeBattleParticipant(request.matchId(), userId, request.playerNumber());
+        if (!removed) {
+            return new MiniAppDtos.ActionResponse(false, "Не удалось исключить участника из батла.");
+        }
+        return new MiniAppDtos.ActionResponse(true, "Участник исключён, его ставка возвращена на баланс.");
+    }
+
     @GetMapping("/help")
     public MiniAppDtos.ActionResponse help() {
         return new MiniAppDtos.ActionResponse(true, channelProperties.getHelpLink());
@@ -384,6 +410,8 @@ public class MiniAppController {
                 .map(mp -> new MiniAppDtos.RaceUnit(
                         mp.getNumber(),
                         mp.getPlayerName(),
+                        mp.getOwnerUserChatId() == null ? null : userService.getUsernameOrFallback(mp.getOwnerUserChatId()),
+                        mp.getOwnerUserChatId(),
                         activeRace != null && activeRace.getMatch().getId().equals(match.getId())
                                 ? Math.round(activeRace.getScoreByNumber(mp.getNumber()))
                                 : 0L
@@ -406,6 +434,34 @@ public class MiniAppController {
                 match.getBattleStake(),
                 match.isBattleStartRequested(),
                 inviteLink,
+                units
+        );
+    }
+
+
+    private MiniAppDtos.RaceResultCard toRaceResultCard(Match match) {
+        if (match == null) {
+            return null;
+        }
+
+        List<MiniAppDtos.RaceUnit> units = Optional.ofNullable(match.getMatchPlayers()).orElse(List.of()).stream()
+                .sorted(Comparator.comparingInt(mp -> mp.getNumber() == null ? 0 : mp.getNumber()))
+                .map(mp -> new MiniAppDtos.RaceUnit(
+                        mp.getNumber(),
+                        mp.getPlayerName(),
+                        mp.getOwnerUserChatId() == null ? null : userService.getUsernameOrFallback(mp.getOwnerUserChatId()),
+                        mp.getOwnerUserChatId(),
+                        mp.getScore()
+                ))
+                .toList();
+
+        MatchPlayer winner = match.getWinner() == null ? null : match.getPlayerByNumber(match.getWinner());
+        String winnerName = winner == null ? null : winner.getPlayerName();
+
+        return new MiniAppDtos.RaceResultCard(
+                match.getId(),
+                match.getType().name(),
+                winnerName,
                 units
         );
     }
