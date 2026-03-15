@@ -23,6 +23,68 @@ const TRACK_THEME_LABELS = {
 
 const TRACK_THEMES = ['asphalt', 'grass', 'desert']
 
+const TRACK_THEME_BACKGROUNDS = {
+  asphalt: ['#394457', '#202736'],
+  grass: ['#2f7d4f', '#1f5938'],
+  desert: ['#c9a363', '#9d7040']
+}
+
+const createSeededRandom = (seed) => {
+  let value = Math.max(1, Number(seed) || 1)
+  return () => {
+    value = (value * 1664525 + 1013904223) % 4294967296
+    return value / 4294967296
+  }
+}
+
+const buildTrackBackgroundImage = (theme, units, seed) => {
+  const [fromColor, toColor] = TRACK_THEME_BACKGROUNDS[theme] || TRACK_THEME_BACKGROUNDS.asphalt
+  const emojis = (units || []).map((u) => u.playerName).filter(Boolean)
+  const random = createSeededRandom(seed)
+  const emojiPool = emojis.length ? emojis : ['🏁']
+
+  const marksCount = 90
+  const minDistance = 36
+  const placed = []
+
+  const pickEmoji = (x, y) => {
+    const close = placed
+      .filter((m) => {
+        const dx = m.x - x
+        const dy = m.y - y
+        return Math.sqrt(dx * dx + dy * dy) < 68
+      })
+      .map((m) => m.emoji)
+    const available = emojiPool.filter((emoji) => !close.includes(emoji))
+    const source = available.length ? available : emojiPool
+    return source[Math.floor(random() * source.length)]
+  }
+
+  let attempts = 0
+  while (placed.length < marksCount && attempts < marksCount * 40) {
+    attempts += 1
+    const x = Math.round(random() * 1160 + 20)
+    const y = Math.round(random() * 280 + 20)
+    const overlaps = placed.some((m) => {
+      const dx = m.x - x
+      const dy = m.y - y
+      return Math.sqrt(dx * dx + dy * dy) < minDistance
+    })
+    if (overlaps) continue
+
+    const emoji = pickEmoji(x, y)
+    const size = Math.round(22 + random() * 12)
+    const rotation = Math.round(random() * 24 - 12)
+    const opacity = (0.14 + random() * 0.13).toFixed(2)
+    placed.push({ x, y, emoji, size, rotation, opacity })
+  }
+
+  const marks = placed.map((m) => `<text x="${m.x}" y="${m.y}" font-size="${m.size}" opacity="${m.opacity}" transform="rotate(${m.rotation} ${m.x} ${m.y})">${m.emoji}</text>`).join('')
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320"><defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${fromColor}"/><stop offset="100%" stop-color="${toColor}"/></linearGradient></defs><rect width="1200" height="320" fill="url(#bg)"/>${marks}</svg>`
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+}
+
 const normalizeType = (type) => String(type || '').trim().toUpperCase()
 const getRaceTypeLabel = (type) => RACE_TYPE_LABELS[normalizeType(type)] || type || 'Неизвестно'
 const telegramUser = tg?.initDataUnsafe?.user || null
@@ -52,6 +114,16 @@ const getBattleStateLabel = (battle) => {
   if (battle.battleStartRequested) return '⏳ Батл ждёт очереди на запуск'
   if ((battle.units?.length || 0) < 2) return 'Нужно минимум 2 участника для старта'
   return 'Готов к старту. Нажмите «Старт батла»'
+}
+
+const getBattleParticipantLabel = (unit) => {
+  const owner = unit.ownerName || (unit.ownerUserId ? `ID ${unit.ownerUserId}` : 'Неизвестный игрок')
+  return `${owner} (${unit.playerName})`
+}
+
+const getBattleBank = (battle) => {
+  if (!battle?.units?.length) return 0
+  return battle.units.reduce((sum, unit) => sum + (Number(battle.battleStake) || 0), 0)
 }
 
 function App() {
@@ -88,9 +160,6 @@ function App() {
     setData(bootstrapData)
     const withdrawData = await withdrawsRes.json()
     setActiveWithdraws(withdrawData.items || [])
-    if (!silent && !bootstrapData.race && tab === 'race') {
-      setMessage('Сейчас нет активной гонки. Обновим автоматически, как только стартует следующая.')
-    }
   }
 
   useEffect(() => {
@@ -140,6 +209,12 @@ function App() {
     await act('battle/start', { matchId: myBattle.matchId })
   }
 
+
+  const removeBattleParticipant = async (playerNumber) => {
+    if (!myBattle) return
+    await act('battle/remove-participant', { matchId: myBattle.matchId, playerNumber })
+  }
+
   const openBattleInvite = (battle) => {
     if (!battle?.inviteLink) {
       setMessage('Ссылка приглашения для батла недоступна.')
@@ -168,11 +243,15 @@ function App() {
   const myBattle = data.myBattle || null
   const myBattleCanStart = !!myBattle && myBattle.status === 'CREATED' && !myBattle.battleStartRequested
   const myBattleCanInvite = !!myBattle?.inviteLink
+  const myBattleIsLive = myBattle?.status === 'LIVE'
   const boostersDisabled = !data.race || raceBeforeStart
   const trackTheme = getTrackTheme(data.race)
   const raceUnits = data.race?.units || []
   const maxScore = raceUnits.reduce((max, unit) => Math.max(max, Number(unit.score) || 0), 0)
   const finishScore = Math.max(Number(data.race?.trackLength) || DEFAULT_TRACK_LENGTH, maxScore, 1)
+  const trackBackgroundStyle = {
+    backgroundImage: buildTrackBackgroundImage(trackTheme, raceUnits, data.race?.matchId || 1)
+  }
 
   return <div className='app'>
     <div className='aurora' />
@@ -195,14 +274,19 @@ function App() {
     {tab === 'race' && <section className={`panel race-panel race-theme-${trackTheme}`}>
       <h2>{data.race ? `Гонка #${data.race.matchId} · ${getRaceTypeLabel(data.race.type)}` : 'Нет активной гонки'}</h2>
       {!!data.race && <p className='race-theme-label'>Стиль: {TRACK_THEME_LABELS[trackTheme]}</p>}
-      {!!data.race && <p className='race-intro'>{`🔥 Гонка в самом разгаре! 🔥
+      {!!data.race && !raceBeforeStart && <p className='race-intro'>{`🔥 Гонка в самом разгаре! 🔥
 Помоги своему фавориту придти на 🏁 первым!
 
 Используй бустеры на кнопках ниже:
  🐇 (10⭐️) - временно ускоряет выбранный смайл
  🐢 (10⭐️) - временно замедляет выбранный смайл
  🪖 (40⭐️) - позволяет защититься от 5-ти 🐢`}</p>}
-      <div className={`track track-${trackTheme}`}>
+      {!!data.race && !raceBeforeStart && <div className='booster-legend'>
+        <span><b>🐇</b> ускорить</span>
+        <span><b>🐢</b> замедлить</span>
+        <span><b>🪖</b> защитить</span>
+      </div>}
+      <div className={`track track-${trackTheme}`} style={trackBackgroundStyle}>
       {raceUnits.map((u, index) => {
         const score = Number(u.score) || 0
         const percent = finishScore ? Math.min(100, Math.round(score / finishScore * 100)) : 0
@@ -210,7 +294,6 @@ function App() {
 
         return <div className='unit lane' key={u.playerNumber}>
         <div className='unit-head'>
-          <div className='name'>{u.playerName}</div>
           <div className='score'>{percent}%</div>
         </div>
         <div className='meter'>
@@ -242,21 +325,25 @@ function App() {
         </div>}
         {!raceBeforeStart && <div className='booster-shell'>
           <div className='booster-actions'>
-            <button className='booster booster-bust' disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🐇</span> ДЛЯ {u.playerName}</button>
-            <button className='booster booster-slow' disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🐢</span> ДЛЯ {u.playerName}</button>
-            <button className='booster booster-shield' disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🪖</span> ДЛЯ {u.playerName}</button>
+            <button className='booster booster-bust' aria-label={`Ускорить ${u.playerName}`} title={`Ускорить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🐇</span></button>
+            <button className='booster booster-slow' aria-label={`Замедлить ${u.playerName}`} title={`Замедлить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🐢</span></button>
+            <button className='booster booster-shield' aria-label={`Защитить ${u.playerName}`} title={`Защитить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SHIELD' }); setSpark(u.playerNumber); setTimeout(() => setSpark(null), 700) }}><span>🪖</span></button>
           </div>
         </div>}
       </div>
       })}
       </div>
 
-      {myBattle && <div className='my-battle-card'>
+      {myBattle && raceBeforeStart && <div className='my-battle-card'>
         <h3>⚔️ Ваш батл #{myBattle.matchId}</h3>
         <p className='subtitle'>Голос за победу: {myBattle.battleStake || 0} ⭐</p>
+        <p className='subtitle'>Общий банк: {getBattleBank(myBattle)} ⭐</p>
         <p className='subtitle'>{getBattleStateLabel(myBattle)}</p>
-        <div className='battle-participants'>
-          {(myBattle.units || []).map((u) => <span key={u.playerNumber} className='chip'>{u.playerName}</span>)}
+        <div className='battle-participants-list'>
+          {(myBattle.units || []).map((u) => <div key={u.playerNumber} className='battle-participant-row'>
+            <span>{getBattleParticipantLabel(u)}</span>
+            <button className='chip danger-chip' disabled={myBattleIsLive || u.playerNumber === 1} onClick={() => removeBattleParticipant(u.playerNumber)}>Исключить</button>
+          </div>)}
         </div>
         <div className='row'>
           <button disabled={!myBattleCanInvite} onClick={() => openBattleInvite(myBattle)}>Пригласить друзей</button>
@@ -267,6 +354,15 @@ function App() {
             Старт батла
           </button>
         </div>
+      </div>}
+
+      {!data.race && (data.recentResults || []).length > 0 && <div className='recent-results'>
+        <h3>Последние гонки</h3>
+        {(data.recentResults || []).map((result) => <div key={result.matchId} className='recent-result-card'>
+          <div className='recent-result-title'>#{result.matchId} · {getRaceTypeLabel(result.type)}</div>
+          <div className='subtitle'>Победитель: {result.winnerName || '—'}</div>
+          <div className='subtitle'>Участники: {(result.units || []).map((u) => u.playerName).join(' · ')}</div>
+        </div>)}
       </div>}
     </section>}
 
@@ -342,6 +438,17 @@ function App() {
         <button disabled={!myBattleCanStart} onClick={requestBattleStartFromUi}>Старт батла</button>
       </div>
       {!myBattle && <p className='subtitle'>Сначала создайте батл, затем появится ссылка приглашения и станет доступен старт.</p>}
+      {myBattle && <>
+        <p className='subtitle'>Голос за победу: {myBattle.battleStake || 0} ⭐</p>
+        <p className='subtitle'>Общий банк: {getBattleBank(myBattle)} ⭐</p>
+        <p className='subtitle'>{getBattleStateLabel(myBattle)}</p>
+        <div className='battle-participants-list'>
+          {(myBattle.units || []).map((u) => <div key={u.playerNumber} className='battle-participant-row'>
+            <span>{getBattleParticipantLabel(u)}</span>
+            <button className='chip danger-chip' disabled={myBattleIsLive || u.playerNumber === 1} onClick={() => removeBattleParticipant(u.playerNumber)}>Исключить</button>
+          </div>)}
+        </div>
+      </>}
 
       <button className='help-btn' onClick={openHelp}>Связаться с поддержкой</button>
     </section>}

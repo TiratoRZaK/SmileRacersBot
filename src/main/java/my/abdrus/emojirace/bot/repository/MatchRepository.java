@@ -36,4 +36,6 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
     Optional<Match> findFirstByTypeAndStatusAndCreatorUserChatIdOrderByCreatedDateDesc(MatchType type, MatchStatus status, Long creatorUserChatId);
 
     Optional<Match> findFirstByTypeAndCreatorUserChatIdAndStatusInOrderByCreatedDateDesc(MatchType type, Long creatorUserChatId, Collection<MatchStatus> statuses);
+
+    List<Match> findTop5ByStatusOrderByCreatedDateDesc(MatchStatus status);
 }

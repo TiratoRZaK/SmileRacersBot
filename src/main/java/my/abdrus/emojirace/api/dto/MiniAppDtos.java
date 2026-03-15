@@ -12,6 +12,7 @@ public class MiniAppDtos {
             String favoriteEmoji,
             RaceCard race,
             RaceCard myBattle,
+            List<RaceResultCard> recentResults,
             List<String> allEmojis
     ) {}
 
@@ -29,7 +30,16 @@ public class MiniAppDtos {
     public record RaceUnit(
             Integer playerNumber,
             String playerName,
+            String ownerName,
+            Long ownerUserId,
             Long score
+    ) {}
+
+    public record RaceResultCard(
+            Long matchId,
+            String type,
+            String winnerName,
+            List<RaceUnit> units
     ) {}
 
     public record VoteRequest(Long matchId, Integer playerNumber, Long amount) {}
@@ -55,6 +65,8 @@ public class MiniAppDtos {
     public record CreateBattleRequest(String playerName, Long stake) {}
 
     public record StartBattleRequest(Long matchId) {}
+
+    public record RemoveBattleParticipantRequest(Long matchId, Integer playerNumber) {}
 
     public record ActionResponse(boolean success, String message) {}
 }
