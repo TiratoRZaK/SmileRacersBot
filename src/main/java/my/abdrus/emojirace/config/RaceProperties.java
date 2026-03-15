@@ -18,4 +18,5 @@ public class RaceProperties {
     private Integer replaceBustChance;
     private Integer equalizeBustChance;
     private Integer defaultRacerCount;
+    private Integer generationIntervalMinutes;
 }

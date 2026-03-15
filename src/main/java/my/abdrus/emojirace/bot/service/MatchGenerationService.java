@@ -74,7 +74,9 @@ public class MatchGenerationService {
             matchRepository
                     .findById(createdRegularMatch.getId())
                     .ifPresent(match -> matchService.sendMatchLineToChannel(match, bot));
-        }, Duration.ofMinutes(3));
+        }, Duration.ofMinutes(Math.max(1, raceProperties.getGenerationIntervalMinutes() == null
+                ? 3
+                : raceProperties.getGenerationIntervalMinutes())));
     }
 
     private List<Player> getPlayersForMatch() {

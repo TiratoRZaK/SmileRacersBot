@@ -35,6 +35,7 @@ import my.abdrus.emojirace.bot.service.RaceService;
 import my.abdrus.emojirace.bot.service.UserService;
 import my.abdrus.emojirace.bot.service.WithdrawService;
 import my.abdrus.emojirace.config.BotProperties;
+import my.abdrus.emojirace.config.RaceProperties;
 import org.json.JSONObject;
 import my.abdrus.emojirace.config.ChannelProperties;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -70,6 +71,7 @@ public class MiniAppController {
     private final InvoiceService invoiceService;
     private final ChannelProperties channelProperties;
     private final BotProperties botProperties;
+    private final RaceProperties raceProperties;
 
     @GetMapping("/bootstrap")
     public MiniAppDtos.BootstrapResponse bootstrap(
@@ -87,14 +89,14 @@ public class MiniAppController {
                 .findFirstByStatusInOrderByCreatedDateDesc(List.of(MatchStatus.CREATED, MatchStatus.LIVE))
                 .orElse(null);
 
-        MiniAppDtos.RaceCard raceCard = toRaceCard(selectedMatch, activeRace);
+        MiniAppDtos.RaceCard raceCard = toRaceCard(selectedMatch, activeRace, userId);
         MiniAppDtos.RaceCard myBattleCard = matchRepository
                 .findFirstByTypeAndCreatorUserChatIdAndStatusInOrderByCreatedDateDesc(
                         MatchType.BATTLE,
                         userId,
                         List.of(MatchStatus.CREATED, MatchStatus.LIVE)
                 )
-                .map(match -> toRaceCard(match, activeRace))
+                .map(match -> toRaceCard(match, activeRace, userId))
                 .orElse(null);
 
         List<String> emojis = playerRepository.findAll().stream()
@@ -111,6 +113,7 @@ public class MiniAppController {
         return new MiniAppDtos.BootstrapResponse(
                 userId,
                 isLocalTestModeActive(),
+                Optional.ofNullable(raceProperties.getGenerationIntervalMinutes()).orElse(3),
                 account.getBalance(),
                 account.getFreeBustCount(),
                 user.getFavoritePlayer() == null ? null : user.getFavoritePlayer().getName(),
@@ -401,7 +404,7 @@ public class MiniAppController {
         return new MiniAppDtos.ActionResponse(true, channelProperties.getHelpLink());
     }
 
-    private MiniAppDtos.RaceCard toRaceCard(Match match, Race activeRace) {
+    private MiniAppDtos.RaceCard toRaceCard(Match match, Race activeRace, Long userId) {
         if (match == null) {
             return null;
         }
@@ -414,7 +417,8 @@ public class MiniAppController {
                         mp.getOwnerUserChatId(),
                         activeRace != null && activeRace.getMatch().getId().equals(match.getId())
                                 ? Math.round(activeRace.getScoreByNumber(mp.getNumber()))
-                                : 0L
+                                : 0L,
+                        paymentRequestRepository.sumMyVotesByMatchPlayer(mp, userId)
                 ))
                 .toList();
 
@@ -451,7 +455,8 @@ public class MiniAppController {
                         mp.getPlayerName(),
                         mp.getOwnerUserChatId() == null ? null : userService.getUsernameOrFallback(mp.getOwnerUserChatId()),
                         mp.getOwnerUserChatId(),
-                        mp.getScore()
+                        mp.getScore(),
+                        0L
                 ))
                 .toList();
 

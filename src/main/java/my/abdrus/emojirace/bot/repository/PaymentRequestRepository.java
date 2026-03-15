@@ -59,6 +59,16 @@ public interface PaymentRequestRepository extends JpaRepository<PaymentRequest, 
                                                                     @Param("status") PaymentRequestStatus status,
                                                                     @Param("userChatId") Long userChatId);
 
+    @Query("""
+            SELECT COALESCE(SUM(r.sum), 0)
+            FROM PaymentRequest r
+            WHERE r.matchPlayer = :matchPlayer
+              AND r.userChatId = :userChatId
+              AND r.status IN ('PAYED', 'COMPLETED')
+            """)
+    Long sumMyVotesByMatchPlayer(@Param("matchPlayer") MatchPlayer matchPlayer,
+                                 @Param("userChatId") Long userChatId);
+
     /**
      * Сумма оплаченных голосов (PAYED/COMPLETED) по батлу.
      */

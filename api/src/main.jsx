@@ -30,7 +30,10 @@ const TRACK_THEME_BACKGROUNDS = {
 }
 
 const TOAST_AUTO_CLOSE_MS = 4500
+const FINISH_CELEBRATION_MS = 4000
 const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'battle', 'battle/start', 'topup'])
+
+const formatStars = (value) => new Intl.NumberFormat('ru-RU').format(Number(value) || 0)
 
 const createSeededRandom = (seed) => {
   let value = Math.max(1, Number(seed) || 1)
@@ -143,6 +146,7 @@ function App() {
   const [topupAmount, setTopupAmount] = useState(100)
   const [withdrawAmount, setWithdrawAmount] = useState(100)
   const [favoriteIndex, setFavoriteIndex] = useState(0)
+  const [finishCelebration, setFinishCelebration] = useState(null)
 
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams()
@@ -192,6 +196,27 @@ function App() {
     setSavedNotifications((current) => current.map((item) => ({ ...item, read: true })))
   }, [isNotificationsOpen])
 
+  useEffect(() => {
+    if (!data) return
+    const latestResult = (data.recentResults || [])[0]
+    const shouldShowCelebration = !data.race && latestResult?.winnerName
+    if (!shouldShowCelebration) return
+
+    setFinishCelebration((current) => {
+      if (current?.matchId === latestResult.matchId) return current
+      return {
+        matchId: latestResult.matchId,
+        winnerName: latestResult.winnerName,
+        raceType: getRaceTypeLabel(latestResult.type)
+      }
+    })
+
+    const timeout = setTimeout(() => {
+      setFinishCelebration((current) => (current?.matchId === latestResult.matchId ? null : current))
+    }, FINISH_CELEBRATION_MS)
+    return () => clearTimeout(timeout)
+  }, [data?.race, data?.recentResults])
+
   const removeToast = (id) => {
     setToasts((current) => current.filter((item) => item.id !== id))
   }
@@ -224,7 +249,13 @@ function App() {
       body: JSON.stringify(body)
     })
     const r = await res.json()
-    notify(r.message, { persist: !res.ok || PERSISTENT_ACTIONS.has(path) })
+    if (path === 'vote' && res.ok && body?.amount && body?.playerNumber) {
+      const votedUnit = (data?.race?.units || []).find((u) => u.playerNumber === body.playerNumber)
+      const target = votedUnit?.playerName || `участника #${body.playerNumber}`
+      notify(`✅ Принято: ${formatStars(body.amount)} ⭐ за ${target}`)
+    } else {
+      notify(r.message, { persist: !res.ok || PERSISTENT_ACTIONS.has(path) })
+    }
     if (r.invoiceLink) {
       tg?.openLink ? tg.openLink(r.invoiceLink) : window.open(r.invoiceLink, '_blank')
     }
@@ -354,8 +385,8 @@ function App() {
         <span><b>🐢</b> замедлить</span>
         <span><b>🪖</b> защитить</span>
       </div>}
-      <div className={`track track-${trackTheme}`} style={trackBackgroundStyle}>
-      {raceUnits.map((u, index) => {
+      {!!data.race && <div className={`track track-${trackTheme}`} style={trackBackgroundStyle}>
+      {raceUnits.map((u) => {
         const score = Number(u.score) || 0
         const percent = finishScore ? Math.min(100, Math.round(score / finishScore * 100)) : 0
         const runnerLeft = `${2 + percent * 0.96}%`
@@ -370,7 +401,11 @@ function App() {
           <div className='finish-line' />
         </div>
         {spark === u.playerNumber && <div className='spark'>✨</div>}
-        {raceBeforeStart && <div className='vote-inline'>
+        {raceBeforeStart && <div className='vote-inline-wrap'>
+          <div className='vote-caption'>
+            <span>Твой вклад: {formatStars(u.myVotes)} ⭐</span>
+          </div>
+          <div className='vote-inline'>
           <input
             className='field'
             type='number'
@@ -386,10 +421,14 @@ function App() {
           />
           <button
             disabled={!data.balance || data.balance < 1}
-            onClick={() => act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount: voteInputs[u.playerNumber] ?? 1 })}
+            onClick={async () => {
+              await act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount: voteInputs[u.playerNumber] ?? 1 })
+              setVoteInputs((current) => ({ ...current, [u.playerNumber]: 1 }))
+            }}
           >
             Отдать голос
           </button>
+          </div>
         </div>}
         {!raceBeforeStart && <div className='booster-shell'>
           <div className='booster-actions'>
@@ -400,7 +439,15 @@ function App() {
         </div>}
       </div>
       })}
-      </div>
+      </div>}
+
+      {!!finishCelebration && <div className='finish-celebration'>
+        <div className='confetti confetti-a'>🎆</div>
+        <div className='confetti confetti-b'>🎇</div>
+        <div className='confetti confetti-c'>✨</div>
+        <h3>🏆 Победитель: {finishCelebration.winnerName}</h3>
+        <p className='subtitle'>Гонка #{finishCelebration.matchId} · {finishCelebration.raceType} завершена.</p>
+      </div>}
 
       {myBattle && raceBeforeStart && <div className='my-battle-card'>
         <h3>⚔️ Ваш батл #{myBattle.matchId}</h3>
@@ -424,7 +471,11 @@ function App() {
         </div>
       </div>}
 
-      {!data.race && (data.recentResults || []).length > 0 && <div className='recent-results'>
+      {!data.race && !finishCelebration && (data.recentResults || []).length > 0 && <div className='recent-results'>
+        <p className='next-race-hint'>
+          Следующая гонка стартует примерно через {data.generationIntervalMinutes || 3} мин. ⚡
+          Или создай свой батл и катай с друзьями уже сейчас!
+        </p>
         <h3>Последние гонки</h3>
         {(data.recentResults || []).map((result) => <div key={result.matchId} className='recent-result-card'>
           <div className='recent-result-title'>#{result.matchId} · {getRaceTypeLabel(result.type)}</div>
