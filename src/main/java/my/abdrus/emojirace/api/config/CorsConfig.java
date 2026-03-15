@@ -16,8 +16,6 @@ public class CorsConfig {
                     .allowedOrigins("http://localhost:5173")
                     .allowedOrigins("https://localhost:8080")
                     .allowedOrigins("http://localhost:8080")
-                    .allowedOrigins("https://smile-racers-ui.vercel.app")
-                    .allowedOrigins("https://smile-racers-test-ui.vercel.app")
                     .allowedMethods("GET", "POST", "PUT", "DELETE")
                     .allowCredentials(true);
             }
