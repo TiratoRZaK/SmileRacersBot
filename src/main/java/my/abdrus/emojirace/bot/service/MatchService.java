@@ -748,8 +748,8 @@ public class MatchService {
         String messageLink = channelProperties.getChannelLink() + match.getChannelTimerMessageId();
         return InlineKeyboardButton.builder()
                 .text("📢 Перейти к матчу")
-//                .url(messageLink)
-                .webApp(new WebAppInfo("https://smile-racers-test-ui.vercel.app/"))
+                .url(messageLink)
+//                .webApp(new WebAppInfo("https://smile-racers-test-ui.vercel.app/"))
 //                .webApp(new WebAppInfo("https://smile-racers-ui.vercel.app/"))
                 .build();
     }
