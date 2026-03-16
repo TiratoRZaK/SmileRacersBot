@@ -209,8 +209,15 @@ function App() {
       acc[unit.playerNumber] = Number(unit.myVotes) || 0
       return acc
     }, {})
-    setLocalVotes(raceVotes)
-  }, [data?.race?.matchId])
+
+    setLocalVotes((current) => {
+      const merged = { ...current }
+      Object.entries(raceVotes).forEach(([playerNumber, backendVotes]) => {
+        merged[playerNumber] = Math.max(Number(merged[playerNumber]) || 0, Number(backendVotes) || 0)
+      })
+      return merged
+    })
+  }, [data?.race?.matchId, data?.race?.units])
 
   useEffect(() => {
     if (!isNotificationsOpen) return

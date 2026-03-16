@@ -809,7 +809,6 @@ select:focus {
 
 .confetti-a { top: 8px; left: 18px; }
 .confetti-b { top: 12px; right: 18px; }
-.confetti-c { bottom: 8px; left: 50%; transform: translateX(-50%); }
 
 .notifications-header {
   display: flex;
