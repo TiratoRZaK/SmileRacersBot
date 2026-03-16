@@ -170,4 +170,13 @@ public class UserHistoryReportService {
 
     private record HistoryItem(Date createdDate, String operation, Long amount, String details) {
     }
+
+    public record HistoryEntry(Date createdDate, String operation, Long amount, String details) {
+    }
+
+    public List<HistoryEntry> loadHistoryForMiniApp(Long userId) {
+        return loadHistory(userId).stream()
+                .map(item -> new HistoryEntry(item.createdDate(), item.operation(), item.amount(), item.details()))
+                .toList();
+    }
 }

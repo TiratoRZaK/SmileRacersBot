@@ -34,6 +34,7 @@ import my.abdrus.emojirace.bot.service.MatchGenerationService;
 import my.abdrus.emojirace.bot.service.MatchService;
 import my.abdrus.emojirace.bot.service.RaceService;
 import my.abdrus.emojirace.bot.service.UserNotificationService;
+import my.abdrus.emojirace.bot.service.UserHistoryReportService;
 import my.abdrus.emojirace.bot.service.UserService;
 import my.abdrus.emojirace.bot.service.WithdrawService;
 import my.abdrus.emojirace.config.BotProperties;
@@ -72,6 +73,7 @@ public class MiniAppController {
     private final WithdrawService withdrawService;
     private final InvoiceService invoiceService;
     private final UserNotificationService userNotificationService;
+    private final UserHistoryReportService userHistoryReportService;
     private final ChannelProperties channelProperties;
     private final BotProperties botProperties;
     private final RaceProperties raceProperties;
@@ -407,6 +409,76 @@ public class MiniAppController {
             return new MiniAppDtos.ActionResponse(false, "Не удалось исключить участника из батла.");
         }
         return new MiniAppDtos.ActionResponse(true, "Участник исключён, его ставка возвращена на баланс.");
+    }
+
+    @PostMapping("/battle/join")
+    public MiniAppDtos.ActionResponse joinBattle(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.JoinBattleRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.matchId() == null || request.playerName() == null || request.playerName().isBlank()) {
+            return new MiniAppDtos.ActionResponse(false, "Некорректный запрос на участие в батле.");
+        }
+
+        Match battle = matchRepository.findById(request.matchId()).orElse(null);
+        if (battle == null || battle.getType() != MatchType.BATTLE || battle.getStatus() != MatchStatus.CREATED) {
+            return new MiniAppDtos.ActionResponse(false, "Батл недоступен.");
+        }
+
+        Player player = playerRepository.findByName(request.playerName()).orElse(null);
+        if (player == null) {
+            return new MiniAppDtos.ActionResponse(false, "Смайл не найден.");
+        }
+
+        try {
+            boolean joined = matchService.joinBattle(request.matchId(), userId, player, matchService.getBattleStake(battle));
+            if (!joined) {
+                return new MiniAppDtos.ActionResponse(false, "Нельзя присоединиться (смайл/участник уже есть или батл закрыт).");
+            }
+            if (battle.getCreatorUserChatId() != null) {
+                matchService.refreshBattleCreatorMessage(request.matchId(), bot);
+            }
+            return new MiniAppDtos.ActionResponse(true, "Вы присоединились к батлу #" + request.matchId() + ".");
+        } catch (PaymentException e) {
+            return new MiniAppDtos.ActionResponse(false, e.getMessage());
+        }
+    }
+
+    @PostMapping("/battle/cancel")
+    public MiniAppDtos.ActionResponse cancelBattle(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.CancelBattleRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.matchId() == null) {
+            return new MiniAppDtos.ActionResponse(false, "Некорректный запрос на отмену батла.");
+        }
+
+        Match canceled = matchService.cancelBattle(request.matchId(), userId);
+        if (canceled == null) {
+            return new MiniAppDtos.ActionResponse(false, "Отмена недоступна.");
+        }
+        return new MiniAppDtos.ActionResponse(true, "Батл отменён.");
+    }
+
+    @GetMapping("/history")
+    public MiniAppDtos.HistoryResponse history(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        List<MiniAppDtos.HistoryItem> items = userHistoryReportService.loadHistoryForMiniApp(userId).stream()
+                .map(item -> new MiniAppDtos.HistoryItem(
+                        item.createdDate() == null ? null : item.createdDate().getTime(),
+                        item.operation(),
+                        item.amount(),
+                        item.details()
+                ))
+                .toList();
+        return new MiniAppDtos.HistoryResponse(items);
     }
 
     @PostMapping("/notification/delete")

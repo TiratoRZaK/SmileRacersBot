@@ -73,11 +73,19 @@ public class MiniAppDtos {
 
     public record ActiveWithdrawsResponse(List<WithdrawItem> items) {}
 
+    public record HistoryItem(Long createdAtMs, String operation, Long amount, String details) {}
+
+    public record HistoryResponse(List<HistoryItem> items) {}
+
     public record CreateBattleRequest(String playerName, Long stake) {}
 
     public record StartBattleRequest(Long matchId) {}
 
     public record RemoveBattleParticipantRequest(Long matchId, Integer playerNumber) {}
+
+    public record JoinBattleRequest(Long matchId, String playerName) {}
+
+    public record CancelBattleRequest(Long matchId) {}
 
     public record DeleteNotificationRequest(Long notificationId) {}
 
