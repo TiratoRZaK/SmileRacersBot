@@ -387,7 +387,7 @@ function App() {
           </button>
         </div>
         {!savedNotifications.length && <p className='subtitle'>Пока нет сохранённых уведомлений.</p>}
-        <div className='notifications-list'>
+        {!!savedNotifications.length && <div className='notifications-list'>
           {savedNotifications.map((item) => <div key={item.id} className='notification-item'>
             <div>
               <p>{item.text}</p>
@@ -395,7 +395,7 @@ function App() {
             </div>
             <button className='chip danger-chip' onClick={() => setSavedNotifications((current) => current.filter((n) => n.id !== item.id))}>Удалить</button>
           </div>)}
-        </div>
+        </div>}
       </section>}
     </div>
 
