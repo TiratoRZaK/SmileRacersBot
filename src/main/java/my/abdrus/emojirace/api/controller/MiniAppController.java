@@ -14,6 +14,7 @@ import my.abdrus.emojirace.bot.entity.Match;
 import my.abdrus.emojirace.bot.entity.PaymentRequest;
 import my.abdrus.emojirace.bot.entity.MatchPlayer;
 import my.abdrus.emojirace.bot.entity.Player;
+import my.abdrus.emojirace.bot.entity.UserNotification;
 import my.abdrus.emojirace.bot.EmojiRaceBot;
 import my.abdrus.emojirace.bot.entity.Race;
 import my.abdrus.emojirace.bot.enumeration.BusterType;
@@ -32,6 +33,7 @@ import my.abdrus.emojirace.bot.service.InvoiceService;
 import my.abdrus.emojirace.bot.service.MatchGenerationService;
 import my.abdrus.emojirace.bot.service.MatchService;
 import my.abdrus.emojirace.bot.service.RaceService;
+import my.abdrus.emojirace.bot.service.UserNotificationService;
 import my.abdrus.emojirace.bot.service.UserService;
 import my.abdrus.emojirace.bot.service.WithdrawService;
 import my.abdrus.emojirace.config.BotProperties;
@@ -69,6 +71,7 @@ public class MiniAppController {
     private final MatchService matchService;
     private final WithdrawService withdrawService;
     private final InvoiceService invoiceService;
+    private final UserNotificationService userNotificationService;
     private final ChannelProperties channelProperties;
     private final BotProperties botProperties;
     private final RaceProperties raceProperties;
@@ -109,6 +112,10 @@ public class MiniAppController {
                 .map(this::toRaceResultCard)
                 .toList();
 
+        List<MiniAppDtos.UiNotification> notifications = userNotificationService.getRecent(userId).stream()
+                .map(item -> new MiniAppDtos.UiNotification(item.getId(), item.getText(), item.getCreatedDate().getTime()))
+                .toList();
+
         return new MiniAppDtos.BootstrapResponse(
                 userId,
                 isLocalTestModeActive(),
@@ -119,7 +126,8 @@ public class MiniAppController {
                 raceCard,
                 myBattleCard,
                 recentResults,
-                emojis
+                emojis,
+                notifications
         );
     }
 
@@ -401,6 +409,39 @@ public class MiniAppController {
         return new MiniAppDtos.ActionResponse(true, "Участник исключён, его ставка возвращена на баланс.");
     }
 
+    @PostMapping("/notification/delete")
+    public MiniAppDtos.ActionResponse deleteNotification(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.DeleteNotificationRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.notificationId() == null) {
+            return new MiniAppDtos.ActionResponse(false, "Не выбрано уведомление для удаления.");
+        }
+
+        UserNotification notification = userNotificationService.findByIdAndUserId(request.notificationId(), userId).orElse(null);
+        if (notification == null) {
+            return new MiniAppDtos.ActionResponse(false, "Уведомление не найдено.");
+        }
+
+        deleteTelegramMessageIfExists(userId, notification.getMessageId());
+        userNotificationService.delete(notification);
+        return new MiniAppDtos.ActionResponse(true, "Уведомление удалено.");
+    }
+
+    @PostMapping("/notification/clear")
+    public MiniAppDtos.ActionResponse clearNotifications(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        List<UserNotification> notifications = userNotificationService.getAllByUserId(userId);
+        notifications.forEach(notification -> deleteTelegramMessageIfExists(userId, notification.getMessageId()));
+        userNotificationService.deleteAll(notifications);
+        return new MiniAppDtos.ActionResponse(true, "Уведомления очищены.");
+    }
+
     @GetMapping("/help")
     public MiniAppDtos.ActionResponse help() {
         return new MiniAppDtos.ActionResponse(true, channelProperties.getHelpLink());
@@ -495,6 +536,13 @@ public class MiniAppController {
                 .orElseThrow(() -> new IllegalArgumentException("Не удалось определить Telegram user id."));
         accountService.getByUserId(userId);
         return userId;
+    }
+
+    private void deleteTelegramMessageIfExists(Long userId, Integer messageId) {
+        if (userId == null || messageId == null) {
+            return;
+        }
+        bot.deleteMessage(userId, messageId);
     }
 
     private Long extractTelegramInitDataUserId() {

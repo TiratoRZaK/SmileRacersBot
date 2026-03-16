@@ -9,6 +9,7 @@ import my.abdrus.emojirace.bot.service.ClientChannelService;
 import my.abdrus.emojirace.bot.service.JackpotService;
 import my.abdrus.emojirace.bot.service.MainChannelService;
 import my.abdrus.emojirace.bot.service.MatchGenerationService;
+import my.abdrus.emojirace.bot.service.UserNotificationService;
 import my.abdrus.emojirace.config.BotProperties;
 import my.abdrus.emojirace.config.ChannelProperties;
 import org.slf4j.Logger;
@@ -19,6 +20,8 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -43,6 +46,8 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
     private ChannelProperties channelProperties;
     @Autowired
     private BotProperties botProperties;
+    @Autowired
+    private UserNotificationService userNotificationService;
 
     @PostConstruct
     public void start() {
@@ -81,7 +86,9 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
         int attempt = 1;
         while (attempt <= maxAttempts) {
             try {
-                return super.execute(sendMessage);
+                T response = super.execute(sendMessage);
+                saveUserNotification(sendMessage, response);
+                return response;
             } catch (TelegramApiRequestException e) {
                 if (isMessageNotModifiedError(e)) {
                     log.debug("Пропуск обновления сообщения без изменений");
@@ -118,6 +125,21 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
             }
         }
         throw new IllegalStateException("Unexpected bot execute state");
+    }
+
+    private <T extends Serializable, Method extends BotApiMethod<T>> void saveUserNotification(Method method, T response) {
+        if (!(method instanceof SendMessage sendMessage) || !(response instanceof Message message)) {
+            return;
+        }
+        Long chatId = message.getChatId();
+        if (chatId == null || chatId <= 0) {
+            return;
+        }
+        String text = sendMessage.getText();
+        if (text == null || text.isBlank()) {
+            text = message.getText();
+        }
+        userNotificationService.save(chatId, text, message.getMessageId());
     }
 
     private boolean isMessageNotModifiedError(TelegramApiRequestException e) {

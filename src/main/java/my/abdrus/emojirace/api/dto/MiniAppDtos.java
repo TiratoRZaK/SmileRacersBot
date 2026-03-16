@@ -14,7 +14,14 @@ public class MiniAppDtos {
             RaceCard race,
             RaceCard myBattle,
             List<RaceResultCard> recentResults,
-            List<String> allEmojis
+            List<String> allEmojis,
+            List<UiNotification> notifications
+    ) {}
+
+    public record UiNotification(
+            Long id,
+            String text,
+            Long createdAtMs
     ) {}
 
     public record RaceCard(
@@ -71,6 +78,8 @@ public class MiniAppDtos {
     public record StartBattleRequest(Long matchId) {}
 
     public record RemoveBattleParticipantRequest(Long matchId, Integer playerNumber) {}
+
+    public record DeleteNotificationRequest(Long notificationId) {}
 
     public record ActionResponse(boolean success, String message) {}
 }

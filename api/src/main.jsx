@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 
@@ -30,8 +30,8 @@ const TRACK_THEME_BACKGROUNDS = {
 }
 
 const TOAST_AUTO_CLOSE_MS = 4500
-const TOAST_FAST_CLOSE_MS = 900
-const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'battle', 'topup'])
+const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'battle', 'battle/start', 'topup'])
+const MAX_SAVED_NOTIFICATIONS = 200
 
 const formatStars = (value) => new Intl.NumberFormat('ru-RU').format(Number(value) || 0)
 
@@ -147,7 +147,6 @@ function App() {
   const [favoriteIndex, setFavoriteIndex] = useState(0)
   const [localVotes, setLocalVotes] = useState({})
   const [isHeaderCompact, setIsHeaderCompact] = useState(false)
-  const currentRaceIdRef = useRef(null)
 
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams()
@@ -212,15 +211,6 @@ function App() {
       return acc
     }, {})
 
-    const nextRaceId = data.race.matchId
-    const isNewRace = currentRaceIdRef.current !== nextRaceId
-    currentRaceIdRef.current = nextRaceId
-
-    if (isNewRace) {
-      setLocalVotes(raceVotes)
-      return
-    }
-
     setLocalVotes((current) => {
       const merged = { ...current }
       Object.entries(raceVotes).forEach(([playerNumber, backendVotes]) => {
@@ -235,12 +225,38 @@ function App() {
     setSavedNotifications((current) => current.map((item) => ({ ...item, read: true })))
   }, [isNotificationsOpen])
 
+  useEffect(() => {
+    const apiNotifications = data?.notifications || []
+    if (!apiNotifications.length) return
+
+    setSavedNotifications((current) => {
+      const byId = new Map(current.map((item) => [String(item.id), item]))
+      apiNotifications.forEach((item) => {
+        if (!item?.id || !item?.text) return
+        const key = String(item.id)
+        const existing = byId.get(key)
+        byId.set(key, {
+          id: item.id,
+          text: item.text,
+          persist: true,
+          createdAt: item.createdAtMs ? new Date(item.createdAtMs).toISOString() : new Date().toISOString(),
+          read: existing?.read || false,
+          source: 'server'
+        })
+      })
+
+      return [...byId.values()]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, MAX_SAVED_NOTIFICATIONS)
+    })
+  }, [data?.notifications])
+
   const removeToast = (id) => {
     setToasts((current) => current.filter((item) => item.id !== id))
   }
 
   const notify = (text, options = {}) => {
-    const { persist = false, durationMs = TOAST_AUTO_CLOSE_MS } = options
+    const { persist = false } = options
     if (!text) return
     const id = Date.now() + Math.floor(Math.random() * 10000)
     const notification = {
@@ -253,10 +269,10 @@ function App() {
 
     setToasts((current) => [...current, notification])
     if (persist) {
-      setSavedNotifications((current) => [notification, ...current])
+      setSavedNotifications((current) => [notification, ...current].slice(0, MAX_SAVED_NOTIFICATIONS))
     }
     if (!persist) {
-      setTimeout(() => removeToast(id), durationMs)
+      setTimeout(() => removeToast(id), TOAST_AUTO_CLOSE_MS)
     }
     return id
   }
@@ -277,8 +293,6 @@ function App() {
       if (toastId != null) {
         setTimeout(() => removeToast(toastId), 250)
       }
-    } else if (path === 'battle/start') {
-      notify(r.message, { persist: false, durationMs: TOAST_FAST_CLOSE_MS })
     } else {
       notify(r.message, { persist: !res.ok || PERSISTENT_ACTIONS.has(path) })
     }
@@ -300,7 +314,7 @@ function App() {
 
   const requestBattleStartFromUi = async () => {
     if (!myBattle) {
-      notify('Сначала создайте батл, затем можно стартовать и приглашать друзей.', { persist: false, durationMs: TOAST_FAST_CLOSE_MS })
+      notify('Сначала создайте батл, затем можно стартовать и приглашать друзей.', { persist: true })
       return
     }
     await act('battle/start', { matchId: myBattle.matchId })
@@ -332,6 +346,42 @@ function App() {
       return
     }
     notify('Ссылка на поддержку временно недоступна.')
+  }
+
+  const deleteSavedNotification = async (notificationId) => {
+    if (!notificationId) return
+    try {
+      const response = await fetch(`${API}/notification/delete${requestQuery ? `?${requestQuery}` : ''}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...requestHeaders },
+        body: JSON.stringify({ notificationId })
+      })
+      const payload = await response.json()
+      if (!response.ok || !payload?.success) {
+        notify(payload?.message || 'Не удалось удалить уведомление.', { persist: true })
+        return
+      }
+      setSavedNotifications((current) => current.filter((n) => n.id !== notificationId))
+    } catch (e) {
+      notify('Ошибка удаления уведомления.', { persist: true })
+    }
+  }
+
+  const clearSavedNotifications = async () => {
+    try {
+      const response = await fetch(`${API}/notification/clear${requestQuery ? `?${requestQuery}` : ''}`, {
+        method: 'POST',
+        headers: requestHeaders
+      })
+      const payload = await response.json()
+      if (!response.ok || !payload?.success) {
+        notify(payload?.message || 'Не удалось очистить уведомления.', { persist: true })
+        return
+      }
+      setSavedNotifications([])
+    } catch (e) {
+      notify('Ошибка очистки уведомлений.', { persist: true })
+    }
   }
 
   if (!data) return <div className='loading'>Загрузка…</div>
@@ -394,7 +444,7 @@ function App() {
           <button
             className='chip'
             disabled={!savedNotifications.length}
-            onClick={() => setSavedNotifications([])}
+            onClick={clearSavedNotifications}
           >
             Очистить все
           </button>
@@ -406,7 +456,7 @@ function App() {
               <p>{item.text}</p>
               <p className='subtitle'>{new Date(item.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</p>
             </div>
-            <button className='chip danger-chip' onClick={() => setSavedNotifications((current) => current.filter((n) => n.id !== item.id))}>Удалить</button>
+            <button className='chip danger-chip' onClick={() => deleteSavedNotification(item.id)}>Удалить</button>
           </div>)}
         </div>}
       </section>}
@@ -484,7 +534,13 @@ function App() {
             disabled={!data.balance || data.balance < 1}
             onClick={async () => {
               const amount = voteInputs[u.playerNumber] ?? 1
-              await act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount })
+              const response = await act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount })
+              if (response?.httpOk) {
+                setLocalVotes((current) => ({
+                  ...current,
+                  [u.playerNumber]: (Number(current[u.playerNumber]) || Number(u.myVotes) || 0) + Number(amount || 0)
+                }))
+              }
               setVoteInputs((current) => ({ ...current, [u.playerNumber]: 1 }))
             }}
           >
@@ -529,8 +585,10 @@ function App() {
         <p className='next-race-hint'>Следующая гонка стартует примерно через {data.generationIntervalMinutes || 3} мин.</p>
         <p className='next-race-hint'>Пока ждёте старт — можно создать батл и катать с друзьями уже сейчас.</p>
         {!!finishCelebration && <div className='finish-celebration'>
-          <h3>Победитель последней гонки</h3>
-          <p className='winner-name'>{finishCelebration.winnerName}</p>
+          <div className='confetti confetti-a'>🎆</div>
+          <div className='confetti confetti-b'>🎇</div>
+          <h3>🏆 Победитель последней гонки</h3>
+          <p className='winner-name'>✨ {finishCelebration.winnerName}</p>
           <p className='subtitle'>Последняя гонка: #{finishCelebration.matchId} · {finishCelebration.raceType}.</p>
         </div>}
         <h3>Последние гонки</h3>
