@@ -59,4 +59,11 @@ public class UserNotificationService {
         }
         userNotificationRepository.deleteAll(notifications);
     }
+
+    public void deleteByUserChatIdAndMessageId(Long userChatId, Integer messageId) {
+        if (userChatId == null || messageId == null) {
+            return;
+        }
+        userNotificationRepository.deleteByUserChatIdAndMessageId(userChatId, messageId);
+    }
 }
