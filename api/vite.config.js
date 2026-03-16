@@ -5,6 +5,13 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: '../src/main/resources/static',
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        entryFileNames: 'assets/index.js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: (assetInfo) => assetInfo.name === 'style.css' ? 'assets/index.css' : 'assets/[name][extname]'
+      }
+    }
   }
 })
