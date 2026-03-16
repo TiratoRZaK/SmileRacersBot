@@ -6,7 +6,7 @@ const API = '/api/miniapp'
 const tg = window.Telegram?.WebApp
 const WITHDRAW_MIN = 100
 const TOPUP_MIN = 1
-const POLL_INTERVAL_MS = 3500
+const POLL_INTERVAL_MS = 1200
 const DEFAULT_TRACK_LENGTH = 62
 
 const RACE_TYPE_LABELS = {
@@ -144,6 +144,8 @@ function App() {
   const [topupAmount, setTopupAmount] = useState(100)
   const [withdrawAmount, setWithdrawAmount] = useState(100)
   const [favoriteIndex, setFavoriteIndex] = useState(0)
+  const [localVotes, setLocalVotes] = useState({})
+  const [isHeaderCompact, setIsHeaderCompact] = useState(false)
 
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams()
@@ -181,12 +183,41 @@ function App() {
   }, [userId, tab])
 
   useEffect(() => {
+    const onScroll = () => {
+      setIsHeaderCompact(window.scrollY > 24)
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
     if (!data?.allEmojis?.length) return
     setBattleEmoji((current) => current || data.allEmojis[0])
     const currentFavorite = data.favoriteEmoji || data.allEmojis[0]
     const idx = Math.max(0, data.allEmojis.indexOf(currentFavorite))
     setFavoriteIndex(idx)
   }, [data])
+
+  useEffect(() => {
+    if (!data?.race?.matchId) {
+      setLocalVotes({})
+      return
+    }
+
+    const raceVotes = (data.race.units || []).reduce((acc, unit) => {
+      acc[unit.playerNumber] = Number(unit.myVotes) || 0
+      return acc
+    }, {})
+
+    setLocalVotes((current) => {
+      const merged = { ...current }
+      Object.entries(raceVotes).forEach(([playerNumber, backendVotes]) => {
+        merged[playerNumber] = Math.max(Number(merged[playerNumber]) || 0, Number(backendVotes) || 0)
+      })
+      return merged
+    })
+  }, [data?.race?.matchId, data?.race?.units])
 
   useEffect(() => {
     if (!isNotificationsOpen) return
@@ -247,7 +278,7 @@ function App() {
         refresh(true).catch(() => null)
       }, 400)
     }
-    return r
+    return { ...r, httpOk: res.ok }
   }
 
   const maxWithdraw = data?.balance || WITHDRAW_MIN
@@ -303,11 +334,14 @@ function App() {
   const maxScore = raceUnits.reduce((max, unit) => Math.max(max, Number(unit.score) || 0), 0)
   const finishScore = Math.max(Number(data.race?.trackLength) || DEFAULT_TRACK_LENGTH, maxScore, 1)
   const trackBackgroundStyle = {
-    backgroundImage: buildTrackBackgroundImage(trackTheme, raceUnits, data.race?.matchId || 1)
+    backgroundImage: buildTrackBackgroundImage(trackTheme, raceUnits, data.race?.matchId || 1),
+    backgroundRepeat: 'no-repeat',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center'
   }
 
   const unreadCount = savedNotifications.filter((item) => !item.read).length
-  const latestResult = !data.race ? (data.recentResults || [])[0] : null
+  const latestResult = (data.recentResults || [])[0] || null
   const finishCelebration = latestResult?.winnerName ? {
     matchId: latestResult.matchId,
     winnerName: latestResult.winnerName,
@@ -316,24 +350,31 @@ function App() {
 
   return <div className='app'>
     <div className='aurora' />
-    <header className='top-card'>
-      <div className='top-card-main'>
-        <div>
-          <span className='label'>Баланс</span>
-          <b>{data.balance} ⭐</b>
+    <div className={`sticky-header-shell${isHeaderCompact ? ' compact' : ''}`}>
+      <header className='top-card'>
+        <div className='top-card-main'>
+          <div>
+            <span className='label'>Баланс</span>
+            <b>{data.balance} ⭐</b>
+          </div>
+          <div>
+            <span className='label'>Бесплатные бустеры</span>
+            <b>{data.freeBoosters}</b>
+          </div>
         </div>
-        <div>
-          <span className='label'>Бесплатные бустеры</span>
-          <b>{data.freeBoosters}</b>
+        <div className='top-card-actions'>
+          <button className='bell-btn' onClick={() => setIsNotificationsOpen((current) => !current)}>
+            🔔
+            {unreadCount > 0 && <span className='bell-badge'>{unreadCount}</span>}
+          </button>
         </div>
-      </div>
-      <div className='top-card-actions'>
-        <button className='bell-btn' onClick={() => setIsNotificationsOpen((current) => !current)}>
-          🔔
-          {unreadCount > 0 && <span className='bell-badge'>{unreadCount}</span>}
-        </button>
-      </div>
-    </header>
+      </header>
+
+      <nav className='tabs'>
+        <button className={tab === 'race' ? 'active' : ''} onClick={() => setTab('race')}>Гонка</button>
+        <button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>Аккаунт</button>
+      </nav>
+    </div>
 
     {isNotificationsOpen && <section className='panel notifications-panel'>
       <div className='notifications-header'>
@@ -357,11 +398,6 @@ function App() {
         </div>)}
       </div>
     </section>}
-
-    <nav className='tabs'>
-      <button className={tab === 'race' ? 'active' : ''} onClick={() => setTab('race')}>Гонка</button>
-      <button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>Аккаунт</button>
-    </nav>
 
     {tab === 'race' && <section className={`panel race-panel race-theme-${trackTheme}`}>
       <h2>{data.race ? `Гонка #${data.race.matchId} · ${getRaceTypeLabel(data.race.type)}` : 'Нет активной гонки'}</h2>
@@ -394,41 +430,54 @@ function App() {
         </div>
         <div className='meter'>
           <div className='meter-fill' style={{ width: `${percent}%` }} />
-          {activeBooster === 'BUST' && <>
-            <div className='track-booster track-booster-bust'>➤➤➤</div>
-            <div className='track-booster-sparks'>✨ ✨</div>
-          </>}
-          {activeBooster === 'SLOW' && <div className='track-booster track-booster-slow'>⬅⬅⬅</div>}
           <div className='runner' style={{ left: runnerLeft }}>{u.playerName}</div>
+          {activeBooster === 'BUST' && <div className='runner-booster runner-booster-bust' style={{ left: runnerLeft }}>
+            <span className='runner-booster-icon'>💨</span>
+            <span className='runner-booster-icon'>⚡</span>
+          </div>}
+          {activeBooster === 'SLOW' && <div className='runner-booster runner-booster-slow' style={{ left: runnerLeft }}>
+            <span className='runner-booster-icon'>🧊</span>
+            <span className='runner-booster-icon'>⛔</span>
+          </div>}
           {shieldsCount > 0 && <div className='runner-shields' style={{ left: runnerLeft }}>
             {shieldsCount > shieldSlots
-              ? <div className='shield-counter'>🛡️ × {shieldsCount}</div>
+              ? <div className='shield-counter'>{shieldsCount}🛡️</div>
               : Array.from({ length: shieldSlots }, (_, index) => <span key={index} className={`shield-chip ${index < consumedShields ? 'used' : ''}`}>🛡️</span>)}
           </div>}
           <div className='finish-line' />
         </div>
         {raceBeforeStart && <div className='vote-inline-wrap'>
           <div className='vote-caption'>
-            <span>Твой голос: {formatStars(u.myVotes)} ⭐</span>
+            <span>Твой голос: {formatStars(localVotes[u.playerNumber] ?? u.myVotes)} ⭐</span>
           </div>
           <div className='vote-inline'>
-          <input
-            className='field'
-            type='number'
-            min='1'
-            max={Math.max(1, data.balance || 1)}
-            step='1'
-            value={voteInputs[u.playerNumber] ?? 1}
-            onChange={(e) => {
-              const raw = Number(e.target.value || 1)
-              const next = Math.max(1, Math.min(raw, Math.max(1, data.balance || 1)))
-              setVoteInputs((current) => ({ ...current, [u.playerNumber]: next }))
-            }}
-          />
+          <div className='vote-field-wrap'>
+            <input
+              className='field vote-field'
+              type='text'
+              inputMode='numeric'
+              placeholder={`до ${formatStars(Math.max(1, data.balance || 1))}`}
+              value={voteInputs[u.playerNumber] ?? 1}
+              onChange={(e) => {
+                const digits = String(e.target.value || '').replace(/\D/g, '')
+                const raw = Number(digits || 1)
+                const next = Math.max(1, Math.min(raw, Math.max(1, data.balance || 1)))
+                setVoteInputs((current) => ({ ...current, [u.playerNumber]: next }))
+              }}
+            />
+            <span className='vote-field-suffix'>⭐</span>
+          </div>
           <button
             disabled={!data.balance || data.balance < 1}
             onClick={async () => {
-              await act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount: voteInputs[u.playerNumber] ?? 1 })
+              const amount = voteInputs[u.playerNumber] ?? 1
+              const response = await act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount })
+              if (response?.httpOk) {
+                setLocalVotes((current) => ({
+                  ...current,
+                  [u.playerNumber]: (Number(current[u.playerNumber]) || Number(u.myVotes) || 0) + Number(amount || 0)
+                }))
+              }
               setVoteInputs((current) => ({ ...current, [u.playerNumber]: 1 }))
             }}
           >
@@ -447,7 +496,7 @@ function App() {
       })}
       </div>}
 
-      {myBattle && raceBeforeStart && <div className='my-battle-card'>
+      {myBattle && <div className='my-battle-card'>
         <h3>⚔️ Ваш батл #{myBattle.matchId}</h3>
         <p className='subtitle'>Голос за победу: {myBattle.battleStake || 0} ⭐</p>
         <p className='subtitle'>Общий банк: {getBattleBank(myBattle)} ⭐</p>
@@ -469,15 +518,12 @@ function App() {
         </div>
       </div>}
 
-      {!data.race && (data.recentResults || []).length > 0 && <div className='recent-results'>
-        <p className='next-race-hint'>
-          Следующая гонка стартует примерно через {data.generationIntervalMinutes || 3} мин. ⚡
-          А пока создай свой батл и катай с друзьями уже сейчас!
-        </p>
+      {(data.recentResults || []).length > 0 && <div className='recent-results'>
+        <p className='next-race-hint'>Следующая гонка стартует примерно через {data.generationIntervalMinutes || 3} мин.</p>
+        <p className='next-race-hint'>Пока ждёте старт — можно создать батл и катать с друзьями уже сейчас.</p>
         {!!finishCelebration && <div className='finish-celebration'>
           <div className='confetti confetti-a'>🎆</div>
           <div className='confetti confetti-b'>🎇</div>
-          <div className='confetti confetti-c'>✨</div>
           <h3>🏆 Победитель: {finishCelebration.winnerName}</h3>
           <p className='subtitle'>Гонка #{finishCelebration.matchId} · {finishCelebration.raceType} завершена.</p>
         </div>}
