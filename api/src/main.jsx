@@ -534,11 +534,13 @@ function App() {
             disabled={!data.balance || data.balance < 1}
             onClick={async () => {
               const amount = voteInputs[u.playerNumber] ?? 1
+              const playerNumber = u.playerNumber
+              const currentVote = Number(localVotes[playerNumber] ?? u.myVotes) || 0
               const response = await act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount })
               if (response?.httpOk) {
                 setLocalVotes((current) => ({
                   ...current,
-                  [u.playerNumber]: (Number(current[u.playerNumber]) || Number(u.myVotes) || 0) + Number(amount || 0)
+                  [playerNumber]: Number(response.myVotes) || (currentVote + Number(amount || 0))
                 }))
               }
               setVoteInputs((current) => ({ ...current, [u.playerNumber]: 1 }))
@@ -585,10 +587,8 @@ function App() {
         <p className='next-race-hint'>Следующая гонка стартует примерно через {data.generationIntervalMinutes || 3} мин.</p>
         <p className='next-race-hint'>Пока ждёте старт — можно создать батл и катать с друзьями уже сейчас.</p>
         {!!finishCelebration && <div className='finish-celebration'>
-          <div className='confetti confetti-a'>🎆</div>
-          <div className='confetti confetti-b'>🎇</div>
           <h3>🏆 Победитель последней гонки</h3>
-          <p className='winner-name'>✨ {finishCelebration.winnerName}</p>
+          <p className='winner-name'>{finishCelebration.winnerName}</p>
           <p className='subtitle'>Последняя гонка: #{finishCelebration.matchId} · {finishCelebration.raceType}.</p>
         </div>}
         <h3>Последние гонки</h3>
