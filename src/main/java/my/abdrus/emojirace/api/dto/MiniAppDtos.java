@@ -13,7 +13,6 @@ public class MiniAppDtos {
             String favoriteEmoji,
             RaceCard race,
             RaceCard myBattle,
-            List<RaceResultCard> recentResults,
             List<String> allEmojis,
             List<UiNotification> notifications
     ) {}
@@ -76,6 +75,8 @@ public class MiniAppDtos {
     public record HistoryItem(Long createdAtMs, String operation, Long amount, String details) {}
 
     public record HistoryResponse(List<HistoryItem> items) {}
+
+    public record RecentResultsResponse(List<RaceResultCard> items) {}
 
     public record CreateBattleRequest(String playerName, Long stake) {}
 

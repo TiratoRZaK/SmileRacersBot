@@ -137,6 +137,11 @@ function App() {
   const [data, setData] = useState(null)
   const [activeWithdraws, setActiveWithdraws] = useState([])
   const [historyItems, setHistoryItems] = useState([])
+  const [recentResults, setRecentResults] = useState([])
+  const [isHistoryLoaded, setIsHistoryLoaded] = useState(false)
+  const [isRecentResultsLoaded, setIsRecentResultsLoaded] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [recentResultsLoading, setRecentResultsLoading] = useState(false)
   const [tab, setTab] = useState('race')
   const [toasts, setToasts] = useState([])
   const [savedNotifications, setSavedNotifications] = useState([])
@@ -155,8 +160,8 @@ function App() {
     favorite: true,
     payments: true,
     battles: true,
-    history: true,
-    recentRaces: true
+    history: false,
+    recentRaces: false
   })
 
   const requestQuery = useMemo(() => {
@@ -172,17 +177,40 @@ function App() {
   }, [])
 
   const refresh = async (silent = false) => {
-    const [bootstrapRes, withdrawsRes, historyRes] = await Promise.all([
+    const [bootstrapRes, withdrawsRes] = await Promise.all([
       fetch(`${API}/bootstrap${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders }),
-      fetch(`${API}/withdraw/active${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders }),
-      fetch(`${API}/history${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders })
+      fetch(`${API}/withdraw/active${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders })
     ])
     const bootstrapData = await bootstrapRes.json()
     setData(bootstrapData)
     const withdrawData = await withdrawsRes.json()
     setActiveWithdraws(withdrawData.items || [])
-    const historyData = await historyRes.json()
-    setHistoryItems(historyData.items || [])
+  }
+
+  const loadHistory = async () => {
+    if (historyLoading || isHistoryLoaded) return
+    setHistoryLoading(true)
+    try {
+      const historyRes = await fetch(`${API}/history${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders })
+      const historyData = await historyRes.json()
+      setHistoryItems(historyData.items || [])
+      setIsHistoryLoaded(true)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  const loadRecentResults = async () => {
+    if (recentResultsLoading || isRecentResultsLoaded) return
+    setRecentResultsLoading(true)
+    try {
+      const recentRes = await fetch(`${API}/recent-results${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders })
+      const recentData = await recentRes.json()
+      setRecentResults(recentData.items || [])
+      setIsRecentResultsLoaded(true)
+    } finally {
+      setRecentResultsLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -380,7 +408,16 @@ function App() {
 
 
   const toggleSection = (key) => {
-    setSectionOpen((current) => ({ ...current, [key]: !current[key] }))
+    setSectionOpen((current) => {
+      const nextOpen = !current[key]
+      if (nextOpen && key === 'history') {
+        loadHistory().catch(() => notify('Не удалось загрузить историю операций.', { persist: true }))
+      }
+      if (nextOpen && key === 'recentRaces') {
+        loadRecentResults().catch(() => notify('Не удалось загрузить последние гонки.', { persist: true }))
+      }
+      return { ...current, [key]: nextOpen }
+    })
   }
 
   const downloadHistory = async () => {
@@ -633,8 +670,9 @@ function App() {
 
     {tab === 'race' && <section className='panel race-recent-panel'>
       {renderSection('recentRaces', 'Последние гонки', <>
-        {(data.recentResults || []).length === 0 && <p className='subtitle'>Пока нет завершённых гонок.</p>}
-        {(data.recentResults || []).map((result) => <div key={result.matchId} className='recent-result-card'>
+        {recentResultsLoading && <p className='subtitle'>Загружаем последние гонки…</p>}
+        {isRecentResultsLoaded && !recentResults.length && <p className='subtitle'>Пока нет завершённых гонок.</p>}
+        {recentResults.map((result) => <div key={result.matchId} className='recent-result-card'>
           <div className='recent-result-title'>#{result.matchId} · {getRaceTypeLabel(result.type)}</div>
           <div className='subtitle'>Победитель: {result.winnerName || '—'}</div>
           <div className='subtitle'>Участники: {(result.units || []).map((u) => u.playerName).join(' · ')}</div>
@@ -740,6 +778,7 @@ function App() {
       </>)}
 
       {renderSection('history', 'История операций', <>
+        {historyLoading && <p className='subtitle'>Загружаем историю операций…</p>}
         {!!historyItems.length && <div className='history-table-wrap'>
           <table className='history-table'>
             <thead>
@@ -760,7 +799,7 @@ function App() {
             </tbody>
           </table>
         </div>}
-        {!historyItems.length && <p className='subtitle'>История пока пустая.</p>}
+        {isHistoryLoaded && !historyLoading && !historyItems.length && <p className='subtitle'>История пока пустая.</p>}
         <div className='row'>
           <button onClick={downloadHistory}>Скачать всю историю</button>
         </div>

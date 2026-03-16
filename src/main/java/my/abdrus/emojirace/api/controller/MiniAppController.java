@@ -109,11 +109,6 @@ public class MiniAppController {
                 .sorted(Comparator.naturalOrder())
                 .toList();
 
-        List<MiniAppDtos.RaceResultCard> recentResults = matchRepository
-                .findTop5ByStatusOrderByCreatedDateDesc(MatchStatus.COMPLETED).stream()
-                .map(this::toRaceResultCard)
-                .toList();
-
         List<MiniAppDtos.UiNotification> notifications = userNotificationService.getRecent(userId).stream()
                 .map(item -> new MiniAppDtos.UiNotification(item.getId(), item.getText(), item.getCreatedDate().getTime()))
                 .toList();
@@ -127,7 +122,6 @@ public class MiniAppController {
                 user.getFavoritePlayer() == null ? null : user.getFavoritePlayer().getName(),
                 raceCard,
                 myBattleCard,
-                recentResults,
                 emojis,
                 notifications
         );
@@ -462,6 +456,19 @@ public class MiniAppController {
             return new MiniAppDtos.ActionResponse(false, "Отмена недоступна.");
         }
         return new MiniAppDtos.ActionResponse(true, "Батл отменён.");
+    }
+
+    @GetMapping("/recent-results")
+    public MiniAppDtos.RecentResultsResponse recentResults(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam
+    ) {
+        resolveUserId(headerUserId, userIdParam);
+        List<MiniAppDtos.RaceResultCard> items = matchRepository
+                .findTop5ByStatusOrderByCreatedDateDesc(MatchStatus.COMPLETED).stream()
+                .map(this::toRaceResultCard)
+                .toList();
+        return new MiniAppDtos.RecentResultsResponse(items);
     }
 
     @GetMapping("/history")
