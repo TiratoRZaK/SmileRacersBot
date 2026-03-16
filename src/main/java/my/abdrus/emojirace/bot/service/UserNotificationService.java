@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import my.abdrus.emojirace.bot.entity.UserNotification;
 import my.abdrus.emojirace.bot.repository.UserNotificationRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -58,5 +59,13 @@ public class UserNotificationService {
             return;
         }
         userNotificationRepository.deleteAll(notifications);
+    }
+
+    @Transactional
+    public void deleteByUserChatIdAndMessageId(Long userChatId, Integer messageId) {
+        if (userChatId == null || messageId == null) {
+            return;
+        }
+        userNotificationRepository.deleteByUserChatIdAndMessageId(userChatId, messageId);
     }
 }

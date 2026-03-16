@@ -15,4 +15,6 @@ public interface UserNotificationRepository extends JpaRepository<UserNotificati
     Optional<UserNotification> findByIdAndUserChatId(Long id, Long userChatId);
 
     List<UserNotification> findAllByUserChatId(Long userChatId);
+
+    void deleteByUserChatIdAndMessageId(Long userChatId, Integer messageId);
 }
