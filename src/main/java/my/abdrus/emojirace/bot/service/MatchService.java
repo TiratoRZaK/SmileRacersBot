@@ -417,12 +417,12 @@ public class MatchService {
         log.info("Старт лайва гонки #{}.", match.getId());
         timerFuture = scheduler.scheduleWithFixedDelay(() -> {
             if (race.isNotFinish()) {
-                EditMessageText editMessage = new EditMessageText();
-                editMessage.setChatId(mainChannelChatId);
-                editMessage.setMessageId(messageId);
-                editMessage.setText(race.getRaceStateMessage());
-                editMessage.setReplyMarkup(createBusterKeyboard(race.getMatch()));
-                bot.execute(editMessage);
+//                EditMessageText editMessage = new EditMessageText();
+//                editMessage.setChatId(mainChannelChatId);
+//                editMessage.setMessageId(messageId);
+//                editMessage.setText(race.getRaceStateMessage());
+//                editMessage.setReplyMarkup(createBusterKeyboard(race.getMatch()));
+//                bot.execute(editMessage);
             } else {
                 timerFuture.cancel(false);
                 EditMessageText editMessage = new EditMessageText();
@@ -441,7 +441,7 @@ public class MatchService {
                 }
                 log.info("Завершение гонки #{}. Расчёт результатов.", savedMatch.getId());
             }
-        }, Duration.of(3, ChronoUnit.SECONDS));
+        }, Duration.of(1, ChronoUnit.SECONDS));
         raceService.startRace(race);
     }
 
