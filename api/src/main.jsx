@@ -510,6 +510,7 @@ function App() {
     {tab === 'race' && <section className={`panel race-panel race-theme-${trackTheme}`}>
       <h2>{data.race ? `Гонка #${data.race.matchId} · ${getRaceTypeLabel(data.race.type)}` : 'Нет активной гонки'}</h2>
       {!data.race && <p className='subtitle'>Скоро начнётся новая гонка или создайте батл (вкладка «Аккаунт» → блок «Батлы»).</p>}
+
       {!!data.race && <p className='race-theme-label'>Стиль: {TRACK_THEME_LABELS[trackTheme]}</p>}
       {!!data.race && !raceBeforeStart && <p className='race-intro'>{`🔥 Гонка в самом разгаре! 🔥
 Помоги своему фавориту придти на 🏁 первым!
@@ -628,7 +629,9 @@ function App() {
           </button>
         </div>
       </div>}
+    </section>}
 
+    {tab === 'race' && <section className='panel race-recent-panel'>
       {renderSection('recentRaces', 'Последние гонки', <>
         {(data.recentResults || []).length === 0 && <p className='subtitle'>Пока нет завершённых гонок.</p>}
         {(data.recentResults || []).map((result) => <div key={result.matchId} className='recent-result-card'>
@@ -637,7 +640,6 @@ function App() {
           <div className='subtitle'>Участники: {(result.units || []).map((u) => u.playerName).join(' · ')}</div>
         </div>)}
       </>)}
-
     </section>}
 
     {tab === 'account' && <section className='panel account-panel'>
