@@ -104,11 +104,10 @@ public class MiniAppController {
                 .sorted(Comparator.naturalOrder())
                 .toList();
 
-        List<MiniAppDtos.RaceResultCard> recentResults = activeRace == null
-                ? matchRepository.findTop5ByStatusOrderByCreatedDateDesc(MatchStatus.COMPLETED).stream()
+        List<MiniAppDtos.RaceResultCard> recentResults = matchRepository
+                .findTop5ByStatusOrderByCreatedDateDesc(MatchStatus.COMPLETED).stream()
                 .map(this::toRaceResultCard)
-                .toList()
-                : List.of();
+                .toList();
 
         return new MiniAppDtos.BootstrapResponse(
                 userId,
