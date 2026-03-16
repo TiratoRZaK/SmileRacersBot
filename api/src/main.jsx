@@ -535,10 +535,8 @@ function App() {
         <p className='next-race-hint'>Следующая гонка стартует примерно через {data.generationIntervalMinutes || 3} мин.</p>
         <p className='next-race-hint'>Пока ждёте старт — можно создать батл и катать с друзьями уже сейчас.</p>
         {!!finishCelebration && <div className='finish-celebration'>
-          <div className='confetti confetti-a'>🎆</div>
-          <div className='confetti confetti-b'>🎇</div>
-          <h3>🏆 Победитель последней гонки</h3>
-          <p className='winner-name'>✨ {finishCelebration.winnerName}</p>
+          <h3>Победитель последней гонки</h3>
+          <p className='winner-name'>{finishCelebration.winnerName}</p>
           <p className='subtitle'>Последняя гонка: #{finishCelebration.matchId} · {finishCelebration.raceType}.</p>
         </div>}
         <h3>Последние гонки</h3>

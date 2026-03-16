@@ -825,21 +825,12 @@ select:focus {
 
 
 .winner-name {
-  margin-top: 8px;
-  font-size: 28px;
-  line-height: 1.1;
+  margin-top: 10px;
+  font-size: 24px;
+  line-height: 1.25;
   text-shadow: 0 4px 14px rgba(0, 0, 0, .28);
   word-break: break-word;
 }
-
-.confetti {
-  position: absolute;
-  font-size: 24px;
-  animation: float 1.5s ease-in-out infinite alternate;
-}
-
-.confetti-a { top: 8px; left: 18px; }
-.confetti-b { top: 12px; right: 18px; }
 
 .notifications-header {
   display: flex;
