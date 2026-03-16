@@ -374,30 +374,30 @@ function App() {
         <button className={tab === 'race' ? 'active' : ''} onClick={() => setTab('race')}>Гонка</button>
         <button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>Аккаунт</button>
       </nav>
-    </div>
 
-    {isNotificationsOpen && <section className='panel notifications-panel'>
-      <div className='notifications-header'>
-        <h3>Уведомления</h3>
-        <button
-          className='chip'
-          disabled={!savedNotifications.length}
-          onClick={() => setSavedNotifications([])}
-        >
-          Очистить все
-        </button>
-      </div>
-      {!savedNotifications.length && <p className='subtitle'>Пока нет сохранённых уведомлений.</p>}
-      <div className='notifications-list'>
-        {savedNotifications.map((item) => <div key={item.id} className='notification-item'>
-          <div>
-            <p>{item.text}</p>
-            <p className='subtitle'>{new Date(item.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</p>
-          </div>
-          <button className='chip danger-chip' onClick={() => setSavedNotifications((current) => current.filter((n) => n.id !== item.id))}>Удалить</button>
-        </div>)}
-      </div>
-    </section>}
+      {isNotificationsOpen && <section className='panel notifications-panel'>
+        <div className='notifications-header'>
+          <h3>Уведомления</h3>
+          <button
+            className='chip'
+            disabled={!savedNotifications.length}
+            onClick={() => setSavedNotifications([])}
+          >
+            Очистить все
+          </button>
+        </div>
+        {!savedNotifications.length && <p className='subtitle'>Пока нет сохранённых уведомлений.</p>}
+        <div className='notifications-list'>
+          {savedNotifications.map((item) => <div key={item.id} className='notification-item'>
+            <div>
+              <p>{item.text}</p>
+              <p className='subtitle'>{new Date(item.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</p>
+            </div>
+            <button className='chip danger-chip' onClick={() => setSavedNotifications((current) => current.filter((n) => n.id !== item.id))}>Удалить</button>
+          </div>)}
+        </div>
+      </section>}
+    </div>
 
     {tab === 'race' && <section className={`panel race-panel race-theme-${trackTheme}`}>
       <h2>{data.race ? `Гонка #${data.race.matchId} · ${getRaceTypeLabel(data.race.type)}` : 'Нет активной гонки'}</h2>
@@ -432,11 +432,11 @@ function App() {
           <div className='meter-fill' style={{ width: `${percent}%` }} />
           <div className='runner' style={{ left: runnerLeft }}>{u.playerName}</div>
           {activeBooster === 'BUST' && <div className='runner-booster runner-booster-bust' style={{ left: runnerLeft }}>
-            <span className='runner-booster-icon'>💨</span>
+            <span className='runner-booster-icon'>🐇</span>
             <span className='runner-booster-icon'>⚡</span>
           </div>}
           {activeBooster === 'SLOW' && <div className='runner-booster runner-booster-slow' style={{ left: runnerLeft }}>
-            <span className='runner-booster-icon'>🧊</span>
+            <span className='runner-booster-icon'>🐢</span>
             <span className='runner-booster-icon'>⛔</span>
           </div>}
           {shieldsCount > 0 && <div className='runner-shields' style={{ left: runnerLeft }}>
@@ -524,8 +524,8 @@ function App() {
         {!!finishCelebration && <div className='finish-celebration'>
           <div className='confetti confetti-a'>🎆</div>
           <div className='confetti confetti-b'>🎇</div>
-          <h3>🏆 Победитель: {finishCelebration.winnerName}</h3>
-          <p className='subtitle'>Гонка #{finishCelebration.matchId} · {finishCelebration.raceType} завершена.</p>
+          <h3>🏆 Победитель последней гонки: {finishCelebration.winnerName}</h3>
+          <p className='subtitle'>Последняя гонка: #{finishCelebration.matchId} · {finishCelebration.raceType}.</p>
         </div>}
         <h3>Последние гонки</h3>
         {(data.recentResults || []).map((result) => <div key={result.matchId} className='recent-result-card'>
