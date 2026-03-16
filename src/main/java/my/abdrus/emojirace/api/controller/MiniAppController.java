@@ -266,7 +266,7 @@ public class MiniAppController {
             return new MiniAppDtos.ActionResponse(false, e.getMessage());
         }
         int position = matchGenerationService.addPlayerToQueue(user.getFavoritePlayer());
-        return new MiniAppDtos.ActionResponse(true, "Смайл добавлен в очередь. Позиция: " + position);
+        return new MiniAppDtos.ActionResponse(true, "Смайл добавлен в очередь. В очереди перед тобой: " + position);
     }
 
     @PostMapping("/topup")
@@ -479,6 +479,17 @@ public class MiniAppController {
                 ))
                 .toList();
         return new MiniAppDtos.HistoryResponse(items);
+    }
+
+
+    @PostMapping("/history/export")
+    public MiniAppDtos.ActionResponse exportHistory(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        userHistoryReportService.sendHistoryFile(userId, userId, bot);
+        return new MiniAppDtos.ActionResponse(true, "Файл истории отправлен в чат с ботом.");
     }
 
     @PostMapping("/notification/delete")

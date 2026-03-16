@@ -32,7 +32,6 @@ const TRACK_THEME_BACKGROUNDS = {
 const TOAST_AUTO_CLOSE_MS = 4500
 const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'battle', 'battle/start', 'topup'])
 const MAX_SAVED_NOTIFICATIONS = 200
-const HISTORY_PREVIEW_LIMIT = 12
 
 const formatStars = (value) => new Intl.NumberFormat('ru-RU').format(Number(value) || 0)
 
@@ -151,6 +150,14 @@ function App() {
   const [joinBattleEmoji, setJoinBattleEmoji] = useState('')
   const [localVotes, setLocalVotes] = useState({})
   const [isHeaderCompact, setIsHeaderCompact] = useState(false)
+  const [sectionOpen, setSectionOpen] = useState({
+    account: true,
+    favorite: true,
+    payments: true,
+    battles: true,
+    history: true,
+    recentRaces: true
+  })
 
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams()
@@ -371,6 +378,26 @@ function App() {
     notify('Ссылка на поддержку временно недоступна.')
   }
 
+
+  const toggleSection = (key) => {
+    setSectionOpen((current) => ({ ...current, [key]: !current[key] }))
+  }
+
+  const downloadHistory = async () => {
+    const response = await act('history/export')
+    if (response?.httpOk) {
+      notify('Файл отправлен в чат с ботом.', { persist: true })
+    }
+  }
+
+  const renderSection = (key, title, content) => <div className='accordion-section'>
+    <button className='accordion-header' onClick={() => toggleSection(key)}>
+      <span>{title}</span>
+      <span className='accordion-arrow'>{sectionOpen[key] ? '▴' : '▾'}</span>
+    </button>
+    {sectionOpen[key] && <div className='accordion-content'>{content}</div>}
+  </div>
+
   const deleteSavedNotification = async (notificationId) => {
     if (!notificationId) return
     try {
@@ -427,12 +454,6 @@ function App() {
   }
 
   const unreadCount = savedNotifications.filter((item) => !item.read).length
-  const latestResult = (data.recentResults || [])[0] || null
-  const finishCelebration = latestResult?.winnerName ? {
-    matchId: latestResult.matchId,
-    winnerName: latestResult.winnerName,
-    raceType: getRaceTypeLabel(latestResult.type)
-  } : null
   const myBattleCanCancel = !!myBattle && myBattle.status === 'CREATED'
 
   return <div className='app'>
@@ -458,7 +479,7 @@ function App() {
       </header>
 
       <nav className='tabs'>
-        <button className={tab === 'race' ? 'active' : ''} onClick={() => setTab('race')}>Гонка</button>
+        <button className={tab === 'race' ? 'active' : ''} onClick={() => setTab('race')}>Гонки</button>
         <button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>Аккаунт</button>
       </nav>
 
@@ -607,138 +628,143 @@ function App() {
         </div>
       </div>}
 
-      {(data.recentResults || []).length > 0 && <div className='recent-results'>
-        <p className='next-race-hint'>Следующая гонка стартует примерно через {data.generationIntervalMinutes || 3} мин.</p>
-        <p className='next-race-hint'>Пока ждёте старт — можно создать батл и катать с друзьями уже сейчас.</p>
-        {!!finishCelebration && <div className='finish-celebration'>
-          <h3>🏆 Победитель последней гонки</h3>
-          <p className='winner-name'>{finishCelebration.winnerName}</p>
-          <p className='subtitle'>Последняя гонка: #{finishCelebration.matchId} · {finishCelebration.raceType}.</p>
+    </section>}
+
+    {tab === 'account' && <section className='panel account-panel'>
+      {renderSection('account', 'Данные об аккаунте', <>
+        <p className='subtitle'>
+          {getTelegramAccountLabel(telegramUser)}
+          {telegramUser?.id ? ` · ID ${telegramUser.id}` : ''}
+        </p>
+        <p className='subtitle'>
+          {data.localTestMode
+            ? `Тестовый режим: баланс берётся из аккаунта владельца (ID ${data.userId}).`
+            : `Баланс и операции выполняются для текущего аккаунта (ID ${data.userId}).`}
+        </p>
+      </>)}
+
+      {renderSection('favorite', 'Любимый смайл', <>
+        <div className='emoji-slider-wrap'>
+          <input
+            type='range'
+            min='0'
+            max={Math.max(0, data.allEmojis.length - 1)}
+            value={favoriteIndex}
+            onChange={(e) => setFavoriteIndex(Number(e.target.value))}
+            className='emoji-slider'
+          />
+          <div className='emoji-preview'>{data.allEmojis[favoriteIndex]}</div>
+          <div className='row'>
+            <button onClick={() => act('favorite', { playerName: data.allEmojis[favoriteIndex] })}>Сохранить любимый смайл</button>
+          </div>
+        </div>
+        <p className='subtitle'>Смена любимого смайла — 150⭐ (первый выбор бесплатный).</p>
+        <div className='row'>
+          <button disabled={!data.favoriteEmoji} onClick={() => act('queue', { playerName: data.favoriteEmoji })}>Добавить любимый смайл в очередь (10⭐)</button>
+        </div>
+      </>)}
+
+      {renderSection('payments', 'Пополнение и вывод', <>
+        <div className='row'>
+          <input className='field' type='number' min={TOPUP_MIN} step='1' value={topupAmount} onChange={(e) => setTopupAmount(Math.max(TOPUP_MIN, Number(e.target.value || TOPUP_MIN)))} />
+          <button onClick={() => act('topup', { amount: topupAmount })}>Пополнить через ⭐</button>
+        </div>
+        <div className='row'>
+          <input
+            className='field'
+            type='number'
+            min={WITHDRAW_MIN}
+            max={maxWithdraw}
+            step='1'
+            value={withdrawAmount}
+            onChange={(e) => setWithdrawAmount(Number(e.target.value || WITHDRAW_MIN))}
+          />
+          <button disabled={clampedWithdraw > maxWithdraw} onClick={() => act('withdraw', { amount: clampedWithdraw })}>Создать запрос на вывод</button>
+        </div>
+        <p className='subtitle'>Доступно к выводу: до {maxWithdraw} ⭐. Минимум: {WITHDRAW_MIN} ⭐.</p>
+        <div className='grid'>
+          {activeWithdraws.map((w) => <button key={w.id} className='chip' onClick={() => act('withdraw/cancel', { requestId: w.id })}>Отменить вывод #{w.id} ({w.amount}⭐)</button>)}
+        </div>
+      </>)}
+
+      {renderSection('battles', 'Батлы', <>
+        <div className='row'>
+          <select value={battleEmoji} onChange={(e) => setBattleEmoji(e.target.value)}>{data.allEmojis.map((e) => <option key={e}>{e}</option>)}</select>
+          <button onClick={() => act('battle', { playerName: battleEmoji, stake: 100 })}>Создать батл 100⭐</button>
+        </div>
+        <div className='row'>
+          <button disabled={!myBattleCanInvite} onClick={() => openBattleInvite(myBattle)}>
+            {myBattle ? `Пригласить друзей в батл #${myBattle.matchId}` : 'Пригласить друзей'}
+          </button>
+          <button disabled={!myBattleCanStart} onClick={requestBattleStartFromUi}>Старт батла</button>
+          <button className='chip danger-chip' disabled={!myBattleCanCancel} onClick={cancelMyBattle}>Отменить мой батл</button>
+        </div>
+        {!myBattle && <p className='subtitle'>Сначала создайте батл, затем появится ссылка приглашения и станет доступен старт.</p>}
+        {myBattle && <>
+          <p className='subtitle'>Голос за победу: {myBattle.battleStake || 0} ⭐</p>
+          <p className='subtitle'>Общий банк: {getBattleBank(myBattle)} ⭐</p>
+          <p className='subtitle'>{getBattleStateLabel(myBattle)}</p>
+          <div className='battle-participants-list'>
+            {(myBattle.units || []).map((u) => <div key={u.playerNumber} className='battle-participant-row'>
+              <span>{getBattleParticipantLabel(u)}</span>
+              <button className='chip danger-chip' disabled={myBattleIsLive || u.playerNumber === 1} onClick={() => removeBattleParticipant(u.playerNumber)}>Исключить</button>
+            </div>)}
+          </div>
+        </>}
+
+        <div className='row'>
+          <input
+            className='field'
+            type='number'
+            min='1'
+            step='1'
+            placeholder='ID батла'
+            value={joinBattleId}
+            onChange={(e) => setJoinBattleId(e.target.value)}
+          />
+          <select value={joinBattleEmoji} onChange={(e) => setJoinBattleEmoji(e.target.value)}>{data.allEmojis.map((emoji) => <option key={emoji}>{emoji}</option>)}</select>
+          <button onClick={joinBattleFromUi}>Присоединиться к батлу</button>
+        </div>
+      </>)}
+
+      {renderSection('history', 'История операций', <>
+        {!!historyItems.length && <div className='history-table-wrap'>
+          <table className='history-table'>
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Операция</th>
+                <th>Сумма</th>
+                <th>Детали</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historyItems.map((item, index) => <tr key={`${item.createdAtMs || 0}-${index}`}>
+                <td>{item.createdAtMs ? new Date(item.createdAtMs).toLocaleString('ru-RU') : '—'}</td>
+                <td>{item.operation}</td>
+                <td className={Number(item.amount) >= 0 ? 'amount-plus' : 'amount-minus'}>{formatStars(item.amount)} ⭐</td>
+                <td>{item.details || '—'}</td>
+              </tr>)}
+            </tbody>
+          </table>
         </div>}
-        <h3>Последние гонки</h3>
+        {!historyItems.length && <p className='subtitle'>История пока пустая.</p>}
+        <div className='row'>
+          <button onClick={downloadHistory}>Скачать всю историю</button>
+        </div>
+      </>)}
+
+      {renderSection('recentRaces', 'Последние гонки', <>
+        {(data.recentResults || []).length === 0 && <p className='subtitle'>Пока нет завершённых гонок.</p>}
         {(data.recentResults || []).map((result) => <div key={result.matchId} className='recent-result-card'>
           <div className='recent-result-title'>#{result.matchId} · {getRaceTypeLabel(result.type)}</div>
           <div className='subtitle'>Победитель: {result.winnerName || '—'}</div>
           <div className='subtitle'>Участники: {(result.units || []).map((u) => u.playerName).join(' · ')}</div>
         </div>)}
-      </div>}
-    </section>}
-
-    {tab === 'account' && <section className='panel'>
-      <h2>Профиль и действия</h2>
-
-      <h3>Текущий Telegram-аккаунт</h3>
-      <p className='subtitle'>
-        {getTelegramAccountLabel(telegramUser)}
-        {telegramUser?.id ? ` · ID ${telegramUser.id}` : ''}
-      </p>
-      <p className='subtitle'>
-        {data.localTestMode
-          ? `Тестовый режим: баланс берётся из аккаунта владельца (ID ${data.userId}).`
-          : `Баланс и операции выполняются для текущего аккаунта (ID ${data.userId}).`}
-      </p>
-
-      <h3>Любимый смайл</h3>
-      <div className='emoji-slider-wrap'>
-        <input
-          type='range'
-          min='0'
-          max={Math.max(0, data.allEmojis.length - 1)}
-          value={favoriteIndex}
-          onChange={(e) => setFavoriteIndex(Number(e.target.value))}
-          className='emoji-slider'
-        />
-        <div className='emoji-preview'>{data.allEmojis[favoriteIndex]}</div>
-        <div className='row'>
-          <button onClick={() => act('favorite', { playerName: data.allEmojis[favoriteIndex] })}>Сохранить любимый смайл</button>
-        </div>
-      </div>
-      <p className='subtitle'>Смена любимого смайла — 150⭐ (первый выбор бесплатный).</p>
-
-      <h3>Управление очередью</h3>
-      <div className='row'>
-        <button disabled={!data.favoriteEmoji} onClick={() => act('queue', { playerName: data.favoriteEmoji })}>Добавить любимый смайл в очередь (10⭐)</button>
-      </div>
-
-      <h3>Баланс</h3>
-      <div className='row'>
-        <input className='field' type='number' min={TOPUP_MIN} step='1' value={topupAmount} onChange={(e) => setTopupAmount(Math.max(TOPUP_MIN, Number(e.target.value || TOPUP_MIN)))} />
-        <button onClick={() => act('topup', { amount: topupAmount })}>Пополнить через ⭐</button>
-      </div>
-
-      <h3>Вывод</h3>
-      <div className='row'>
-        <input
-          className='field'
-          type='number'
-          min={WITHDRAW_MIN}
-          max={maxWithdraw}
-          step='1'
-          value={withdrawAmount}
-          onChange={(e) => setWithdrawAmount(Number(e.target.value || WITHDRAW_MIN))}
-        />
-        <button disabled={clampedWithdraw > maxWithdraw} onClick={() => act('withdraw', { amount: clampedWithdraw })}>Создать запрос на вывод</button>
-      </div>
-      <p className='subtitle'>Доступно к выводу: до {maxWithdraw} ⭐. Минимум: {WITHDRAW_MIN} ⭐.</p>
-      <div className='grid'>
-        {activeWithdraws.map((w) => <button key={w.id} className='chip' onClick={() => act('withdraw/cancel', { requestId: w.id })}>Отменить вывод #{w.id} ({w.amount}⭐)</button>)}
-      </div>
-
-      <h3>Батл</h3>
-      <div className='row'>
-        <select value={battleEmoji} onChange={(e) => setBattleEmoji(e.target.value)}>{data.allEmojis.map((e) => <option key={e}>{e}</option>)}</select>
-        <button onClick={() => act('battle', { playerName: battleEmoji, stake: 100 })}>Создать батл 100⭐</button>
-      </div>
-      <div className='row'>
-        <button disabled={!myBattleCanInvite} onClick={() => openBattleInvite(myBattle)}>
-          {myBattle ? `Пригласить друзей в батл #${myBattle.matchId}` : 'Пригласить друзей'}
-        </button>
-        <button disabled={!myBattleCanStart} onClick={requestBattleStartFromUi}>Старт батла</button>
-        <button className='chip danger-chip' disabled={!myBattleCanCancel} onClick={cancelMyBattle}>Отменить мой батл</button>
-      </div>
-      {!myBattle && <p className='subtitle'>Сначала создайте батл, затем появится ссылка приглашения и станет доступен старт.</p>}
-      {myBattle && <>
-        <p className='subtitle'>Голос за победу: {myBattle.battleStake || 0} ⭐</p>
-        <p className='subtitle'>Общий банк: {getBattleBank(myBattle)} ⭐</p>
-        <p className='subtitle'>{getBattleStateLabel(myBattle)}</p>
-        <div className='battle-participants-list'>
-          {(myBattle.units || []).map((u) => <div key={u.playerNumber} className='battle-participant-row'>
-            <span>{getBattleParticipantLabel(u)}</span>
-            <button className='chip danger-chip' disabled={myBattleIsLive || u.playerNumber === 1} onClick={() => removeBattleParticipant(u.playerNumber)}>Исключить</button>
-          </div>)}
-        </div>
-      </>}
-
-      <h3>Вход в батл по ID</h3>
-      <div className='row'>
-        <input
-          className='field'
-          type='number'
-          min='1'
-          step='1'
-          placeholder='ID батла'
-          value={joinBattleId}
-          onChange={(e) => setJoinBattleId(e.target.value)}
-        />
-        <select value={joinBattleEmoji} onChange={(e) => setJoinBattleEmoji(e.target.value)}>{data.allEmojis.map((emoji) => <option key={emoji}>{emoji}</option>)}</select>
-        <button onClick={joinBattleFromUi}>Войти в батл</button>
-      </div>
-
-      <h3>История операций</h3>
-      <div className='battle-participants-list'>
-        {historyItems.slice(0, HISTORY_PREVIEW_LIMIT).map((item, index) => <div key={`${item.createdAtMs || 0}-${index}`} className='battle-participant-row'>
-          <span>
-            {item.createdAtMs ? new Date(item.createdAtMs).toLocaleString('ru-RU') : '—'} · {item.operation} · {formatStars(item.amount)} ⭐
-            {item.details ? ` · ${item.details}` : ''}
-          </span>
-        </div>)}
-      </div>
-      {historyItems.length > HISTORY_PREVIEW_LIMIT && <p className='subtitle'>Показаны последние {HISTORY_PREVIEW_LIMIT} операций из {historyItems.length}.</p>}
-      {!historyItems.length && <p className='subtitle'>История пока пустая.</p>}
+      </>)}
 
       <button className='help-btn' onClick={openHelp}>Связаться с поддержкой</button>
     </section>}
-
     <div className='toasts'>
       {toasts.map((toast) => <div key={toast.id} className='toast' onClick={() => removeToast(toast.id)}>
         <span>{toast.text}</span>
