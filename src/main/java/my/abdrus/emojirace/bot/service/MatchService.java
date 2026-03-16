@@ -441,7 +441,7 @@ public class MatchService {
                 }
                 log.info("Завершение гонки #{}. Расчёт результатов.", savedMatch.getId());
             }
-        }, Duration.of(1, ChronoUnit.SECONDS));
+        }, Duration.of(3, ChronoUnit.SECONDS));
         raceService.startRace(race);
     }
 
