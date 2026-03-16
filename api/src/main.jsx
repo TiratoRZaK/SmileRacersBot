@@ -471,13 +471,7 @@ function App() {
             disabled={!data.balance || data.balance < 1}
             onClick={async () => {
               const amount = voteInputs[u.playerNumber] ?? 1
-              const response = await act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount })
-              if (response?.httpOk) {
-                setLocalVotes((current) => ({
-                  ...current,
-                  [u.playerNumber]: (Number(current[u.playerNumber]) || Number(u.myVotes) || 0) + Number(amount || 0)
-                }))
-              }
+              await act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount })
               setVoteInputs((current) => ({ ...current, [u.playerNumber]: 1 }))
             }}
           >
