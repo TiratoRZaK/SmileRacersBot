@@ -524,7 +524,8 @@ function App() {
         {!!finishCelebration && <div className='finish-celebration'>
           <div className='confetti confetti-a'>🎆</div>
           <div className='confetti confetti-b'>🎇</div>
-          <h3>🏆 Победитель последней гонки: {finishCelebration.winnerName}</h3>
+          <h3>🏆 Победитель последней гонки</h3>
+          <p className='winner-name'>✨ {finishCelebration.winnerName}</p>
           <p className='subtitle'>Последняя гонка: #{finishCelebration.matchId} · {finishCelebration.raceType}.</p>
         </div>}
         <h3>Последние гонки</h3>
