@@ -31,6 +31,7 @@ const TRACK_THEME_BACKGROUNDS = {
 
 const TOAST_AUTO_CLOSE_MS = 4500
 const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'battle', 'battle/start', 'topup'])
+const MAX_SAVED_NOTIFICATIONS = 200
 
 const formatStars = (value) => new Intl.NumberFormat('ru-RU').format(Number(value) || 0)
 
@@ -224,6 +225,32 @@ function App() {
     setSavedNotifications((current) => current.map((item) => ({ ...item, read: true })))
   }, [isNotificationsOpen])
 
+  useEffect(() => {
+    const apiNotifications = data?.notifications || []
+    if (!apiNotifications.length) return
+
+    setSavedNotifications((current) => {
+      const byId = new Map(current.map((item) => [String(item.id), item]))
+      apiNotifications.forEach((item) => {
+        if (!item?.id || !item?.text) return
+        const key = String(item.id)
+        const existing = byId.get(key)
+        byId.set(key, {
+          id: item.id,
+          text: item.text,
+          persist: true,
+          createdAt: item.createdAtMs ? new Date(item.createdAtMs).toISOString() : new Date().toISOString(),
+          read: existing?.read || false,
+          source: 'server'
+        })
+      })
+
+      return [...byId.values()]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, MAX_SAVED_NOTIFICATIONS)
+    })
+  }, [data?.notifications])
+
   const removeToast = (id) => {
     setToasts((current) => current.filter((item) => item.id !== id))
   }
@@ -242,7 +269,7 @@ function App() {
 
     setToasts((current) => [...current, notification])
     if (persist) {
-      setSavedNotifications((current) => [notification, ...current])
+      setSavedNotifications((current) => [notification, ...current].slice(0, MAX_SAVED_NOTIFICATIONS))
     }
     if (!persist) {
       setTimeout(() => removeToast(id), TOAST_AUTO_CLOSE_MS)
@@ -321,6 +348,42 @@ function App() {
     notify('Ссылка на поддержку временно недоступна.')
   }
 
+  const deleteSavedNotification = async (notificationId) => {
+    if (!notificationId) return
+    try {
+      const response = await fetch(`${API}/notification/delete${requestQuery ? `?${requestQuery}` : ''}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...requestHeaders },
+        body: JSON.stringify({ notificationId })
+      })
+      const payload = await response.json()
+      if (!response.ok || !payload?.success) {
+        notify(payload?.message || 'Не удалось удалить уведомление.', { persist: true })
+        return
+      }
+      setSavedNotifications((current) => current.filter((n) => n.id !== notificationId))
+    } catch (e) {
+      notify('Ошибка удаления уведомления.', { persist: true })
+    }
+  }
+
+  const clearSavedNotifications = async () => {
+    try {
+      const response = await fetch(`${API}/notification/clear${requestQuery ? `?${requestQuery}` : ''}`, {
+        method: 'POST',
+        headers: requestHeaders
+      })
+      const payload = await response.json()
+      if (!response.ok || !payload?.success) {
+        notify(payload?.message || 'Не удалось очистить уведомления.', { persist: true })
+        return
+      }
+      setSavedNotifications([])
+    } catch (e) {
+      notify('Ошибка очистки уведомлений.', { persist: true })
+    }
+  }
+
   if (!data) return <div className='loading'>Загрузка…</div>
 
   const raceBeforeStart = data.race?.status === 'CREATED'
@@ -381,7 +444,7 @@ function App() {
           <button
             className='chip'
             disabled={!savedNotifications.length}
-            onClick={() => setSavedNotifications([])}
+            onClick={clearSavedNotifications}
           >
             Очистить все
           </button>
@@ -393,7 +456,7 @@ function App() {
               <p>{item.text}</p>
               <p className='subtitle'>{new Date(item.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</p>
             </div>
-            <button className='chip danger-chip' onClick={() => setSavedNotifications((current) => current.filter((n) => n.id !== item.id))}>Удалить</button>
+            <button className='chip danger-chip' onClick={() => deleteSavedNotification(item.id)}>Удалить</button>
           </div>)}
         </div>}
       </section>}
