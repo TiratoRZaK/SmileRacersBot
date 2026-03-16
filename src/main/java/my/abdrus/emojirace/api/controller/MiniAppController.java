@@ -155,6 +155,9 @@ public class MiniAppController {
 
         try {
             accountService.pay(saved);
+            saved.setStatus(PaymentRequestStatus.PAYED);
+            saved.setPayedDate(new Date());
+            paymentRequestRepository.save(saved);
             return new MiniAppDtos.ActionResponse(true, "Голос принят.");
         } catch (PaymentException e) {
             return new MiniAppDtos.ActionResponse(false, e.getMessage());

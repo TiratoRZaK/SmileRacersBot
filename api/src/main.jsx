@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 
@@ -30,7 +30,8 @@ const TRACK_THEME_BACKGROUNDS = {
 }
 
 const TOAST_AUTO_CLOSE_MS = 4500
-const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'battle', 'battle/start', 'topup'])
+const TOAST_FAST_CLOSE_MS = 900
+const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'battle', 'topup'])
 
 const formatStars = (value) => new Intl.NumberFormat('ru-RU').format(Number(value) || 0)
 
@@ -146,6 +147,7 @@ function App() {
   const [favoriteIndex, setFavoriteIndex] = useState(0)
   const [localVotes, setLocalVotes] = useState({})
   const [isHeaderCompact, setIsHeaderCompact] = useState(false)
+  const currentRaceIdRef = useRef(null)
 
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams()
@@ -210,6 +212,15 @@ function App() {
       return acc
     }, {})
 
+    const nextRaceId = data.race.matchId
+    const isNewRace = currentRaceIdRef.current !== nextRaceId
+    currentRaceIdRef.current = nextRaceId
+
+    if (isNewRace) {
+      setLocalVotes(raceVotes)
+      return
+    }
+
     setLocalVotes((current) => {
       const merged = { ...current }
       Object.entries(raceVotes).forEach(([playerNumber, backendVotes]) => {
@@ -229,7 +240,7 @@ function App() {
   }
 
   const notify = (text, options = {}) => {
-    const { persist = false } = options
+    const { persist = false, durationMs = TOAST_AUTO_CLOSE_MS } = options
     if (!text) return
     const id = Date.now() + Math.floor(Math.random() * 10000)
     const notification = {
@@ -245,7 +256,7 @@ function App() {
       setSavedNotifications((current) => [notification, ...current])
     }
     if (!persist) {
-      setTimeout(() => removeToast(id), TOAST_AUTO_CLOSE_MS)
+      setTimeout(() => removeToast(id), durationMs)
     }
     return id
   }
@@ -266,6 +277,8 @@ function App() {
       if (toastId != null) {
         setTimeout(() => removeToast(toastId), 250)
       }
+    } else if (path === 'battle/start') {
+      notify(r.message, { persist: false, durationMs: TOAST_FAST_CLOSE_MS })
     } else {
       notify(r.message, { persist: !res.ok || PERSISTENT_ACTIONS.has(path) })
     }
@@ -287,7 +300,7 @@ function App() {
 
   const requestBattleStartFromUi = async () => {
     if (!myBattle) {
-      notify('Сначала создайте батл, затем можно стартовать и приглашать друзей.', { persist: true })
+      notify('Сначала создайте батл, затем можно стартовать и приглашать друзей.', { persist: false, durationMs: TOAST_FAST_CLOSE_MS })
       return
     }
     await act('battle/start', { matchId: myBattle.matchId })
