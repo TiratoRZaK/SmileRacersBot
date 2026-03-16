@@ -32,6 +32,7 @@ const TRACK_THEME_BACKGROUNDS = {
 const TOAST_AUTO_CLOSE_MS = 4500
 const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'battle', 'battle/start', 'topup'])
 const MAX_SAVED_NOTIFICATIONS = 200
+const HISTORY_PREVIEW_LIMIT = 12
 
 const formatStars = (value) => new Intl.NumberFormat('ru-RU').format(Number(value) || 0)
 
@@ -136,6 +137,7 @@ function App() {
   const userId = useMemo(getUserId, [])
   const [data, setData] = useState(null)
   const [activeWithdraws, setActiveWithdraws] = useState([])
+  const [historyItems, setHistoryItems] = useState([])
   const [tab, setTab] = useState('race')
   const [toasts, setToasts] = useState([])
   const [savedNotifications, setSavedNotifications] = useState([])
@@ -145,6 +147,8 @@ function App() {
   const [topupAmount, setTopupAmount] = useState(100)
   const [withdrawAmount, setWithdrawAmount] = useState(100)
   const [favoriteIndex, setFavoriteIndex] = useState(0)
+  const [joinBattleId, setJoinBattleId] = useState('')
+  const [joinBattleEmoji, setJoinBattleEmoji] = useState('')
   const [localVotes, setLocalVotes] = useState({})
   const [isHeaderCompact, setIsHeaderCompact] = useState(false)
 
@@ -161,14 +165,17 @@ function App() {
   }, [])
 
   const refresh = async (silent = false) => {
-    const [bootstrapRes, withdrawsRes] = await Promise.all([
+    const [bootstrapRes, withdrawsRes, historyRes] = await Promise.all([
       fetch(`${API}/bootstrap${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders }),
-      fetch(`${API}/withdraw/active${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders })
+      fetch(`${API}/withdraw/active${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders }),
+      fetch(`${API}/history${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders })
     ])
     const bootstrapData = await bootstrapRes.json()
     setData(bootstrapData)
     const withdrawData = await withdrawsRes.json()
     setActiveWithdraws(withdrawData.items || [])
+    const historyData = await historyRes.json()
+    setHistoryItems(historyData.items || [])
   }
 
   useEffect(() => {
@@ -198,6 +205,7 @@ function App() {
     const currentFavorite = data.favoriteEmoji || data.allEmojis[0]
     const idx = Math.max(0, data.allEmojis.indexOf(currentFavorite))
     setFavoriteIndex(idx)
+    setJoinBattleEmoji((current) => current || data.allEmojis[0])
   }, [data])
 
   useEffect(() => {
@@ -326,6 +334,21 @@ function App() {
     await act('battle/remove-participant', { matchId: myBattle.matchId, playerNumber })
   }
 
+  const joinBattleFromUi = async () => {
+    const matchId = Number(joinBattleId)
+    if (!matchId || !joinBattleEmoji) {
+      notify('Укажите ID батла и смайл для входа.', { persist: true })
+      return
+    }
+    await act('battle/join', { matchId, playerName: joinBattleEmoji })
+    setJoinBattleId('')
+  }
+
+  const cancelMyBattle = async () => {
+    if (!myBattle?.matchId) return
+    await act('battle/cancel', { matchId: myBattle.matchId })
+  }
+
   const openBattleInvite = (battle) => {
     if (!battle?.inviteLink) {
       notify('Ссылка приглашения для батла недоступна.', { persist: true })
@@ -410,6 +433,7 @@ function App() {
     winnerName: latestResult.winnerName,
     raceType: getRaceTypeLabel(latestResult.type)
   } : null
+  const myBattleCanCancel = !!myBattle && myBattle.status === 'CREATED'
 
   return <div className='app'>
     <div className='aurora' />
@@ -670,6 +694,7 @@ function App() {
           {myBattle ? `Пригласить друзей в батл #${myBattle.matchId}` : 'Пригласить друзей'}
         </button>
         <button disabled={!myBattleCanStart} onClick={requestBattleStartFromUi}>Старт батла</button>
+        <button className='chip danger-chip' disabled={!myBattleCanCancel} onClick={cancelMyBattle}>Отменить мой батл</button>
       </div>
       {!myBattle && <p className='subtitle'>Сначала создайте батл, затем появится ссылка приглашения и станет доступен старт.</p>}
       {myBattle && <>
@@ -683,6 +708,33 @@ function App() {
           </div>)}
         </div>
       </>}
+
+      <h3>Вход в батл по ID</h3>
+      <div className='row'>
+        <input
+          className='field'
+          type='number'
+          min='1'
+          step='1'
+          placeholder='ID батла'
+          value={joinBattleId}
+          onChange={(e) => setJoinBattleId(e.target.value)}
+        />
+        <select value={joinBattleEmoji} onChange={(e) => setJoinBattleEmoji(e.target.value)}>{data.allEmojis.map((emoji) => <option key={emoji}>{emoji}</option>)}</select>
+        <button onClick={joinBattleFromUi}>Войти в батл</button>
+      </div>
+
+      <h3>История операций</h3>
+      <div className='battle-participants-list'>
+        {historyItems.slice(0, HISTORY_PREVIEW_LIMIT).map((item, index) => <div key={`${item.createdAtMs || 0}-${index}`} className='battle-participant-row'>
+          <span>
+            {item.createdAtMs ? new Date(item.createdAtMs).toLocaleString('ru-RU') : '—'} · {item.operation} · {formatStars(item.amount)} ⭐
+            {item.details ? ` · ${item.details}` : ''}
+          </span>
+        </div>)}
+      </div>
+      {historyItems.length > HISTORY_PREVIEW_LIMIT && <p className='subtitle'>Показаны последние {HISTORY_PREVIEW_LIMIT} операций из {historyItems.length}.</p>}
+      {!historyItems.length && <p className='subtitle'>История пока пустая.</p>}
 
       <button className='help-btn' onClick={openHelp}>Связаться с поддержкой</button>
     </section>}
