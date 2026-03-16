@@ -27,6 +27,7 @@ body {
   top: 8px;
   z-index: 25;
   margin-bottom: 12px;
+  transform-origin: top center;
   transition: transform .25s ease, top .25s ease;
 }
 
@@ -116,14 +117,15 @@ b {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin: 10px 0 0;
-  position: sticky;
-  top: 86px;
-  z-index: 41;
 }
 
 .sticky-header-shell.compact .top-card {
   padding: 8px 11px;
   border-radius: 14px;
+}
+
+.sticky-header-shell.compact .tabs {
+  margin-top: 6px;
 }
 
 .sticky-header-shell.compact .tabs button {
@@ -791,7 +793,7 @@ select:focus {
 }
 
 .notifications-panel {
-  margin-top: 10px;
+  margin-top: 8px;
   margin-bottom: 0;
 }
 
