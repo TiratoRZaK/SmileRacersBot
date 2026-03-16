@@ -60,6 +60,9 @@ body {
   gap: 12px;
   padding: 14px;
   border-radius: 20px;
+  position: sticky;
+  top: 8px;
+  z-index: 42;
 }
 
 .top-card-main {
@@ -112,6 +115,9 @@ b {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin: 10px 0 0;
+  position: sticky;
+  top: 86px;
+  z-index: 41;
 }
 
 .sticky-header-shell.compact .top-card {
