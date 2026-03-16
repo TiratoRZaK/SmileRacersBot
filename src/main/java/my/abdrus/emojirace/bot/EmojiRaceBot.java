@@ -78,6 +78,7 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
     }
 
     public void deleteMessage(Long chatId, Integer messageId) {
+        userNotificationService.deleteByUserChatIdAndMessageId(chatId, messageId);
         execute(new DeleteMessage(chatId.toString(), messageId));
     }
 
