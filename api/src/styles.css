@@ -859,3 +859,81 @@ select:focus {
   align-items: center;
   gap: 8px;
 }
+
+
+.account-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.accordion-section {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(6, 13, 40, .38);
+  overflow: hidden;
+}
+
+.accordion-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  border-radius: 0;
+  background: rgba(255, 255, 255, .08);
+  box-shadow: none;
+}
+
+.accordion-header span:first-child {
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  font-size: 13px;
+  opacity: .92;
+}
+
+.accordion-arrow {
+  font-size: 14px;
+  opacity: .9;
+}
+
+.accordion-content {
+  padding: 12px;
+}
+
+.history-table-wrap {
+  margin-top: 6px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 12px;
+  overflow: auto;
+  background: rgba(255, 255, 255, .05);
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 520px;
+  font-size: 12px;
+}
+
+.history-table th,
+.history-table td {
+  padding: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, .12);
+  text-align: left;
+  vertical-align: top;
+}
+
+.history-table thead th {
+  position: sticky;
+  top: 0;
+  background: rgba(17, 24, 39, .92);
+  z-index: 1;
+}
+
+.amount-plus {
+  color: #86efac;
+}
+
+.amount-minus {
+  color: #fca5a5;
+}
