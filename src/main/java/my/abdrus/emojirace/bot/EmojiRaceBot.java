@@ -88,9 +88,7 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
         int attempt = 1;
         while (attempt <= maxAttempts) {
             try {
-                T response = super.execute(sendMessage);
-                saveUserNotification(sendMessage, response);
-                return response;
+                return super.execute(sendMessage);
             } catch (TelegramApiRequestException e) {
                 if (isMessageNotModifiedError(e)) {
                     log.debug("Пропуск обновления сообщения без изменений");
@@ -129,7 +127,7 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
         throw new IllegalStateException("Unexpected bot execute state");
     }
 
-    private <T extends Serializable, Method extends BotApiMethod<T>> void saveUserNotification(Method method, T response) {
+    public <T extends Serializable, Method extends BotApiMethod<T>> void saveUserNotification(Method method, T response) {
         if (!(method instanceof SendMessage sendMessage) || !(response instanceof Message message)) {
             return;
         }

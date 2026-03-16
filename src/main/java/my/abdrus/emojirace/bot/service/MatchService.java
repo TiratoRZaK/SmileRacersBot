@@ -493,7 +493,7 @@ public class MatchService {
                 }
                 SendMessage message = new SendMessage(userId.toString(), text);
                 message.setReplyMarkup(InlineKeyboardMarkup.builder().keyboard(List.of(List.of(createMatchLinkButton(match)))).build());
-                bot.execute(message);
+                bot.saveUserNotification(message, bot.execute(message));
 
                 List<PaymentRequest> completedRequests = paymentRequestRepository.findAllByMatchPlayerAndStatusAndUserChatId(
                         winner, PaymentRequestStatus.PAYED, userId).stream()
@@ -513,8 +513,7 @@ public class MatchService {
                 }
                 SendMessage message = new SendMessage(userId.toString(), text);
                 message.setReplyMarkup(InlineKeyboardMarkup.builder().keyboard(List.of(List.of(createMatchLinkButton(match)))).build());
-                bot.execute(message);
-
+                bot.saveUserNotification(message, bot.execute(message));
             }
         });
     }
@@ -541,7 +540,7 @@ public class MatchService {
                             "На ваш баланс начислено " + winnerAmount + " ⭐ (95% от банка " + battleBank + " ⭐)."
             );
             winnerMessage.setReplyMarkup(InlineKeyboardMarkup.builder().keyboard(List.of(List.of(createMatchLinkButton(match)))).build());
-            bot.execute(winnerMessage);
+            bot.saveUserNotification(winnerMessage, bot.execute(winnerMessage));
         }
 
         paymentRequestRepository.findAllByMatchPlayerAndStatus(winner, PaymentRequestStatus.PAYED)
@@ -562,7 +561,7 @@ public class MatchService {
                             "😔 Батл #" + match.getId() + " завершён. К сожалению, в этот раз вы проиграли."
                     );
                     loseMessage.setReplyMarkup(InlineKeyboardMarkup.builder().keyboard(List.of(List.of(createMatchLinkButton(match)))).build());
-                    bot.execute(loseMessage);
+                    bot.saveUserNotification(loseMessage, bot.execute(loseMessage));
                 });
     }
 

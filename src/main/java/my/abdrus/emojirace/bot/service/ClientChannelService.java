@@ -89,15 +89,11 @@ public class ClientChannelService extends ChannelService {
                     topup.setSum(amount);
                     topup.setSource("telegram_payment");
                     balanceTopupRepository.save(topup);
-                    Integer messageId = bot.execute(
-                            new SendMessage(userId.toString(), "Баланс успешно пополнен на " + amount + " ⭐"))
-                            .getMessageId();
-                    bot.deleteMessageScheduled(userId, messageId);
+                    SendMessage msg = new SendMessage(userId.toString(), "Баланс успешно пополнен на " + amount + " ⭐");
+                    bot.saveUserNotification(msg, bot.execute(msg));
                 } else {
-                    Integer messageId = bot.execute(
-                            new SendMessage(userId.toString(),"Произошла ошибка при оплате. Используйте кнопку 'Помощь' в боте, для решения проблемы"))
-                            .getMessageId();
-                    bot.deleteMessageScheduled(userId, messageId);
+                    SendMessage msg = new SendMessage(userId.toString(), "Произошла ошибка при оплате. Используйте кнопку 'Помощь' в боте, для решения проблемы");
+                    bot.saveUserNotification(msg, bot.execute(msg));
                 }
             } else if (message.hasText()) {
                 textProcess(message, chatId, bot);
@@ -173,17 +169,17 @@ public class ClientChannelService extends ChannelService {
                             .callbackData("cancelWithdraw_" + requestId)
                             .text("Отменить вывод")
                             .build()))));
-                    bot.execute(msg);
+                    bot.saveUserNotification(msg, bot.execute(msg));
                 } catch (PaymentException e) {
                     SendMessage msg = new SendMessage(
                             chatId.toString(), "❌ Ошибка списания с баланса. Повторите позже или обратитесь в поддержку.");
-                    bot.deleteMessageScheduled(chatId, bot.execute(msg).getMessageId());
+                    bot.saveUserNotification(msg, bot.execute(msg));
                 }
                 stateService.clear(chatId);
             } catch (NumberFormatException e) {
                 SendMessage msg = new SendMessage(
                         chatId.toString(), "❌ Введено не корректное число, повторите попытку пополнения через кнопку Баланс в меню.");
-                bot.deleteMessageScheduled(chatId, bot.execute(msg).getMessageId());
+                bot.saveUserNotification(msg, bot.execute(msg));
                 stateService.clear(chatId);
             }
             bot.deleteMessageScheduled(chatId, messageId);
@@ -358,7 +354,7 @@ public class ClientChannelService extends ChannelService {
                     answer.setText("🎉 Оплата прошла успешно! 🎉");
                     SendMessage payMsg = new SendMessage(userChatId.toString(), "Принят голос в размере " + amount + "⭐ в матче #" + match.getId() + " за игрока " + paymentRequest.getMatchPlayer().getPlayerName());
                     payMsg.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(matchService.createMatchLinkButton(match)))));
-                    bot.execute(payMsg);
+                    bot.saveUserNotification(payMsg, bot.execute(payMsg));
                 } catch (PaymentException e) {
                     answer.setShowAlert(true);
                     answer.setText(String.format("Оплата не прошла. \n%s\n", e.getMessage()));
@@ -442,7 +438,7 @@ public class ClientChannelService extends ChannelService {
                 }
                 SendMessage msg = new SendMessage(userChatId.toString(), "✅ Вы присоединились к батлу #" + battleId + ". Голос за победителя: " + stake + " ⭐.");
                 msg.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(matchService.createMatchLinkButton(battle)))));
-                bot.execute(msg);
+                bot.saveUserNotification(msg, bot.execute(msg));
 
                 if (battle.getCreatorUserChatId() != null) {
                     matchService.refreshBattleCreatorMessage(battleId, bot);

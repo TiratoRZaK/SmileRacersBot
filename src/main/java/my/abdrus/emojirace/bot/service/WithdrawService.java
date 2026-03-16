@@ -72,8 +72,10 @@ public class WithdrawService {
         withdrawRequest.setPayedDate(new Date());
         withdrawRequestRepository.save(withdrawRequest);
 
-        bot.execute(new SendMessage(withdrawRequest.getUserChatId().toString(),
-                "✅ Ваш вывод #" + withdrawRequest.getId() + " успешно выполнен."));
+        SendMessage sendMessage = new SendMessage(withdrawRequest.getUserChatId().toString(),
+                "✅ Ваш вывод #" + withdrawRequest.getId() + " успешно выполнен.");
+        bot.saveUserNotification(sendMessage, bot.execute(sendMessage));
+
         bot.deleteMessageScheduled(adminChatId, bot.execute(new SendMessage(adminChatId.toString(),
                 "✅ Вывод #" + withdrawRequest.getId() + " отмечен как выплаченный.")).getMessageId());
     }
@@ -97,9 +99,10 @@ public class WithdrawService {
         withdrawRequestRepository.save(withdrawRequest);
         accountService.addBalance(withdrawRequest.getUserChatId(), withdrawRequest.getSum());
 
-        bot.execute(new SendMessage(withdrawRequest.getUserChatId().toString(),
+        SendMessage sendMessage = new SendMessage(withdrawRequest.getUserChatId().toString(),
                 "❌ Ваш вывод #" + withdrawRequest.getId()
-                        + " отменён администратором. Обратитесь в поддержку."));
+                        + " отменён администратором. Обратитесь в поддержку.");
+        bot.saveUserNotification(sendMessage, bot.execute(sendMessage));
         bot.deleteMessageScheduled(adminChatId, bot.execute(new SendMessage(adminChatId.toString(),
                 "✅ Вывод #" + withdrawRequest.getId() + " отменён, сумма возвращена пользователю.")).getMessageId());
     }
