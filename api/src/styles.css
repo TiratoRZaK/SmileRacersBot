@@ -177,6 +177,10 @@ button:disabled {
   padding: 16px;
 }
 
+.race-recent-panel {
+  margin-top: 12px;
+}
+
 h2,
 h3,
 p {
