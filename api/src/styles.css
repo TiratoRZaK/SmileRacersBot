@@ -116,8 +116,8 @@ b {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin: 10px 0 0;
-  padding-bottom: 4px;
+  margin: 14px 0 0;
+  padding: 4px 0 6px;
 }
 
 .sticky-header-shell.compact .top-card {
@@ -126,7 +126,7 @@ b {
 }
 
 .sticky-header-shell.compact .tabs {
-  margin-top: 6px;
+  margin-top: 10px;
 }
 
 .sticky-header-shell.compact .tabs button {
@@ -821,6 +821,15 @@ select:focus {
 .finish-celebration .subtitle {
   margin-top: 8px;
   opacity: .9;
+}
+
+
+.winner-name {
+  margin-top: 8px;
+  font-size: 28px;
+  line-height: 1.1;
+  text-shadow: 0 4px 14px rgba(0, 0, 0, .28);
+  word-break: break-word;
 }
 
 .confetti {
