@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 
@@ -6,7 +6,9 @@ const API = '/api/miniapp'
 const tg = window.Telegram?.WebApp
 const WITHDRAW_MIN = 100
 const TOPUP_MIN = 1
-const POLL_INTERVAL_MS = 1200
+const POLL_INTERVAL_MS = 3500
+const INTERACTION_PAUSE_MS = 2500
+const MIN_SPLASH_MS = 900
 const DEFAULT_TRACK_LENGTH = 62
 
 const RACE_TYPE_LABELS = {
@@ -155,6 +157,9 @@ function App() {
   const [joinBattleEmoji, setJoinBattleEmoji] = useState('')
   const [localVotes, setLocalVotes] = useState({})
   const [isHeaderCompact, setIsHeaderCompact] = useState(false)
+  const [isAppReady, setIsAppReady] = useState(false)
+  const [bootProgress, setBootProgress] = useState(14)
+  const [favoriteDirty, setFavoriteDirty] = useState(false)
   const [sectionOpen, setSectionOpen] = useState({
     account: true,
     favorite: true,
@@ -163,6 +168,11 @@ function App() {
     history: false,
     recentRaces: false
   })
+  const refreshInFlightRef = useRef(false)
+  const interactionPauseUntilRef = useRef(0)
+  const firstLoadStartedAtRef = useRef(Date.now())
+  const favoriteDirtyRef = useRef(false)
+  const favoriteRequestRef = useRef(null)
 
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams()
@@ -176,15 +186,39 @@ function App() {
     return headers
   }, [])
 
+  useEffect(() => {
+    favoriteDirtyRef.current = favoriteDirty
+  }, [favoriteDirty])
+
+  const pausePollingForInteraction = () => {
+    interactionPauseUntilRef.current = Date.now() + INTERACTION_PAUSE_MS
+  }
+
   const refresh = async (silent = false) => {
-    const [bootstrapRes, withdrawsRes] = await Promise.all([
-      fetch(`${API}/bootstrap${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders }),
-      fetch(`${API}/withdraw/active${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders })
-    ])
-    const bootstrapData = await bootstrapRes.json()
-    setData(bootstrapData)
-    const withdrawData = await withdrawsRes.json()
-    setActiveWithdraws(withdrawData.items || [])
+    if (refreshInFlightRef.current) return
+    refreshInFlightRef.current = true
+
+    try {
+      const [bootstrapRes, withdrawsRes] = await Promise.all([
+        fetch(`${API}/bootstrap${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders }),
+        fetch(`${API}/withdraw/active${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders })
+      ])
+      const bootstrapData = await bootstrapRes.json()
+      const withdrawData = await withdrawsRes.json()
+      setData(bootstrapData)
+      setActiveWithdraws(withdrawData.items || [])
+
+      if (!silent) {
+        const elapsed = Date.now() - firstLoadStartedAtRef.current
+        const delay = Math.max(0, MIN_SPLASH_MS - elapsed)
+        window.setTimeout(() => {
+          setBootProgress(100)
+          setIsAppReady(true)
+        }, delay)
+      }
+    } finally {
+      refreshInFlightRef.current = false
+    }
   }
 
   const loadHistory = async () => {
@@ -215,11 +249,28 @@ function App() {
 
   useEffect(() => {
     tg?.ready()
-    refresh()
+    tg?.expand?.()
+    refresh().catch(() => {
+      setBootProgress(100)
+      setIsAppReady(true)
+      notify('Не удалось загрузить данные MiniApp.', { persist: true })
+    })
   }, [])
 
   useEffect(() => {
+    if (isAppReady) return undefined
+
+    const timer = window.setInterval(() => {
+      setBootProgress((current) => Math.min(current + (current < 70 ? 11 : 4), 92))
+    }, 140)
+
+    return () => window.clearInterval(timer)
+  }, [isAppReady])
+
+  useEffect(() => {
     const timer = setInterval(() => {
+      if (document.hidden) return
+      if (Date.now() < interactionPauseUntilRef.current) return
       refresh(true).catch(() => null)
     }, POLL_INTERVAL_MS)
     return () => clearInterval(timer)
@@ -239,7 +290,15 @@ function App() {
     setBattleEmoji((current) => current || data.allEmojis[0])
     const currentFavorite = data.favoriteEmoji || data.allEmojis[0]
     const idx = Math.max(0, data.allEmojis.indexOf(currentFavorite))
-    setFavoriteIndex(idx)
+    const pendingFavorite = favoriteRequestRef.current
+    const favoriteWasSaved = pendingFavorite && pendingFavorite === currentFavorite
+
+    if (!favoriteDirtyRef.current || favoriteWasSaved) {
+      setFavoriteIndex(idx)
+      setFavoriteDirty(false)
+      if (favoriteWasSaved) favoriteRequestRef.current = null
+    }
+
     setJoinBattleEmoji((current) => current || data.allEmojis[0])
   }, [data])
 
@@ -471,27 +530,38 @@ function App() {
     }
   }
 
-  if (!data) return <div className='loading'>Загрузка…</div>
-
-  const raceBeforeStart = data.race?.status === 'CREATED'
-  const myBattle = data.myBattle || null
+  const raceBeforeStart = data?.race?.status === 'CREATED'
+  const myBattle = data?.myBattle || null
   const myBattleCanStart = !!myBattle && myBattle.status === 'CREATED' && !myBattle.battleStartRequested
   const myBattleCanInvite = !!myBattle?.inviteLink
   const myBattleIsLive = myBattle?.status === 'LIVE'
-  const boostersDisabled = !data.race || raceBeforeStart
-  const trackTheme = getTrackTheme(data.race)
-  const raceUnits = data.race?.units || []
+  const boostersDisabled = !data?.race || raceBeforeStart
+  const trackTheme = getTrackTheme(data?.race)
+  const raceUnits = data?.race?.units || []
   const maxScore = raceUnits.reduce((max, unit) => Math.max(max, Number(unit.score) || 0), 0)
-  const finishScore = Math.max(Number(data.race?.trackLength) || DEFAULT_TRACK_LENGTH, maxScore, 1)
-  const trackBackgroundStyle = {
-    backgroundImage: buildTrackBackgroundImage(trackTheme, raceUnits, data.race?.matchId || 1),
+  const finishScore = Math.max(Number(data?.race?.trackLength) || DEFAULT_TRACK_LENGTH, maxScore, 1)
+  const trackBackgroundStyle = useMemo(() => ({
+    backgroundImage: buildTrackBackgroundImage(trackTheme, raceUnits, data?.race?.matchId || 1),
     backgroundRepeat: 'no-repeat',
     backgroundSize: 'cover',
     backgroundPosition: 'center'
-  }
-
+  }), [trackTheme, raceUnits, data?.race?.matchId])
   const unreadCount = savedNotifications.filter((item) => !item.read).length
   const myBattleCanCancel = !!myBattle && myBattle.status === 'CREATED'
+
+  if (!data || !isAppReady) return <div className='loading-screen'>
+    <div className='loading-orb loading-orb-left' />
+    <div className='loading-orb loading-orb-right' />
+    <div className='loading-card'>
+      <div className='loading-logo'>🏁</div>
+      <h1>Smile Racers</h1>
+      <p>Подготавливаем трассу, смайлы и бустеры…</p>
+      <div className='loading-bar'>
+        <div className='loading-bar-fill' style={{ width: `${bootProgress}%` }} />
+      </div>
+      <div className='loading-progress'>{bootProgress}%</div>
+    </div>
+  </div>
 
   return <div className='app'>
     <div className='aurora' />
@@ -606,11 +676,13 @@ function App() {
               placeholder={`до ${formatStars(Math.max(1, data.balance || 1))}`}
               value={voteInputs[u.playerNumber] ?? 1}
               onChange={(e) => {
+                pausePollingForInteraction()
                 const digits = String(e.target.value || '').replace(/\D/g, '')
                 const raw = Number(digits || 1)
                 const next = Math.max(1, Math.min(raw, Math.max(1, data.balance || 1)))
                 setVoteInputs((current) => ({ ...current, [u.playerNumber]: next }))
               }}
+              onFocus={pausePollingForInteraction}
             />
             <span className='vote-field-suffix'>⭐</span>
           </div>
@@ -700,12 +772,19 @@ function App() {
             min='0'
             max={Math.max(0, data.allEmojis.length - 1)}
             value={favoriteIndex}
-            onChange={(e) => setFavoriteIndex(Number(e.target.value))}
+            onChange={(e) => { pausePollingForInteraction(); setFavoriteDirty(true); setFavoriteIndex(Number(e.target.value)) }}
+            onPointerDown={pausePollingForInteraction}
+            onTouchStart={pausePollingForInteraction}
             className='emoji-slider'
           />
           <div className='emoji-preview'>{data.allEmojis[favoriteIndex]}</div>
           <div className='row'>
-            <button onClick={() => act('favorite', { playerName: data.allEmojis[favoriteIndex] })}>Сохранить любимый смайл</button>
+            <button onClick={() => {
+              const nextFavorite = data.allEmojis[favoriteIndex]
+              favoriteRequestRef.current = nextFavorite
+              setFavoriteDirty(false)
+              act('favorite', { playerName: nextFavorite })
+            }}>Сохранить любимый смайл</button>
           </div>
         </div>
         <p className='subtitle'>Смена любимого смайла — 150⭐ (первый выбор бесплатный).</p>
@@ -716,7 +795,7 @@ function App() {
 
       {renderSection('payments', 'Пополнение и вывод', <>
         <div className='row'>
-          <input className='field' type='number' min={TOPUP_MIN} step='1' value={topupAmount} onChange={(e) => setTopupAmount(Math.max(TOPUP_MIN, Number(e.target.value || TOPUP_MIN)))} />
+          <input className='field' type='number' min={TOPUP_MIN} step='1' value={topupAmount} onChange={(e) => { pausePollingForInteraction(); setTopupAmount(Math.max(TOPUP_MIN, Number(e.target.value || TOPUP_MIN))) }} onFocus={pausePollingForInteraction} />
           <button onClick={() => act('topup', { amount: topupAmount })}>Пополнить через ⭐</button>
         </div>
         <div className='row'>
@@ -727,7 +806,8 @@ function App() {
             max={maxWithdraw}
             step='1'
             value={withdrawAmount}
-            onChange={(e) => setWithdrawAmount(Number(e.target.value || WITHDRAW_MIN))}
+            onChange={(e) => { pausePollingForInteraction(); setWithdrawAmount(Number(e.target.value || WITHDRAW_MIN)) }}
+            onFocus={pausePollingForInteraction}
           />
           <button disabled={clampedWithdraw > maxWithdraw} onClick={() => act('withdraw', { amount: clampedWithdraw })}>Создать запрос на вывод</button>
         </div>
@@ -770,7 +850,8 @@ function App() {
             step='1'
             placeholder='ID батла'
             value={joinBattleId}
-            onChange={(e) => setJoinBattleId(e.target.value)}
+            onChange={(e) => { pausePollingForInteraction(); setJoinBattleId(e.target.value) }}
+            onFocus={pausePollingForInteraction}
           />
           <select value={joinBattleEmoji} onChange={(e) => setJoinBattleEmoji(e.target.value)}>{data.allEmojis.map((emoji) => <option key={emoji}>{emoji}</option>)}</select>
           <button onClick={joinBattleFromUi}>Присоединиться к батлу</button>
