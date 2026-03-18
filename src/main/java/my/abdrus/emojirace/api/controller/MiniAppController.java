@@ -515,8 +515,11 @@ public class MiniAppController {
             return new MiniAppDtos.ActionResponse(false, "Уведомление не найдено.");
         }
 
-        deleteTelegramMessageIfExists(userId, notification.getMessageId());
-        userNotificationService.delete(notification);
+        if (notification.getMessageId() != null) {
+            deleteTelegramMessageIfExists(userId, notification.getMessageId());
+        } else {
+            userNotificationService.delete(notification);
+        }
         return new MiniAppDtos.ActionResponse(true, "Уведомление удалено.");
     }
 
@@ -527,8 +530,13 @@ public class MiniAppController {
     ) {
         Long userId = resolveUserId(headerUserId, userIdParam);
         List<UserNotification> notifications = userNotificationService.getAllByUserId(userId);
-        notifications.forEach(notification -> deleteTelegramMessageIfExists(userId, notification.getMessageId()));
-        userNotificationService.deleteAll(notifications);
+        List<UserNotification> withoutTelegramMessage = notifications.stream()
+                .filter(notification -> notification.getMessageId() == null)
+                .toList();
+        notifications.stream()
+                .filter(notification -> notification.getMessageId() != null)
+                .forEach(notification -> deleteTelegramMessageIfExists(userId, notification.getMessageId()));
+        userNotificationService.deleteAll(withoutTelegramMessage);
         return new MiniAppDtos.ActionResponse(true, "Уведомления очищены.");
     }
 

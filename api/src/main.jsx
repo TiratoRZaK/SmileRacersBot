@@ -33,6 +33,7 @@ const TRACK_THEME_BACKGROUNDS = {
 
 const TOAST_AUTO_CLOSE_MS = 4500
 const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'battle', 'battle/start', 'topup'])
+const NOTIFICATION_ACTIONS = new Set(['notification/delete', 'notification/clear'])
 const MAX_SAVED_NOTIFICATIONS = 200
 
 const formatStars = (value) => new Intl.NumberFormat('ru-RU').format(Number(value) || 0)
@@ -358,7 +359,7 @@ function App() {
   }
 
   const notify = (text, options = {}) => {
-    const { persist = false } = options
+    const { persist = false, source = 'client' } = options
     if (!text) return
     const id = Date.now() + Math.floor(Math.random() * 10000)
     const notification = {
@@ -366,7 +367,8 @@ function App() {
       text,
       persist,
       createdAt: new Date().toISOString(),
-      read: false
+      read: false,
+      source
     }
 
     setToasts((current) => [...current, notification])
@@ -396,7 +398,10 @@ function App() {
         setTimeout(() => removeToast(toastId), 250)
       }
     } else {
-      notify(r.message, { persist: !res.ok || PERSISTENT_ACTIONS.has(path) })
+      notify(r.message, {
+        persist: !NOTIFICATION_ACTIONS.has(path) && (!res.ok || PERSISTENT_ACTIONS.has(path)),
+        source: 'client'
+      })
     }
     if (r.invoiceLink) {
       tg?.openLink ? tg.openLink(r.invoiceLink) : window.open(r.invoiceLink, '_blank')
@@ -496,6 +501,14 @@ function App() {
 
   const deleteSavedNotification = async (notificationId) => {
     if (!notificationId) return
+
+    const notification = savedNotifications.find((item) => item.id === notificationId)
+    setSavedNotifications((current) => current.filter((item) => item.id !== notificationId))
+
+    if (!notification || notification.source !== 'server') {
+      return
+    }
+
     try {
       const response = await fetch(`${API}/notification/delete${requestQuery ? `?${requestQuery}` : ''}`, {
         method: 'POST',
@@ -504,16 +517,24 @@ function App() {
       })
       const payload = await response.json()
       if (!response.ok || !payload?.success) {
-        notify(payload?.message || 'Не удалось удалить уведомление.', { persist: true })
-        return
+        if (response.status === 404 || payload?.message === 'Уведомление не найдено.') {
+          return
+        }
+        setSavedNotifications((current) => [notification, ...current].slice(0, MAX_SAVED_NOTIFICATIONS))
       }
-      setSavedNotifications((current) => current.filter((n) => n.id !== notificationId))
     } catch (e) {
-      notify('Ошибка удаления уведомления.', { persist: true })
+      setSavedNotifications((current) => [notification, ...current].slice(0, MAX_SAVED_NOTIFICATIONS))
     }
   }
 
   const clearSavedNotifications = async () => {
+    const serverNotifications = savedNotifications.filter((item) => item.source === 'server')
+    setSavedNotifications([])
+
+    if (!serverNotifications.length) {
+      return
+    }
+
     try {
       const response = await fetch(`${API}/notification/clear${requestQuery ? `?${requestQuery}` : ''}`, {
         method: 'POST',
@@ -521,12 +542,10 @@ function App() {
       })
       const payload = await response.json()
       if (!response.ok || !payload?.success) {
-        notify(payload?.message || 'Не удалось очистить уведомления.', { persist: true })
-        return
+        setSavedNotifications((current) => [...serverNotifications, ...current].slice(0, MAX_SAVED_NOTIFICATIONS))
       }
-      setSavedNotifications([])
     } catch (e) {
-      notify('Ошибка очистки уведомлений.', { persist: true })
+      setSavedNotifications((current) => [...serverNotifications, ...current].slice(0, MAX_SAVED_NOTIFICATIONS))
     }
   }
 
@@ -728,7 +747,7 @@ function App() {
             <button className='chip danger-chip' disabled={myBattleIsLive || u.playerNumber === 1} onClick={() => removeBattleParticipant(u.playerNumber)}>Исключить</button>
           </div>)}
         </div>
-        <div className='row'>
+        <div className='row battle-action-row'>
           <button disabled={!myBattleCanInvite} onClick={() => openBattleInvite(myBattle)}>Пригласить друзей</button>
           <button
             disabled={!myBattleCanStart}
@@ -818,11 +837,11 @@ function App() {
       </>)}
 
       {renderSection('battles', 'Батлы', <>
-        <div className='row'>
+        <div className='row battle-create-row'>
           <select value={battleEmoji} onChange={(e) => setBattleEmoji(e.target.value)}>{data.allEmojis.map((e) => <option key={e}>{e}</option>)}</select>
           <button onClick={() => act('battle', { playerName: battleEmoji, stake: 100 })}>Создать батл 100⭐</button>
         </div>
-        <div className='row'>
+        <div className='row battle-action-row'>
           <button disabled={!myBattleCanInvite} onClick={() => openBattleInvite(myBattle)}>
             {myBattle ? `Пригласить друзей в батл #${myBattle.matchId}` : 'Пригласить друзей'}
           </button>
@@ -842,7 +861,7 @@ function App() {
           </div>
         </>}
 
-        <div className='row'>
+        <div className='row battle-join-row'>
           <input
             className='field'
             type='number'
