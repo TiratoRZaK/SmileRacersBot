@@ -486,8 +486,30 @@ select:focus {
   box-shadow: 0 0 0 2px rgba(44, 170, 255, .22);
 }
 
+.row > * {
+  flex: 1 1 140px;
+}
+
 .row button {
-  flex: 1;
+  flex: 1 1 140px;
+  min-height: 44px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.battle-create-row {
+  display: grid;
+  grid-template-columns: minmax(84px, 112px) minmax(0, 1fr);
+}
+
+.battle-action-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+}
+
+.battle-join-row {
+  display: grid;
+  grid-template-columns: minmax(96px, 1fr) minmax(84px, 96px) minmax(0, 1.2fr);
 }
 
 .help-btn {
@@ -707,13 +729,18 @@ select:focus {
 
 .toasts {
   position: fixed;
-  top: 12px;
   left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
   transform: translateX(-50%);
   width: min(430px, calc(100% - 24px));
   z-index: 30;
   display: grid;
   gap: 8px;
+  pointer-events: none;
+}
+
+.toasts > * {
+  pointer-events: auto;
 }
 
 .toast-close {
@@ -1084,6 +1111,12 @@ select:focus {
   .row > .field,
   .row > select {
     width: 100%;
+  }
+
+  .battle-create-row,
+  .battle-action-row,
+  .battle-join-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .battle-participant-row,
