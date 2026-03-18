@@ -568,13 +568,13 @@ function App() {
     <div className={`sticky-header-shell${isHeaderCompact ? ' compact' : ''}`}>
       <header className='top-card'>
         <div className='top-card-main'>
-          <div>
+          <div className='top-card-stat'>
             <span className='label'>Баланс</span>
-            <b>{data.balance} ⭐</b>
+            <b>{formatStars(data.balance)} ⭐</b>
           </div>
-          <div>
-            <span className='label'>Бесплатные бустеры</span>
-            <b>{data.freeBoosters}</b>
+          <div className='top-card-stat'>
+            <span className='label'>Бустеры</span>
+            <b>{formatStars(data.freeBoosters)}</b>
           </div>
         </div>
         <div className='top-card-actions'>

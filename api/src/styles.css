@@ -15,6 +15,11 @@ body,
   min-height: 100%;
 }
 
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -26,24 +31,27 @@ body {
 .app {
   position: relative;
   max-width: 460px;
-  min-height: 100vh;
-  min-height: 100dvh;
   margin: 0 auto;
-  padding: 12px 14px 100px;
+  padding: 10px 12px 24px;
   overflow-x: clip;
 }
 
 .sticky-header-shell {
   position: sticky;
-  top: 8px;
+  top: 6px;
   z-index: 25;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   transform-origin: top center;
   transition: transform .25s ease, top .25s ease;
+  pointer-events: none;
+}
+
+.sticky-header-shell > * {
+  pointer-events: auto;
 }
 
 .sticky-header-shell.compact {
-  transform: scale(.96);
+  transform: scale(.985);
   top: 2px;
 }
 
@@ -69,20 +77,27 @@ body {
 .top-card {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 20px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 18px;
   position: sticky;
-  top: 8px;
+  top: 6px;
   z-index: 42;
 }
 
 .top-card-main {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, max-content));
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.top-card-stat {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .top-card-actions {
@@ -90,11 +105,11 @@ body {
 }
 
 .bell-btn {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border-radius: 12px;
-  font-size: 20px;
+  font-size: 18px;
   position: relative;
 }
 
@@ -115,48 +130,50 @@ body {
 .label {
   display: block;
   opacity: .75;
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.1;
 }
 
 b {
-  font-size: 20px;
-  letter-spacing: .2px;
+  font-size: 15px;
+  letter-spacing: .15px;
+  line-height: 1.1;
 }
 
 .tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin: 14px 0 0;
-  padding: 4px 0 6px;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 2px 0 4px;
 }
 
 .sticky-header-shell.compact .top-card {
-  padding: 8px 11px;
+  padding: 8px 10px;
   border-radius: 14px;
 }
 
 .sticky-header-shell.compact .tabs {
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .sticky-header-shell.compact .tabs button {
-  padding-top: 7px;
-  padding-bottom: 7px;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 .sticky-header-shell.compact b {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .sticky-header-shell.compact .label {
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .sticky-header-shell.compact .bell-btn {
-  width: 38px;
-  height: 38px;
-  font-size: 17px;
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
 }
 
 button,
@@ -166,7 +183,7 @@ select,
   color: #ecf4ff;
   background: rgba(255, 255, 255, .1);
   border-radius: 14px;
-  padding: 11px 12px;
+  padding: 10px 12px;
   font-weight: 600;
   max-width: 100%;
 }
@@ -186,11 +203,11 @@ button:disabled {
 
 .panel {
   border-radius: 22px;
-  padding: 16px;
+  padding: 14px;
 }
 
 .race-recent-panel {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 h2,
@@ -367,16 +384,16 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   margin: 0 auto;
   border: 0;
-  border-radius: 16px;
+  border-radius: 14px;
   padding: 0;
 }
 
 .booster span {
-  font-size: 28px;
+  font-size: 24px;
   line-height: 1;
 }
 
@@ -1054,8 +1071,8 @@ select:focus {
 
 @media (max-width: 430px) {
   .app {
-    padding-left: 10px;
-    padding-right: 10px;
+    padding-left: 8px;
+    padding-right: 8px;
   }
 
   .vote-inline {
@@ -1070,17 +1087,26 @@ select:focus {
   }
 
   .battle-participant-row,
-  .notification-item,
-  .top-card {
+  .notification-item {
     align-items: stretch;
     flex-direction: column;
   }
 
+  .top-card {
+    flex-direction: row;
+    align-items: center;
+  }
+
   .top-card-main {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
   }
 
   .top-card-actions {
-    align-self: flex-end;
+    align-self: center;
+  }
+
+  .top-card {
+    align-items: center;
   }
 }
