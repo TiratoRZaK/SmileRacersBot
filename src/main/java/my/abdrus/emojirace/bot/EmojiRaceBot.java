@@ -4,18 +4,14 @@ import java.io.Serializable;
 import java.util.Date;
 import java.util.Locale;
 
-import jakarta.annotation.PostConstruct;
 import my.abdrus.emojirace.bot.service.ClientChannelService;
-import my.abdrus.emojirace.bot.service.JackpotService;
 import my.abdrus.emojirace.bot.service.MainChannelService;
-import my.abdrus.emojirace.bot.service.MatchGenerationService;
 import my.abdrus.emojirace.bot.service.UserNotificationService;
 import my.abdrus.emojirace.config.BotProperties;
 import my.abdrus.emojirace.config.ChannelProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
@@ -39,21 +35,11 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
     @Autowired
     private ClientChannelService clientChannelService;
     @Autowired
-    private MatchGenerationService matchGenerationService;
-    @Autowired
-    private JackpotService jackpotService;
-    @Autowired
     private ChannelProperties channelProperties;
     @Autowired
     private BotProperties botProperties;
     @Autowired
     private UserNotificationService userNotificationService;
-
-    @PostConstruct
-    public void start() {
-        jackpotService.createIfNeedToChannel(this);
-        matchGenerationService.startGeneration(this);
-    }
 
     @Override
     public void onUpdateReceived(Update update) {
