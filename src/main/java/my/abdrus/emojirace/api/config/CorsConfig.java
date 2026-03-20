@@ -13,17 +13,7 @@ public class CorsConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
-                    .allowedOriginPatterns(
-                        "https://t.me",
-                        "https://*.t.me",
-                        "https://telegram.org",
-                        "https://*.telegram.org",
-                        "https://web.telegram.org",
-                        "http://localhost:*",
-                        "https://localhost:*",
-                        "http://127.0.0.1:*",
-                        "https://127.0.0.1:*"
-                    )
+                    .allowedOriginPatterns("*")
                     .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                     .allowedHeaders("*")
                     .exposedHeaders("*")
