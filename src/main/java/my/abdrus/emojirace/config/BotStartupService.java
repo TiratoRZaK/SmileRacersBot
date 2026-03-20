@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import my.abdrus.emojirace.bot.EmojiRaceBot;
 import my.abdrus.emojirace.bot.service.JackpotService;
@@ -15,6 +16,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
+import org.telegram.telegrambots.meta.generics.BotSession;
 
 @Component
 @RequiredArgsConstructor
@@ -30,8 +32,8 @@ public class BotStartupService {
     private final MatchGenerationService matchGenerationService;
 
     private final AtomicBoolean registrationScheduled = new AtomicBoolean(false);
-    private final AtomicBoolean botRegistered = new AtomicBoolean(false);
     private final AtomicBoolean backgroundStarted = new AtomicBoolean(false);
+    private volatile BotSession botSession;
 
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
@@ -48,9 +50,8 @@ public class BotStartupService {
     private void registerAndStart() {
         registrationScheduled.set(false);
         try {
-            if (!botRegistered.get()) {
-                telegramBotsApi.registerBot(emojiRaceBot);
-                botRegistered.set(true);
+            if (botSession == null) {
+                botSession = telegramBotsApi.registerBot(emojiRaceBot);
                 log.info("Telegram bot registered successfully.");
             }
 
@@ -64,6 +65,14 @@ public class BotStartupService {
             log.warn("Telegram is unavailable during startup. Bot registration/init will retry in {} sec. Cause: {}",
                     RETRY_DELAY.toSeconds(), e.getMessage());
             scheduleStartup(RETRY_DELAY);
+        }
+    }
+
+    @PreDestroy
+    public void stop() {
+        if (botSession != null) {
+            botSession.stop();
+            botSession = null;
         }
     }
 }
