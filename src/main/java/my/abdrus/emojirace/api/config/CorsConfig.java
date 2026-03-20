@@ -13,11 +13,12 @@ public class CorsConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
-                    .allowedOrigins("http://localhost:5173")
-                    .allowedOrigins("https://localhost:8080")
-                    .allowedOrigins("http://localhost:8080")
-                    .allowedMethods("GET", "POST", "PUT", "DELETE")
-                    .allowCredentials(true);
+                    .allowedOriginPatterns("*")
+                    .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                    .allowedHeaders("*")
+                    .exposedHeaders("*")
+                    .allowCredentials(true)
+                    .maxAge(3600);
             }
         };
     }
