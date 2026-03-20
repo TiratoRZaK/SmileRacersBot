@@ -43,11 +43,15 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
 
     @Override
     public void onUpdateReceived(Update update) {
-        boolean isMainChannel = mainChannelService.isMainChannel(update);
-        if (isMainChannel) {
-            mainChannelService.updateProcess(update, this);
-        } else {
-            clientChannelService.updateProcess(update, this);
+        try {
+            boolean isMainChannel = mainChannelService.isMainChannel(update);
+            if (isMainChannel) {
+                mainChannelService.updateProcess(update, this);
+            } else {
+                clientChannelService.updateProcess(update, this);
+            }
+        } catch (RuntimeException e) {
+            log.error("Ошибка обработки входящего Telegram update", e);
         }
     }
 
@@ -65,7 +69,15 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
 
     public void deleteMessage(Long chatId, Integer messageId) {
         userNotificationService.deleteByUserChatIdAndMessageId(chatId, messageId);
-        execute(new DeleteMessage(chatId.toString(), messageId));
+        try {
+            execute(new DeleteMessage(chatId.toString(), messageId));
+        } catch (RuntimeException e) {
+            if (isIgnorableDeleteError(e)) {
+                log.debug("Пропуск удаления сообщения {} в чате {}: {}", messageId, chatId, e.getMessage());
+                return;
+            }
+            throw e;
+        }
     }
 
     @Override
@@ -165,6 +177,26 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
             errorMessage = e.getMessage();
         }
         return errorMessage != null && errorMessage.toLowerCase(Locale.ROOT).contains("message to edit not found");
+    }
+
+    private boolean isIgnorableDeleteError(RuntimeException e) {
+        Throwable cause = e.getCause();
+        if (cause instanceof TelegramApiRequestException requestException) {
+            if (isDeleteMessageNotExistsError(requestException)) {
+                return true;
+            }
+            String errorMessage = requestException.getApiResponse();
+            if (errorMessage == null || errorMessage.isBlank()) {
+                errorMessage = requestException.getMessage();
+            }
+            if (errorMessage == null) {
+                return false;
+            }
+            String normalizedMessage = errorMessage.toLowerCase(Locale.ROOT);
+            return normalizedMessage.contains("message can't be deleted")
+                    || normalizedMessage.contains("message cannot be deleted");
+        }
+        return false;
     }
 
     @Override
