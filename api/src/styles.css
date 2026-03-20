@@ -33,7 +33,7 @@ body {
   max-width: 460px;
   margin: 0 auto;
   padding: 10px 12px 24px;
-  overflow-x: clip;
+  overflow-x: hidden;
 }
 
 .sticky-header-shell {
@@ -43,11 +43,6 @@ body {
   margin-bottom: 10px;
   transform-origin: top center;
   transition: transform .25s ease, top .25s ease;
-  pointer-events: none;
-}
-
-.sticky-header-shell > * {
-  pointer-events: auto;
 }
 
 .sticky-header-shell.compact {
@@ -68,6 +63,9 @@ body {
 .panel,
 .toast,
 .modal {
+  position: relative;
+  isolation: isolate;
+  -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
   background: linear-gradient(135deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .05));
   border: 1px solid rgba(255, 255, 255, .2);
@@ -81,8 +79,6 @@ body {
   gap: 10px;
   padding: 10px 12px;
   border-radius: 18px;
-  position: sticky;
-  top: 6px;
   z-index: 42;
 }
 
@@ -477,7 +473,10 @@ input,
 select,
 button {
   min-width: 0;
+  position: relative;
+  z-index: 1;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .field:focus,

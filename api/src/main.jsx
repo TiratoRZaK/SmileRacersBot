@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 
-const API = '/api/miniapp'
+const API = new URL('./api/miniapp', document.baseURI).toString().replace(/\/$/, '')
 const tg = window.Telegram?.WebApp
 const WITHDRAW_MIN = 100
 const TOPUP_MIN = 1
@@ -187,6 +187,51 @@ function App() {
     return headers
   }, [])
 
+  const parseResponsePayload = async (response) => {
+    const text = await response.text()
+    if (!text) return {}
+    try {
+      return JSON.parse(text)
+    } catch {
+      return {
+        success: response.ok,
+        message: text.slice(0, 220) || `HTTP ${response.status}`
+      }
+    }
+  }
+
+  const getErrorMessage = (payload, fallback) => {
+    if (payload?.message) return payload.message
+    return fallback
+  }
+
+  const requestApi = async (path, options = {}) => {
+    const { method = 'GET', body, includeQuery = true, headers = {}, fallbackErrorMessage } = options
+    const url = `${API}/${path}${includeQuery && requestQuery ? `?${requestQuery}` : ''}`
+
+    let response
+    try {
+      response = await fetch(url, {
+        method,
+        headers: {
+          ...(body != null ? { 'Content-Type': 'application/json' } : {}),
+          ...requestHeaders,
+          ...headers
+        },
+        ...(body != null ? { body: JSON.stringify(body) } : {})
+      })
+    } catch {
+      throw new Error(fallbackErrorMessage || 'Не удалось связаться с сервером. Проверьте сеть и настройки прокси.')
+    }
+
+    const payload = await parseResponsePayload(response)
+    if (!response.ok) {
+      throw new Error(getErrorMessage(payload, fallbackErrorMessage || `Ошибка запроса (${response.status}).`))
+    }
+
+    return payload
+  }
+
   useEffect(() => {
     favoriteDirtyRef.current = favoriteDirty
   }, [favoriteDirty])
@@ -200,12 +245,10 @@ function App() {
     refreshInFlightRef.current = true
 
     try {
-      const [bootstrapRes, withdrawsRes] = await Promise.all([
-        fetch(`${API}/bootstrap${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders }),
-        fetch(`${API}/withdraw/active${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders })
+      const [bootstrapData, withdrawData] = await Promise.all([
+        requestApi('bootstrap', { fallbackErrorMessage: 'Не удалось загрузить состояние MiniApp.' }),
+        requestApi('withdraw/active', { fallbackErrorMessage: 'Не удалось загрузить активные выводы.' })
       ])
-      const bootstrapData = await bootstrapRes.json()
-      const withdrawData = await withdrawsRes.json()
       setData(bootstrapData)
       setActiveWithdraws(withdrawData.items || [])
 
@@ -226,8 +269,7 @@ function App() {
     if (historyLoading || isHistoryLoaded) return
     setHistoryLoading(true)
     try {
-      const historyRes = await fetch(`${API}/history${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders })
-      const historyData = await historyRes.json()
+      const historyData = await requestApi('history', { fallbackErrorMessage: 'Не удалось загрузить историю операций.' })
       setHistoryItems(historyData.items || [])
       setIsHistoryLoaded(true)
     } finally {
@@ -239,8 +281,7 @@ function App() {
     if (recentResultsLoading || isRecentResultsLoaded) return
     setRecentResultsLoading(true)
     try {
-      const recentRes = await fetch(`${API}/recent-results${requestQuery ? `?${requestQuery}` : ''}`, { headers: requestHeaders })
-      const recentData = await recentRes.json()
+      const recentData = await requestApi('recent-results', { fallbackErrorMessage: 'Не удалось загрузить последние гонки.' })
       setRecentResults(recentData.items || [])
       setIsRecentResultsLoaded(true)
     } finally {
@@ -382,37 +423,46 @@ function App() {
   }
 
   const act = async (path, body) => {
-    const res = await fetch(`${API}/${path}${requestQuery ? `?${requestQuery}` : ''}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...requestHeaders },
-      body: JSON.stringify(body)
-    })
-    const r = await res.json()
-    if (path === 'vote' && res.ok && body?.amount && body?.playerNumber) {
-      const votedUnit = (data?.race?.units || []).find((u) => u.playerNumber === body.playerNumber)
-      const target = votedUnit?.playerName || `участника #${body.playerNumber}`
-      notify(`✅ Принято: ${formatStars(body.amount)} ⭐ за ${target}`)
-    } else if (path === 'boost' && res.ok) {
-      const toastId = notify(r.message)
-      if (toastId != null) {
-        setTimeout(() => removeToast(toastId), 250)
+    try {
+      const r = await requestApi(path, {
+        method: 'POST',
+        body,
+        fallbackErrorMessage: 'Операция не выполнена. Проверьте доступность сервера.'
+      })
+
+      if (path === 'vote' && body?.amount && body?.playerNumber) {
+        const votedUnit = (data?.race?.units || []).find((u) => u.playerNumber === body.playerNumber)
+        const target = votedUnit?.playerName || `участника #${body.playerNumber}`
+        notify(`✅ Принято: ${formatStars(body.amount)} ⭐ за ${target}`)
+      } else if (path === 'boost') {
+        const toastId = notify(r.message)
+        if (toastId != null) {
+          setTimeout(() => removeToast(toastId), 250)
+        }
+      } else {
+        notify(r.message, {
+          persist: PERSISTENT_ACTIONS.has(path),
+          source: 'client'
+        })
       }
-    } else {
-      notify(r.message, {
-        persist: !NOTIFICATION_ACTIONS.has(path) && (!res.ok || PERSISTENT_ACTIONS.has(path)),
+
+      if (r.invoiceLink) {
+        tg?.openLink ? tg.openLink(r.invoiceLink) : window.open(r.invoiceLink, '_blank')
+      }
+      await refresh(true)
+      if (path === 'vote') {
+        setTimeout(() => {
+          refresh(true).catch(() => null)
+        }, 400)
+      }
+      return { ...r, httpOk: true }
+    } catch (error) {
+      notify(error.message || 'Операция не выполнена.', {
+        persist: !NOTIFICATION_ACTIONS.has(path),
         source: 'client'
       })
+      return { success: false, httpOk: false, message: error.message }
     }
-    if (r.invoiceLink) {
-      tg?.openLink ? tg.openLink(r.invoiceLink) : window.open(r.invoiceLink, '_blank')
-    }
-    await refresh(true)
-    if (path === 'vote' && res.ok) {
-      setTimeout(() => {
-        refresh(true).catch(() => null)
-      }, 400)
-    }
-    return { ...r, httpOk: res.ok }
   }
 
   const maxWithdraw = data?.balance || WITHDRAW_MIN
@@ -460,11 +510,18 @@ function App() {
   }
 
   const openHelp = async () => {
-    const response = await fetch(`${API}/help`)
-    const payload = await response.json()
-    const link = payload?.message
-    if (link && /^https?:\/\//.test(link)) {
-      tg?.openLink ? tg.openLink(link) : window.open(link, '_blank')
+    try {
+      const payload = await requestApi('help', {
+        includeQuery: false,
+        fallbackErrorMessage: 'Не удалось получить ссылку на поддержку.'
+      })
+      const link = payload?.message
+      if (link && /^https?:\/\//.test(link)) {
+        tg?.openLink ? tg.openLink(link) : window.open(link, '_blank')
+        return
+      }
+    } catch (error) {
+      notify(error.message || 'Ссылка на поддержку временно недоступна.')
       return
     }
     notify('Ссылка на поддержку временно недоступна.')
@@ -510,19 +567,15 @@ function App() {
     }
 
     try {
-      const response = await fetch(`${API}/notification/delete${requestQuery ? `?${requestQuery}` : ''}`, {
+      await requestApi('notification/delete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...requestHeaders },
-        body: JSON.stringify({ notificationId })
+        body: { notificationId },
+        fallbackErrorMessage: 'Не удалось удалить уведомление.'
       })
-      const payload = await response.json()
-      if (!response.ok || !payload?.success) {
-        if (response.status === 404 || payload?.message === 'Уведомление не найдено.') {
-          return
-        }
-        setSavedNotifications((current) => [notification, ...current].slice(0, MAX_SAVED_NOTIFICATIONS))
+    } catch (error) {
+      if (error.message === 'Уведомление не найдено.') {
+        return
       }
-    } catch (e) {
       setSavedNotifications((current) => [notification, ...current].slice(0, MAX_SAVED_NOTIFICATIONS))
     }
   }
@@ -536,15 +589,11 @@ function App() {
     }
 
     try {
-      const response = await fetch(`${API}/notification/clear${requestQuery ? `?${requestQuery}` : ''}`, {
+      await requestApi('notification/clear', {
         method: 'POST',
-        headers: requestHeaders
+        fallbackErrorMessage: 'Не удалось очистить уведомления.'
       })
-      const payload = await response.json()
-      if (!response.ok || !payload?.success) {
-        setSavedNotifications((current) => [...serverNotifications, ...current].slice(0, MAX_SAVED_NOTIFICATIONS))
-      }
-    } catch (e) {
+    } catch (error) {
       setSavedNotifications((current) => [...serverNotifications, ...current].slice(0, MAX_SAVED_NOTIFICATIONS))
     }
   }

@@ -1,6 +1,5 @@
 package my.abdrus.emojirace.config;
 
-import my.abdrus.emojirace.bot.EmojiRaceBot;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.TaskScheduler;
@@ -13,10 +12,8 @@ import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 public class BotConfig {
 
     @Bean
-    public TelegramBotsApi telegramBotsApi(EmojiRaceBot emojiRaceBot) throws Exception {
-        TelegramBotsApi botsApi = new TelegramBotsApi(DefaultBotSession.class);
-        botsApi.registerBot(emojiRaceBot);
-        return botsApi;
+    public TelegramBotsApi telegramBotsApi() throws Exception {
+        return new TelegramBotsApi(DefaultBotSession.class);
     }
 
     @Bean
