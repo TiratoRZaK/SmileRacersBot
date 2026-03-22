@@ -1,6 +1,10 @@
 package my.abdrus.emojirace.bot;
 
 import java.io.Serializable;
+import java.net.ConnectException;
+import java.net.NoRouteToHostException;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.Date;
 import java.util.Locale;
 
@@ -11,9 +15,9 @@ import my.abdrus.emojirace.config.BotProperties;
 import my.abdrus.emojirace.config.ChannelProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
+import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -28,18 +32,28 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
 
     private static final Logger log = LoggerFactory.getLogger(EmojiRaceBot.class);
 
-    @Autowired
-    private TaskScheduler scheduler;
-    @Autowired
-    private MainChannelService mainChannelService;
-    @Autowired
-    private ClientChannelService clientChannelService;
-    @Autowired
-    private ChannelProperties channelProperties;
-    @Autowired
-    private BotProperties botProperties;
-    @Autowired
-    private UserNotificationService userNotificationService;
+    private final TaskScheduler scheduler;
+    private final MainChannelService mainChannelService;
+    private final ClientChannelService clientChannelService;
+    private final ChannelProperties channelProperties;
+    private final BotProperties botProperties;
+    private final UserNotificationService userNotificationService;
+
+    public EmojiRaceBot(DefaultBotOptions botOptions,
+                        TaskScheduler scheduler,
+                        MainChannelService mainChannelService,
+                        ClientChannelService clientChannelService,
+                        ChannelProperties channelProperties,
+                        BotProperties botProperties,
+                        UserNotificationService userNotificationService) {
+        super(botOptions, botProperties.getToken());
+        this.scheduler = scheduler;
+        this.mainChannelService = mainChannelService;
+        this.clientChannelService = clientChannelService;
+        this.channelProperties = channelProperties;
+        this.botProperties = botProperties;
+        this.userNotificationService = userNotificationService;
+    }
 
     @Override
     public void onUpdateReceived(Update update) {
@@ -74,6 +88,10 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
         } catch (RuntimeException e) {
             if (isIgnorableDeleteError(e)) {
                 log.debug("Пропуск удаления сообщения {} в чате {}: {}", messageId, chatId, e.getMessage());
+                return;
+            }
+            if (isTransientNetworkError(e)) {
+                log.warn("Telegram недоступен при удалении сообщения {} в чате {}: {}", messageId, chatId, getRootCauseMessage(e));
                 return;
             }
             throw e;
@@ -119,6 +137,10 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
                 log.error("Повтор отправки");
                 attempt++;
             } catch (TelegramApiException ex) {
+                if (isTransientNetworkError(ex)) {
+                    log.warn("Telegram API временно недоступен для метода {}: {}",
+                            sendMessage.getClass().getSimpleName(), getRootCauseMessage(ex));
+                }
                 throw new RuntimeException(ex);
             }
         }
@@ -197,6 +219,28 @@ public class EmojiRaceBot extends TelegramLongPollingBot {
                     || normalizedMessage.contains("message cannot be deleted");
         }
         return false;
+    }
+
+    private boolean isTransientNetworkError(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof SocketTimeoutException
+                    || current instanceof NoRouteToHostException
+                    || current instanceof ConnectException
+                    || current instanceof SocketException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private String getRootCauseMessage(Throwable error) {
+        Throwable current = error;
+        while (current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current.getMessage() == null ? current.getClass().getSimpleName() : current.getMessage();
     }
 
     @Override

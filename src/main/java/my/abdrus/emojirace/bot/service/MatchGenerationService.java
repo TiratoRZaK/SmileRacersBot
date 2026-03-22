@@ -16,7 +16,6 @@ import my.abdrus.emojirace.bot.enumeration.MatchStatus;
 import my.abdrus.emojirace.bot.enumeration.MatchType;
 import my.abdrus.emojirace.bot.repository.MatchRepository;
 import my.abdrus.emojirace.bot.repository.PlayerRepository;
-import my.abdrus.emojirace.config.ChannelProperties;
 import my.abdrus.emojirace.config.RaceProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.TaskScheduler;
@@ -46,34 +45,38 @@ public class MatchGenerationService {
 
     public void startGeneration(EmojiRaceBot bot) {
         taskScheduler.scheduleWithFixedDelay(() -> {
-            var liveMatch = matchRepository.findFirstByStatusOrderByCreatedDateAsc(MatchStatus.LIVE).orElse(null);
-            if (liveMatch != null) {
-                return;
-            }
+            try {
+                var liveMatch = matchRepository.findFirstByStatusOrderByCreatedDateAsc(MatchStatus.LIVE).orElse(null);
+                if (liveMatch != null) {
+                    return;
+                }
 
-            var waitingBattle = matchRepository
-                    .findFirstByStatusAndTypeAndBattleStartRequestedTrueOrderByCreatedDateAsc(MatchStatus.CREATED, MatchType.BATTLE)
-                    .filter(match -> matchService.canStartBattle(match.getId(), match.getCreatorUserChatId()))
-                    .orElse(null);
-            if (waitingBattle != null) {
-                log.info("Старт батла #{} из очереди ожидания", waitingBattle.getId());
-                matchRepository.findById(waitingBattle.getId()).ifPresent(match -> matchService.startLiveByActiveMatch(match, bot));
-                return;
-            }
+                var waitingBattle = matchRepository
+                        .findFirstByStatusAndTypeAndBattleStartRequestedTrueOrderByCreatedDateAsc(MatchStatus.CREATED, MatchType.BATTLE)
+                        .filter(match -> matchService.canStartBattle(match.getId(), match.getCreatorUserChatId()))
+                        .orElse(null);
+                if (waitingBattle != null) {
+                    log.info("Старт батла #{} из очереди ожидания", waitingBattle.getId());
+                    matchRepository.findById(waitingBattle.getId()).ifPresent(match -> matchService.startLiveByActiveMatch(match, bot));
+                    return;
+                }
 
-            var waitingRegularMatch = matchRepository
-                    .findFirstByStatusAndTypeOrderByCreatedDateAsc(MatchStatus.CREATED, MatchType.REGULAR)
-                    .orElse(null);
-            if (waitingRegularMatch != null) {
-                matchRepository.findById(waitingRegularMatch.getId()).ifPresent(match -> matchService.startLiveByActiveMatch(match, bot));
-                return;
-            }
+                var waitingRegularMatch = matchRepository
+                        .findFirstByStatusAndTypeOrderByCreatedDateAsc(MatchStatus.CREATED, MatchType.REGULAR)
+                        .orElse(null);
+                if (waitingRegularMatch != null) {
+                    matchRepository.findById(waitingRegularMatch.getId()).ifPresent(match -> matchService.startLiveByActiveMatch(match, bot));
+                    return;
+                }
 
-            Match createdRegularMatch = matchService.createMatchByPlayers(getPlayersForMatch());
-            log.info("Генерация новой гонки #{}", createdRegularMatch.getId());
-            matchRepository
-                    .findById(createdRegularMatch.getId())
-                    .ifPresent(match -> matchService.sendMatchLineToChannel(match, bot));
+                Match createdRegularMatch = matchService.createMatchByPlayers(getPlayersForMatch());
+                log.info("Генерация новой гонки #{}", createdRegularMatch.getId());
+                matchRepository
+                        .findById(createdRegularMatch.getId())
+                        .ifPresent(match -> matchService.sendMatchLineToChannel(match, bot));
+            } catch (RuntimeException e) {
+                log.error("Ошибка фоновой генерации гонки. Следующий цикл продолжит работу.", e);
+            }
         }, Duration.ofMinutes(Math.max(1, raceProperties.getGenerationIntervalMinutes() == null
                 ? 3
                 : raceProperties.getGenerationIntervalMinutes())));
