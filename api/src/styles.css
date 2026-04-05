@@ -141,9 +141,9 @@ b {
 .tabs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  gap: 8px;
   margin: 0;
-  padding: 0;
+  padding: 2px 2px 4px;
 }
 
 button,
@@ -172,8 +172,9 @@ button:disabled {
 }
 
 .tabs button {
-  padding: 8px 6px;
+  padding: 7px 5px;
   font-size: 11px;
+  border-radius: 12px;
 }
 
 .panel {
@@ -192,7 +193,7 @@ button:disabled {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-bottom: 18px;
+  padding-bottom: 12px;
 }
 
 .race-recent-panel {
@@ -226,17 +227,17 @@ h3 {
 
 .unit {
   position: relative;
-  margin-top: 9px;
+  margin-top: 6px;
   border-radius: 0;
-  padding: 8px;
+  padding: 4px 6px;
   background: transparent;
   border: 0;
 }
 
 .track {
-  margin-top: 8px;
+  margin-top: 6px;
   border-radius: 18px;
-  padding: 8px;
+  padding: 6px;
   border: 1px solid rgba(255, 255, 255, .16);
   overflow: visible;
   background-repeat: no-repeat;
@@ -260,7 +261,7 @@ h3 {
 }
 
 .lane {
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .lane::before {
@@ -293,8 +294,8 @@ h3 {
 
 .meter {
   position: relative;
-  height: 10px;
-  margin-top: 8px;
+  height: 8px;
+  margin-top: 6px;
   border-radius: 999px;
   overflow: visible;
   background: rgba(255, 255, 255, .16);
@@ -401,13 +402,13 @@ h3 {
 .vote-inline {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, auto);
-  gap: 8px;
-  margin-top: 6px;
+  gap: 6px;
+  margin-top: 4px;
   align-items: stretch;
 }
 
 .vote-inline-wrap {
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 
@@ -429,7 +430,7 @@ h3 {
 }
 
 .vote-caption {
-  font-size: 12px;
+  font-size: 11px;
   opacity: .92;
   text-align: center;
 }
@@ -484,14 +485,14 @@ select:focus {
 
 .row button {
   flex: 1 1 140px;
-  min-height: 44px;
+  min-height: 38px;
   white-space: normal;
   word-break: break-word;
 }
 
 .battle-create-row {
   display: grid;
-  grid-template-columns: minmax(84px, 112px) minmax(0, 1fr);
+  grid-template-columns: minmax(84px, 96px) minmax(88px, 120px) minmax(0, 1fr);
 }
 
 .battle-action-row {
@@ -502,6 +503,10 @@ select:focus {
 .battle-join-row {
   display: grid;
   grid-template-columns: minmax(96px, 1fr) minmax(84px, 96px) minmax(0, 1.2fr);
+}
+
+.battle-action-row-single {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .help-btn {
@@ -1128,6 +1133,76 @@ select:focus {
 
 .battle-section h3 {
   margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.battle-section .accordion-section + .accordion-section {
+  margin-top: 10px;
+}
+
+.battle-manage-card {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  background: linear-gradient(145deg, rgba(56, 189, 248, .12), rgba(124, 77, 255, .14));
+}
+
+.battle-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.battle-stat {
+  border-radius: 12px;
+  padding: 8px;
+  background: rgba(9, 16, 46, .56);
+  border: 1px solid rgba(255, 255, 255, .14);
+}
+
+.battle-stat span {
+  display: block;
+  font-size: 11px;
+  opacity: .78;
+}
+
+.battle-stat strong {
+  margin-top: 4px;
+  display: block;
+  font-size: 15px;
+}
+
+.battle-state-line {
+  margin-top: 10px;
+}
+
+.battle-participant-row {
+  border-radius: 10px;
+  padding: 7px 8px;
+  background: rgba(255, 255, 255, .08);
+}
+
+.race-before-start {
+  overflow: hidden;
+}
+
+.race-before-start .race-scale-content {
+  transform: none !important;
+  width: 100% !important;
+}
+
+.race-before-start .track {
+  padding: 5px;
+}
+
+.race-before-start .runner {
+  font-size: clamp(20px, 7vw, 28px);
+}
+
+.race-before-start .vote-inline button,
+.race-before-start .vote-field {
+  padding-top: 7px;
+  padding-bottom: 7px;
 }
 
 .history-table {

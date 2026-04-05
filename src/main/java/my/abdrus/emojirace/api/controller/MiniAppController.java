@@ -96,10 +96,10 @@ public class MiniAppController {
 
         MiniAppDtos.RaceCard raceCard = toRaceCard(selectedMatch, activeRace, userId);
         MiniAppDtos.RaceCard myBattleCard = matchRepository
-                .findFirstByTypeAndCreatorUserChatIdAndStatusInOrderByCreatedDateDesc(
+                .findFirstByTypeAndStatusInAndMatchPlayers_OwnerUserChatIdOrderByCreatedDateDesc(
                         MatchType.BATTLE,
-                        userId,
-                        List.of(MatchStatus.CREATED, MatchStatus.LIVE)
+                        List.of(MatchStatus.CREATED, MatchStatus.LIVE),
+                        userId
                 )
                 .map(match -> toRaceCard(match, activeRace, userId))
                 .orElse(null);
@@ -375,14 +375,8 @@ public class MiniAppController {
             return new MiniAppDtos.ActionResponse(false, "Старт недоступен: нужен создатель и минимум 2 участника.");
         }
 
-        Match liveExists = matchRepository.findFirstByStatusOrderByCreatedDateAsc(MatchStatus.LIVE).orElse(null);
-        if (liveExists == null) {
-            matchRepository.findById(request.matchId()).ifPresent(match -> matchService.startLiveByActiveMatch(match, bot));
-            return new MiniAppDtos.ActionResponse(true, "Батл запущен!");
-        }
-
         if (matchService.requestBattleStart(request.matchId(), userId)) {
-            return new MiniAppDtos.ActionResponse(true, "Батл ждёт очереди и стартует автоматически после текущей гонки.");
+            return new MiniAppDtos.ActionResponse(true, "Батл поставлен в очередь и стартует автоматически, когда придёт его очередь.");
         }
         return new MiniAppDtos.ActionResponse(false, "Не удалось поставить батл в очередь.");
     }
@@ -434,10 +428,28 @@ public class MiniAppController {
             if (battle.getCreatorUserChatId() != null) {
                 matchService.refreshBattleCreatorMessage(request.matchId(), bot);
             }
-            return new MiniAppDtos.ActionResponse(true, "Вы присоединились к батлу #" + request.matchId() + ".");
+            return new MiniAppDtos.ActionResponse(true, "Вы присоединились к батлу #" + request.matchId() + " за " + matchService.getBattleStake(battle) + " ⭐.");
         } catch (PaymentException e) {
             return new MiniAppDtos.ActionResponse(false, e.getMessage());
         }
+    }
+
+    @PostMapping("/battle/leave")
+    public MiniAppDtos.ActionResponse leaveBattle(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.CancelBattleRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.matchId() == null) {
+            return new MiniAppDtos.ActionResponse(false, "Некорректный запрос на выход из батла.");
+        }
+
+        boolean left = matchService.leaveBattle(request.matchId(), userId);
+        if (!left) {
+            return new MiniAppDtos.ActionResponse(false, "Выйти из батла можно только до старта.");
+        }
+        return new MiniAppDtos.ActionResponse(true, "Вы вышли из батла. Ставка возвращена на баланс.");
     }
 
     @PostMapping("/battle/cancel")
@@ -574,7 +586,7 @@ public class MiniAppController {
                 : null;
 
         String inviteLink = match.getType() == MatchType.BATTLE
-                ? channelProperties.getBotLink() + "?start=join_battle_" + match.getId()
+                ? "https://t.me/" + botProperties.getUsername() + "/app?startapp=join_battle_" + match.getId()
                 : null;
 
         return new MiniAppDtos.RaceCard(

@@ -24,6 +24,7 @@ import my.abdrus.emojirace.bot.repository.PaymentRequestRepository;
 import my.abdrus.emojirace.bot.repository.PlayerRepository;
 import my.abdrus.emojirace.bot.repository.UserRepository;
 import my.abdrus.emojirace.bot.repository.BalanceTopupRepository;
+import my.abdrus.emojirace.config.BotProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
@@ -67,6 +68,8 @@ public class ClientChannelService extends ChannelService {
     private UserHistoryReportService userHistoryReportService;
     @Autowired
     private BalanceTopupRepository balanceTopupRepository;
+    @Autowired
+    private BotProperties botProperties;
 
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss");
     private final Map<Long, Long> pendingBattleStake = new ConcurrentHashMap<>();
@@ -802,6 +805,17 @@ public class ClientChannelService extends ChannelService {
             bot.deleteMessageScheduled(chatId, bot.execute(new SendMessage(chatId.toString(), "Нет доступных смайлов для входа в батл.")).getMessageId());
             return;
         }
+
+        String miniAppUrl = "https://t.me/" + botProperties.getUsername() + "/app?startapp=join_battle_" + battleId;
+        SendMessage openMiniAppMessage = new SendMessage(chatId.toString(),
+                "⚔️ Батл #" + battleId + " ждёт вас.\n" +
+                        "Стоимость входа: " + stake + " ⭐\n" +
+                        "Откройте Mini App — вы сразу попадёте во вкладку подключения к батлу.");
+        openMiniAppMessage.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(
+                InlineKeyboardButton.builder().text("🚀 Открыть Mini App").url(miniAppUrl).build()
+        ))));
+        Message sentInvite = bot.execute(openMiniAppMessage);
+        bot.saveUserNotification(openMiniAppMessage, sentInvite);
 
         boolean isFirstMessage = true;
         while (!availablePlayers.isEmpty()) {
