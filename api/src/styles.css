@@ -41,9 +41,8 @@ body {
 }
 
 .top-zone {
-  flex: 0 0 12%;
-  min-height: 90px;
-  max-height: 124px;
+  flex: 0 0 auto;
+  min-height: 0;
   display: grid;
   gap: 6px;
   z-index: 12;
@@ -191,7 +190,9 @@ button:disabled {
 
 .tab-panel {
   height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 18px;
 }
 
 .race-recent-panel {
@@ -205,13 +206,13 @@ p {
 }
 
 h2 {
-  font-size: 22px;
+  font-size: clamp(20px, 5.2vw, 22px);
 }
 
 .subtitle {
   margin-top: 6px;
   opacity: .78;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 h3 {
@@ -225,17 +226,17 @@ h3 {
 
 .unit {
   position: relative;
-  margin-top: 12px;
+  margin-top: 9px;
   border-radius: 0;
-  padding: 12px;
+  padding: 8px;
   background: transparent;
   border: 0;
 }
 
 .track {
-  margin-top: 12px;
+  margin-top: 8px;
   border-radius: 18px;
-  padding: 10px;
+  padding: 8px;
   border: 1px solid rgba(255, 255, 255, .16);
   overflow: visible;
   background-repeat: no-repeat;
@@ -292,8 +293,8 @@ h3 {
 
 .meter {
   position: relative;
-  height: 11px;
-  margin-top: 10px;
+  height: 10px;
+  margin-top: 8px;
   border-radius: 999px;
   overflow: visible;
   background: rgba(255, 255, 255, .16);
@@ -335,7 +336,7 @@ h3 {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
-  font-size: 34px;
+  font-size: clamp(24px, 8vw, 32px);
   line-height: 1;
   z-index: 5;
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .55));
@@ -372,8 +373,8 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 42px;
+  height: 42px;
   margin: 0 auto;
   border: 0;
   border-radius: 14px;
@@ -381,7 +382,7 @@ h3 {
 }
 
 .booster span {
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1;
 }
 
@@ -566,18 +567,19 @@ select:focus {
 
 .race-intro {
   white-space: pre-line;
-  margin-top: 10px;
-  line-height: 1.45;
+  margin-top: 8px;
+  line-height: 1.35;
   text-align: center;
+  font-size: 15px;
 }
 
 .booster-legend {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 8px;
-  margin-bottom: 8px;
-  font-size: 12px;
+  margin-top: 6px;
+  margin-bottom: 6px;
+  font-size: 11px;
   opacity: .9;
   justify-content: center;
 }
@@ -1051,7 +1053,7 @@ select:focus {
 .accordion-content {
   padding: 12px;
   overflow: auto;
-  max-height: 36vh;
+  max-height: none;
 }
 
 .history-table-wrap {
@@ -1059,7 +1061,12 @@ select:focus {
   border: 1px solid rgba(255, 255, 255, .16);
   border-radius: 12px;
   overflow: auto;
+  max-height: min(38vh, 260px);
   background: rgba(255, 255, 255, .05);
+}
+
+.battle-section h3 {
+  margin-top: 0;
 }
 
 .history-table {
@@ -1099,18 +1106,59 @@ select:focus {
     gap: 6px;
   }
 
-  .top-zone {
-    min-height: 84px;
-    max-height: 112px;
-  }
-
   .tabs {
     gap: 4px;
   }
 
   .tabs button {
     font-size: 10px;
-    padding: 7px 4px;
+    padding: 6px 3px;
+  }
+
+  .panel {
+    padding: 10px;
+    border-radius: 18px;
+  }
+
+  .track {
+    padding: 6px;
+    border-radius: 14px;
+  }
+
+  .lane::before {
+    left: 8px;
+    right: 8px;
+  }
+
+  .race-intro {
+    font-size: 13px;
+    line-height: 1.3;
+  }
+
+  .booster-actions {
+    gap: 6px;
+  }
+
+  .booster {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+
+  .booster span {
+    font-size: 20px;
+  }
+
+  .runner-booster {
+    top: -24px;
+  }
+
+  .runner-shields {
+    top: -44px;
+  }
+
+  .shield-chip {
+    font-size: 11px;
   }
 
   .vote-inline {
