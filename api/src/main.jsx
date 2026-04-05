@@ -728,13 +728,8 @@ function App() {
       {!data.race && <p className='subtitle'>Скоро начнётся новая гонка или создайте батл (вкладка «Батл»).</p>}
 
       {!!data.race && <p className='race-theme-label'>Стиль: {TRACK_THEME_LABELS[trackTheme]}</p>}
-      {!!data.race && raceLive && <p className='race-intro'>{`🔥 Гонка в самом разгаре! 🔥
-Помоги своему фавориту придти на 🏁 первым!
-
-Используй бустеры на кнопках ниже:
- 🐇 (10⭐️) - временно ускоряет выбранный смайл
- 🐢 (10⭐️) - временно замедляет выбранный смайл
- 🪖 (40⭐️) - позволяет защититься от 5-ти 🐢`}</p>}
+      {!!data.race && raceLive && <p className='race-intro'>{`🔥 Гонка в разгаре — поддержи фаворита!
+🐇 +скорость (10⭐) · 🐢 -скорость (10⭐) · 🪖 защита от 5 🐢 (40⭐)`}</p>}
       {!!data.race && raceLive && <div className='booster-legend'>
         <span><b>🐇</b> ускорить</span>
         <span><b>🐢</b> замедлить</span>
@@ -963,7 +958,8 @@ function App() {
     </section>}
 
     {tab === 'battle' && <section className='panel tab-panel account-panel'>
-      {renderSection('battles', 'Батлы', <>
+      <div className='battle-section'>
+        <h3>Батлы</h3>
         <div className='row battle-create-row'>
           <select value={battleEmoji} onChange={(e) => setBattleEmoji(e.target.value)}>{data.allEmojis.map((e) => <option key={e}>{e}</option>)}</select>
           <button onClick={() => act('battle', { playerName: battleEmoji, stake: 100 })}>Создать батл 100⭐</button>
@@ -1002,7 +998,7 @@ function App() {
           <select value={joinBattleEmoji} onChange={(e) => setJoinBattleEmoji(e.target.value)}>{data.allEmojis.map((emoji) => <option key={emoji}>{emoji}</option>)}</select>
           <button onClick={joinBattleFromUi}>Присоединиться к батлу</button>
         </div>
-      </>)}
+      </div>
     </section>}
     </main>
     <div className='toasts'>
