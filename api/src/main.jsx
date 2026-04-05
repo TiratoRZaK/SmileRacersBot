@@ -17,12 +17,6 @@ const RACE_TYPE_LABELS = {
   MARATHON: 'Марафон'
 }
 
-const TRACK_THEME_LABELS = {
-  asphalt: 'Трасса',
-  grass: 'Газон',
-  desert: 'Пустыня'
-}
-
 const TRACK_THEMES = ['asphalt', 'grass', 'desert']
 
 const TRACK_THEME_BACKGROUNDS = {
@@ -167,13 +161,18 @@ function App() {
   const [isAppReady, setIsAppReady] = useState(false)
   const [bootProgress, setBootProgress] = useState(14)
   const [favoriteDirty, setFavoriteDirty] = useState(false)
+  const [raceScale, setRaceScale] = useState(1)
+  const [battleMode, setBattleMode] = useState('idle')
+  const [boosterHint, setBoosterHint] = useState(null)
   const [sectionOpen, setSectionOpen] = useState({
     account: true,
-    favorite: true,
-    payments: true,
-    battles: true,
-    history: true,
-    recentRaces: true
+    favorite: false,
+    payments: false,
+    history: false,
+    recentRaces: true,
+    battleCreate: true,
+    battleManage: false,
+    battleJoin: false
   })
   const refreshInFlightRef = useRef(false)
   const interactionPauseUntilRef = useRef(0)
@@ -181,6 +180,7 @@ function App() {
   const favoriteDirtyRef = useRef(false)
   const favoriteRequestRef = useRef(null)
   const swipeStartRef = useRef(null)
+  const topZoneRef = useRef(null)
 
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams()
@@ -402,8 +402,25 @@ function App() {
     })
   }, [data?.notifications])
 
+  useEffect(() => {
+    const updateRaceScale = () => {
+      const viewportHeight = window.innerHeight || 0
+      const topZoneHeight = topZoneRef.current?.offsetHeight || 0
+      const availableHeight = viewportHeight - topZoneHeight - 24
+      const nextScale = Math.max(0.72, Math.min(1, availableHeight / 680))
+      setRaceScale(nextScale)
+    }
+
+    updateRaceScale()
+    window.addEventListener('resize', updateRaceScale)
+    return () => window.removeEventListener('resize', updateRaceScale)
+  }, [tab, isNotificationsOpen])
+
   const removeToast = (id) => {
-    setToasts((current) => current.filter((item) => item.id !== id))
+    setToasts((current) => current.map((item) => item.id === id ? { ...item, closing: true } : item))
+    setTimeout(() => {
+      setToasts((current) => current.filter((item) => item.id !== id))
+    }, 280)
   }
 
   const notify = (text, options = {}) => {
@@ -496,13 +513,19 @@ function App() {
       notify('Укажите ID батла и смайл для входа.', { persist: true })
       return
     }
-    await act('battle/join', { matchId, playerName: joinBattleEmoji })
-    setJoinBattleId('')
+    const response = await act('battle/join', { matchId, playerName: joinBattleEmoji })
+    if (response?.httpOk) {
+      setBattleMode('joined')
+      setJoinBattleId('')
+    }
   }
 
   const cancelMyBattle = async () => {
     if (!myBattle?.matchId) return
-    await act('battle/cancel', { matchId: myBattle.matchId })
+    const response = await act('battle/cancel', { matchId: myBattle.matchId })
+    if (response?.httpOk) {
+      setBattleMode('idle')
+    }
   }
 
   const openBattleInvite = (battle) => {
@@ -544,7 +567,20 @@ function App() {
       if (nextOpen && key === 'recentRaces') {
         loadRecentResults().catch(() => notify('Не удалось загрузить последние гонки.', { persist: true }))
       }
-      return { ...current, [key]: nextOpen }
+      if (!nextOpen) {
+        return { ...current, [key]: false }
+      }
+      const groups = [
+        ['account', 'favorite', 'payments'],
+        ['recentRaces', 'history'],
+        ['battleCreate', 'battleManage', 'battleJoin']
+      ]
+      const group = groups.find((items) => items.includes(key)) || [key]
+      const updated = { ...current }
+      group.forEach((item) => {
+        updated[item] = item === key
+      })
+      return updated
     })
   }
 
@@ -625,6 +661,19 @@ function App() {
   }), [trackTheme, raceUnits, data?.race?.matchId])
   const unreadCount = savedNotifications.filter((item) => !item.read).length
   const myBattleCanCancel = !!myBattle && myBattle.status === 'CREATED'
+  const canCreateBattle = !myBattle && battleMode !== 'joined'
+  const canManageBattle = !!myBattle && battleMode !== 'joined'
+  const canJoinBattle = !myBattle && battleMode !== 'owner'
+
+  useEffect(() => {
+    if (myBattle) {
+      setBattleMode('owner')
+      return
+    }
+    if (battleMode === 'owner') {
+      setBattleMode('idle')
+    }
+  }, [myBattle])
   const raceWinner = raceCompleted ? raceUnits.find((unit) => unit.place === 1) : null
   const racePayout = Number(data?.race?.myPayout || 0)
   const raceResultTitle = racePayout > 0 ? `Вы выиграли ${formatStars(racePayout)} ⭐` : racePayout < 0 ? `Вы проиграли ${formatStars(Math.abs(racePayout))} ⭐` : 'Эта гонка без изменения баланса'
@@ -672,7 +721,7 @@ function App() {
 
   return <div className='app'>
     <div className='aurora' />
-    <div className='top-zone'>
+    <div className='top-zone' ref={topZoneRef}>
       <div className='sticky-header-shell'>
       <header className='top-card'>
         <div className='top-card-main'>
@@ -724,16 +773,23 @@ function App() {
 
     <main className='content-zone' onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}>
     {tab === 'race' && <section className={`panel tab-panel race-panel race-theme-${trackTheme}`}>
+      <div className='race-scale-shell'>
+      <div className='race-scale-content' style={{ transform: `scale(${raceScale})`, width: `${100 / raceScale}%` }}>
       <h2>{data.race ? `Гонка #${data.race.matchId} · ${getRaceTypeLabel(data.race.type)}` : 'Нет активной гонки'}</h2>
       {!data.race && <p className='subtitle'>Скоро начнётся новая гонка или создайте батл (вкладка «Батл»).</p>}
 
-      {!!data.race && <p className='race-theme-label'>Стиль: {TRACK_THEME_LABELS[trackTheme]}</p>}
-      {!!data.race && raceLive && <p className='race-intro'>{`🔥 Гонка в разгаре — поддержи фаворита!
-🐇 +скорость (10⭐) · 🐢 -скорость (10⭐) · 🪖 защита от 5 🐢 (40⭐)`}</p>}
       {!!data.race && raceLive && <div className='booster-legend'>
-        <span><b>🐇</b> ускорить</span>
-        <span><b>🐢</b> замедлить</span>
-        <span><b>🪖</b> защитить</span>
+        <button type='button' onClick={() => setBoosterHint('BUST')}><b>🐇</b> ускорить · 10⭐</button>
+        <button type='button' onClick={() => setBoosterHint('SLOW')}><b>🐢</b> замедлить · 10⭐</button>
+        <button type='button' onClick={() => setBoosterHint('SHIELD')}><b>🪖</b> защитить · 40⭐</button>
+      </div>}
+      {boosterHint && <div className='booster-hint-popover'>
+        <div>
+          {boosterHint === 'BUST' && <p><b>🐇 Ускорение:</b> выбранный смайл получает временный буст скорости и быстрее продвигается к финишу.</p>}
+          {boosterHint === 'SLOW' && <p><b>🐢 Замедление:</b> выбранный смайл теряет темп на короткое время, что снижает его шанс на победу.</p>}
+          {boosterHint === 'SHIELD' && <p><b>🪖 Защита:</b> даёт 5 щитов. Каждый щит блокирует одно замедление 🐢.</p>}
+        </div>
+        <button className='chip' onClick={() => setBoosterHint(null)}>Понятно</button>
       </div>}
       {!!data.race && <div className={`track track-${trackTheme}`} style={trackBackgroundStyle}>
       {raceUnits.map((u) => {
@@ -848,6 +904,8 @@ function App() {
           </button>
         </div>
       </div>}
+      </div>
+      </div>
     </section>}
 
     {tab === 'account' && <section className='panel tab-panel account-panel'>
@@ -922,11 +980,13 @@ function App() {
       {renderSection('recentRaces', 'История гонок', <>
         {recentResultsLoading && <p className='subtitle'>Загружаем последние гонки…</p>}
         {isRecentResultsLoaded && !recentResults.length && <p className='subtitle'>Пока нет завершённых гонок.</p>}
-        {recentResults.map((result) => <div key={result.matchId} className='recent-result-card'>
-          <div className='recent-result-title'>#{result.matchId} · {getRaceTypeLabel(result.type)}</div>
-          <div className='subtitle'>Победитель: {result.winnerName || '—'}</div>
-          <div className='subtitle'>Участники: {(result.units || []).map((u) => u.playerName).join(' · ')}</div>
-        </div>)}
+        <div className='archive-results-list'>
+          {recentResults.map((result) => <div key={result.matchId} className='recent-result-card'>
+            <div className='recent-result-title'>#{result.matchId} · {getRaceTypeLabel(result.type)}</div>
+            <div className='subtitle'>Победитель: {result.winnerName || '—'}</div>
+            <div className='subtitle'>Участники: {(result.units || []).map((u) => u.playerName).join(' · ')}</div>
+          </div>)}
+        </div>
       </>)}
       {renderSection('history', 'История операций', <>
         {historyLoading && <p className='subtitle'>Загружаем историю операций…</p>}
@@ -960,49 +1020,59 @@ function App() {
     {tab === 'battle' && <section className='panel tab-panel account-panel'>
       <div className='battle-section'>
         <h3>Батлы</h3>
-        <div className='row battle-create-row'>
-          <select value={battleEmoji} onChange={(e) => setBattleEmoji(e.target.value)}>{data.allEmojis.map((e) => <option key={e}>{e}</option>)}</select>
-          <button onClick={() => act('battle', { playerName: battleEmoji, stake: 100 })}>Создать батл 100⭐</button>
-        </div>
-        <div className='row battle-action-row'>
-          <button disabled={!myBattleCanInvite} onClick={() => openBattleInvite(myBattle)}>
-            {myBattle ? `Пригласить друзей в батл #${myBattle.matchId}` : 'Пригласить друзей'}
-          </button>
-          <button disabled={!myBattleCanStart} onClick={requestBattleStartFromUi}>Старт батла</button>
-          <button className='chip danger-chip' disabled={!myBattleCanCancel} onClick={cancelMyBattle}>Отменить мой батл</button>
-        </div>
-        {!myBattle && <p className='subtitle'>Сначала создайте батл, затем появится ссылка приглашения и станет доступен старт.</p>}
-        {myBattle && <>
-          <p className='subtitle'>Голос за победу: {myBattle.battleStake || 0} ⭐</p>
-          <p className='subtitle'>Общий банк: {getBattleBank(myBattle)} ⭐</p>
-          <p className='subtitle'>{getBattleStateLabel(myBattle)}</p>
-          <div className='battle-participants-list'>
-            {(myBattle.units || []).map((u) => <div key={u.playerNumber} className='battle-participant-row'>
-              <span>{getBattleParticipantLabel(u)}</span>
-              <button className='chip danger-chip' disabled={myBattleIsLive || u.playerNumber === 1} onClick={() => removeBattleParticipant(u.playerNumber)}>Исключить</button>
-            </div>)}
-          </div>
-        </>}
+        {renderSection('battleCreate', 'Создание нового батла', <>
+          {!canCreateBattle && <p className='subtitle'>Создание недоступно, пока активен ваш или уже подключённый батл.</p>}
+          {canCreateBattle && <div className='row battle-create-row'>
+            <select value={battleEmoji} onChange={(e) => setBattleEmoji(e.target.value)}>{data.allEmojis.map((e) => <option key={e}>{e}</option>)}</select>
+            <button onClick={async () => {
+              const response = await act('battle', { playerName: battleEmoji, stake: 100 })
+              if (response?.httpOk) setBattleMode('owner')
+            }}>Создать батл 100⭐</button>
+          </div>}
+        </>)}
 
-        <div className='row battle-join-row'>
-          <input
-            className='field'
-            type='number'
-            min='1'
-            step='1'
-            placeholder='ID батла'
-            value={joinBattleId}
-            onChange={(e) => { pausePollingForInteraction(); setJoinBattleId(e.target.value) }}
-            onFocus={pausePollingForInteraction}
-          />
-          <select value={joinBattleEmoji} onChange={(e) => setJoinBattleEmoji(e.target.value)}>{data.allEmojis.map((emoji) => <option key={emoji}>{emoji}</option>)}</select>
-          <button onClick={joinBattleFromUi}>Присоединиться к батлу</button>
-        </div>
+        {renderSection('battleManage', 'Управление моим батлом', <>
+          {!canManageBattle && <p className='subtitle'>Секция доступна только после создания вашего батла.</p>}
+          {canManageBattle && <>
+            <p className='subtitle'>Голос за победу: {myBattle.battleStake || 0} ⭐</p>
+            <p className='subtitle'>Общий банк: {getBattleBank(myBattle)} ⭐</p>
+            <p className='subtitle'>{getBattleStateLabel(myBattle)}</p>
+            <div className='battle-participants-list'>
+              {(myBattle.units || []).map((u) => <div key={u.playerNumber} className='battle-participant-row'>
+                <span>{getBattleParticipantLabel(u)}</span>
+                <button className='chip danger-chip' disabled={myBattleIsLive || u.playerNumber === 1} onClick={() => removeBattleParticipant(u.playerNumber)}>Исключить</button>
+              </div>)}
+            </div>
+            <div className='row battle-action-row'>
+              {myBattleCanInvite && <button onClick={() => openBattleInvite(myBattle)}>Пригласить друзей в батл #{myBattle.matchId}</button>}
+              {myBattleCanStart && <button onClick={requestBattleStartFromUi}>Старт батла</button>}
+              {myBattleCanCancel && <button className='chip danger-chip' onClick={cancelMyBattle}>Отменить мой батл</button>}
+            </div>
+          </>}
+        </>)}
+
+        {renderSection('battleJoin', 'Подключение к батлу', <>
+          {!canJoinBattle && <p className='subtitle'>Подключение недоступно, пока у вас активен собственный батл.</p>}
+          {canJoinBattle && <div className='row battle-join-row'>
+            <input
+              className='field'
+              type='number'
+              min='1'
+              step='1'
+              placeholder='ID батла'
+              value={joinBattleId}
+              onChange={(e) => { pausePollingForInteraction(); setJoinBattleId(e.target.value) }}
+              onFocus={pausePollingForInteraction}
+            />
+            <select value={joinBattleEmoji} onChange={(e) => setJoinBattleEmoji(e.target.value)}>{data.allEmojis.map((emoji) => <option key={emoji}>{emoji}</option>)}</select>
+            <button onClick={joinBattleFromUi}>Присоединиться к батлу</button>
+          </div>}
+        </>)}
       </div>
     </section>}
     </main>
     <div className='toasts'>
-      {toasts.map((toast) => <div key={toast.id} className='toast' onClick={() => removeToast(toast.id)}>
+      {toasts.map((toast) => <div key={toast.id} className={`toast ${toast.closing ? 'is-closing' : ''}`} onClick={() => removeToast(toast.id)}>
         <span>{toast.text}</span>
         <button className='toast-close' onClick={(e) => { e.stopPropagation(); removeToast(toast.id) }}>✕</button>
       </div>)}
