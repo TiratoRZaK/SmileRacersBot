@@ -91,7 +91,9 @@ public class MiniAppController {
         Match selectedMatch = activeRace != null
                 ? activeRace.getMatch()
                 : matchRepository
-                .findFirstByStatusInOrderByCreatedDateDesc(List.of(MatchStatus.CREATED, MatchStatus.LIVE))
+                .findTop10ByStatusInOrderByCreatedDateDesc(List.of(MatchStatus.CREATED, MatchStatus.LIVE)).stream()
+                .filter(match -> match.getType() != MatchType.BATTLE || match.getStatus() == MatchStatus.LIVE)
+                .findFirst()
                 .orElse(null);
 
         MiniAppDtos.RaceCard raceCard = toRaceCard(selectedMatch, activeRace, userId);
@@ -586,7 +588,7 @@ public class MiniAppController {
                 : null;
 
         String inviteLink = match.getType() == MatchType.BATTLE
-                ? "https://t.me/" + botProperties.getUsername() + "/app?startapp=join_battle_" + match.getId()
+                ? channelProperties.getBotLink() + "?start=join_battle_" + match.getId()
                 : null;
 
         return new MiniAppDtos.RaceCard(

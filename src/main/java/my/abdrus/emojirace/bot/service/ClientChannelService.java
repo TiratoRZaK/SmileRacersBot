@@ -806,7 +806,7 @@ public class ClientChannelService extends ChannelService {
             return;
         }
 
-        String miniAppUrl = "https://t.me/" + botProperties.getUsername() + "/app?startapp=join_battle_" + battleId;
+        String miniAppUrl = channelProperties.getBotLink() + "?start=join_battle_" + battleId;
         SendMessage openMiniAppMessage = new SendMessage(chatId.toString(),
                 "⚔️ Батл #" + battleId + " ждёт вас.\n" +
                         "Стоимость входа: " + stake + " ⭐\n" +

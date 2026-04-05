@@ -670,25 +670,26 @@ function App() {
     }
   }
 
-  const raceBeforeStart = data?.race?.status === 'CREATED'
-  const raceLive = data?.race?.status === 'LIVE'
-  const raceCompleted = data?.race?.status === 'COMPLETED'
+  const visibleRace = data?.race && !(data.race.type === 'BATTLE' && data.race.status !== 'LIVE') ? data.race : null
+  const raceBeforeStart = visibleRace?.status === 'CREATED'
+  const raceLive = visibleRace?.status === 'LIVE'
+  const raceCompleted = visibleRace?.status === 'COMPLETED'
   const myBattle = data?.myBattle || null
   const isMyBattleOwner = !!myBattle && Number((myBattle.units || []).find((unit) => unit.playerNumber === 1)?.ownerUserId || 0) === Number(userId || 0)
   const myBattleCanStart = !!myBattle && myBattle.status === 'CREATED' && !myBattle.battleStartRequested
   const myBattleCanInvite = !!myBattle?.inviteLink
   const myBattleIsLive = myBattle?.status === 'LIVE'
-  const boostersDisabled = !data?.race || raceBeforeStart
-  const trackTheme = getTrackTheme(data?.race)
-  const raceUnits = data?.race?.units || []
+  const boostersDisabled = !visibleRace || raceBeforeStart
+  const trackTheme = getTrackTheme(visibleRace)
+  const raceUnits = visibleRace?.units || []
   const maxScore = raceUnits.reduce((max, unit) => Math.max(max, Number(unit.score) || 0), 0)
   const finishScore = Math.max(Number(data?.race?.trackLength) || DEFAULT_TRACK_LENGTH, maxScore, 1)
   const trackBackgroundStyle = useMemo(() => ({
-    backgroundImage: buildTrackBackgroundImage(trackTheme, raceUnits, data?.race?.matchId || 1),
+    backgroundImage: buildTrackBackgroundImage(trackTheme, raceUnits, visibleRace?.matchId || 1),
     backgroundRepeat: 'no-repeat',
     backgroundSize: 'cover',
     backgroundPosition: 'center'
-  }), [trackTheme, raceUnits, data?.race?.matchId])
+  }), [trackTheme, raceUnits, visibleRace?.matchId])
   const unreadCount = savedNotifications.filter((item) => !item.read).length
   const myBattleCanCancel = !!myBattle && myBattle.status === 'CREATED'
   const canCreateBattle = !myBattle && battleMode !== 'joined'
@@ -713,7 +714,7 @@ function App() {
     }
   }, [myBattle, joinedBattle, isMyBattleOwner])
   const raceWinner = raceCompleted ? raceUnits.find((unit) => unit.place === 1) : null
-  const racePayout = Number(data?.race?.myPayout || 0)
+  const racePayout = Number(visibleRace?.myPayout || 0)
   const raceResultTitle = racePayout > 0 ? `Вы выиграли ${formatStars(racePayout)} ⭐` : racePayout < 0 ? `Вы проиграли ${formatStars(Math.abs(racePayout))} ⭐` : 'Эта гонка без изменения баланса'
 
   const goToTabBySwipe = (direction) => {
@@ -813,10 +814,10 @@ function App() {
     {tab === 'race' && <section className={`panel tab-panel race-panel race-theme-${trackTheme} ${raceBeforeStart ? 'race-before-start' : ''}`}>
       <div className='race-scale-shell'>
       <div className='race-scale-content' style={{ transform: `scale(${raceScale})`, width: `${100 / raceScale}%` }}>
-      <h2>{data.race ? `Гонка #${data.race.matchId} · ${getRaceTypeLabel(data.race.type)}` : 'Нет активной гонки'}</h2>
-      {!data.race && <p className='subtitle'>Скоро начнётся новая гонка или создайте батл (вкладка «Батл»).</p>}
+      <h2>{visibleRace ? `Гонка #${visibleRace.matchId} · ${getRaceTypeLabel(visibleRace.type)}` : 'Нет активной гонки'}</h2>
+      {!visibleRace && <p className='subtitle'>Скоро начнётся новая гонка или создайте батл (вкладка «Батл»).</p>}
 
-      {!!data.race && raceLive && <div className='booster-legend'>
+      {!!visibleRace && raceLive && <div className='booster-legend'>
         <button type='button' onClick={() => setBoosterHint('BUST')}><b>🐇</b> ускорить · 10⭐</button>
         <button type='button' onClick={() => setBoosterHint('SLOW')}><b>🐢</b> замедлить · 10⭐</button>
         <button type='button' onClick={() => setBoosterHint('SHIELD')}><b>🪖</b> защитить · 40⭐</button>
@@ -829,7 +830,7 @@ function App() {
         </div>
         <button className='chip' onClick={() => setBoosterHint(null)}>Понятно</button>
       </div>}
-      {!!data.race && <div className={`track track-${trackTheme}`} style={trackBackgroundStyle}>
+      {!!visibleRace && <div className={`track track-${trackTheme}`} style={trackBackgroundStyle}>
       {raceUnits.map((u) => {
         const score = Number(u.score) || 0
         const percent = finishScore ? Math.min(100, Math.round(score / finishScore * 100)) : 0
@@ -890,7 +891,7 @@ function App() {
               const amount = voteInputs[u.playerNumber] ?? 1
               const playerNumber = u.playerNumber
               const currentVote = Number(localVotes[playerNumber] ?? u.myVotes) || 0
-              const response = await act('vote', { matchId: data.race.matchId, playerNumber: u.playerNumber, amount })
+              const response = await act('vote', { matchId: visibleRace.matchId, playerNumber: u.playerNumber, amount })
               if (response?.httpOk) {
                 setLocalVotes((current) => ({
                   ...current,
