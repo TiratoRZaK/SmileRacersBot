@@ -19,7 +19,11 @@ public class BotConfig {
 
     private static final int TELEGRAM_CONNECT_TIMEOUT_MILLIS = 3_000;
     private static final int TELEGRAM_CONNECTION_REQUEST_TIMEOUT_MILLIS = 3_000;
-    private static final int TELEGRAM_SOCKET_TIMEOUT_MILLIS = 10_000;
+    /**
+     * Long polling getUpdates can legitimately keep the HTTP connection open for dozens of seconds.
+     * 70s keeps us above Telegram long-poll wait and avoids noisy periodic SocketTimeoutException logs.
+     */
+    private static final int TELEGRAM_SOCKET_TIMEOUT_MILLIS = 70_000;
 
     @Bean
     public TelegramBotsApi telegramBotsApi() throws Exception {
