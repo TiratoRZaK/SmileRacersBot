@@ -30,6 +30,13 @@ const TRACK_THEME_BACKGROUNDS = {
   grass: ['#2f7d4f', '#1f5938'],
   desert: ['#c9a363', '#9d7040']
 }
+const TAB_ORDER = ['race', 'account', 'archive', 'battle']
+const TAB_TITLES = {
+  race: 'Активная гонка',
+  account: 'Аккаунт',
+  archive: 'Архив',
+  battle: 'Батл'
+}
 
 const TOAST_AUTO_CLOSE_MS = 4500
 const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'battle', 'battle/start', 'topup'])
@@ -157,7 +164,6 @@ function App() {
   const [joinBattleId, setJoinBattleId] = useState('')
   const [joinBattleEmoji, setJoinBattleEmoji] = useState('')
   const [localVotes, setLocalVotes] = useState({})
-  const [isHeaderCompact, setIsHeaderCompact] = useState(false)
   const [isAppReady, setIsAppReady] = useState(false)
   const [bootProgress, setBootProgress] = useState(14)
   const [favoriteDirty, setFavoriteDirty] = useState(false)
@@ -166,14 +172,15 @@ function App() {
     favorite: true,
     payments: true,
     battles: true,
-    history: false,
-    recentRaces: false
+    history: true,
+    recentRaces: true
   })
   const refreshInFlightRef = useRef(false)
   const interactionPauseUntilRef = useRef(0)
   const firstLoadStartedAtRef = useRef(Date.now())
   const favoriteDirtyRef = useRef(false)
   const favoriteRequestRef = useRef(null)
+  const swipeStartRef = useRef(null)
 
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams()
@@ -319,15 +326,6 @@ function App() {
   }, [userId, tab])
 
   useEffect(() => {
-    const onScroll = () => {
-      setIsHeaderCompact(window.scrollY > 24)
-    }
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  useEffect(() => {
     if (!data?.allEmojis?.length) return
     setBattleEmoji((current) => current || data.allEmojis[0])
     const currentFavorite = data.favoriteEmoji || data.allEmojis[0]
@@ -363,6 +361,15 @@ function App() {
       return merged
     })
   }, [data?.race?.matchId, data?.race?.units])
+
+  useEffect(() => {
+    if (tab === 'archive' && sectionOpen.recentRaces) {
+      loadRecentResults().catch(() => notify('Не удалось загрузить последние гонки.', { persist: true }))
+    }
+    if (tab === 'archive' && sectionOpen.history) {
+      loadHistory().catch(() => notify('Не удалось загрузить историю операций.', { persist: true }))
+    }
+  }, [tab, sectionOpen.recentRaces, sectionOpen.history])
 
   useEffect(() => {
     if (!isNotificationsOpen) return
@@ -599,6 +606,8 @@ function App() {
   }
 
   const raceBeforeStart = data?.race?.status === 'CREATED'
+  const raceLive = data?.race?.status === 'LIVE'
+  const raceCompleted = data?.race?.status === 'COMPLETED'
   const myBattle = data?.myBattle || null
   const myBattleCanStart = !!myBattle && myBattle.status === 'CREATED' && !myBattle.battleStartRequested
   const myBattleCanInvite = !!myBattle?.inviteLink
@@ -616,6 +625,36 @@ function App() {
   }), [trackTheme, raceUnits, data?.race?.matchId])
   const unreadCount = savedNotifications.filter((item) => !item.read).length
   const myBattleCanCancel = !!myBattle && myBattle.status === 'CREATED'
+  const raceWinner = raceCompleted ? raceUnits.find((unit) => unit.place === 1) : null
+  const racePayout = Number(data?.race?.myPayout || 0)
+  const raceResultTitle = racePayout > 0 ? `Вы выиграли ${formatStars(racePayout)} ⭐` : racePayout < 0 ? `Вы проиграли ${formatStars(Math.abs(racePayout))} ⭐` : 'Эта гонка без изменения баланса'
+
+  const goToTabBySwipe = (direction) => {
+    const currentIndex = TAB_ORDER.indexOf(tab)
+    if (currentIndex < 0) return
+    const nextIndex = currentIndex + direction
+    if (nextIndex < 0 || nextIndex >= TAB_ORDER.length) return
+    setTab(TAB_ORDER[nextIndex])
+  }
+
+  const onSwipeStart = (event) => {
+    const touch = event.touches?.[0]
+    if (!touch) return
+    swipeStartRef.current = { x: touch.clientX, y: touch.clientY, at: Date.now() }
+  }
+
+  const onSwipeEnd = (event) => {
+    const start = swipeStartRef.current
+    swipeStartRef.current = null
+    if (!start) return
+    const touch = event.changedTouches?.[0]
+    if (!touch) return
+    const deltaX = touch.clientX - start.x
+    const deltaY = touch.clientY - start.y
+    const duration = Date.now() - start.at
+    if (Math.abs(deltaX) < 50 || Math.abs(deltaX) < Math.abs(deltaY) || duration > 650) return
+    goToTabBySwipe(deltaX < 0 ? 1 : -1)
+  }
 
   if (!data || !isAppReady) return <div className='loading-screen'>
     <div className='loading-orb loading-orb-left' />
@@ -633,7 +672,8 @@ function App() {
 
   return <div className='app'>
     <div className='aurora' />
-    <div className={`sticky-header-shell${isHeaderCompact ? ' compact' : ''}`}>
+    <div className='top-zone'>
+      <div className='sticky-header-shell'>
       <header className='top-card'>
         <div className='top-card-main'>
           <div className='top-card-stat'>
@@ -654,9 +694,9 @@ function App() {
       </header>
 
       <nav className='tabs'>
-        <button className={tab === 'race' ? 'active' : ''} onClick={() => setTab('race')}>Гонки</button>
-        <button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>Аккаунт</button>
+        {TAB_ORDER.map((tabKey) => <button key={tabKey} className={tab === tabKey ? 'active' : ''} onClick={() => setTab(tabKey)}>{TAB_TITLES[tabKey]}</button>)}
       </nav>
+      </div>
 
       {isNotificationsOpen && <section className='panel notifications-panel'>
         <div className='notifications-header'>
@@ -682,19 +722,20 @@ function App() {
       </section>}
     </div>
 
-    {tab === 'race' && <section className={`panel race-panel race-theme-${trackTheme}`}>
+    <main className='content-zone' onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}>
+    {tab === 'race' && <section className={`panel tab-panel race-panel race-theme-${trackTheme}`}>
       <h2>{data.race ? `Гонка #${data.race.matchId} · ${getRaceTypeLabel(data.race.type)}` : 'Нет активной гонки'}</h2>
-      {!data.race && <p className='subtitle'>Скоро начнётся новая гонка или создайте батл (вкладка «Аккаунт» → блок «Батлы»).</p>}
+      {!data.race && <p className='subtitle'>Скоро начнётся новая гонка или создайте батл (вкладка «Батл»).</p>}
 
       {!!data.race && <p className='race-theme-label'>Стиль: {TRACK_THEME_LABELS[trackTheme]}</p>}
-      {!!data.race && !raceBeforeStart && <p className='race-intro'>{`🔥 Гонка в самом разгаре! 🔥
+      {!!data.race && raceLive && <p className='race-intro'>{`🔥 Гонка в самом разгаре! 🔥
 Помоги своему фавориту придти на 🏁 первым!
 
 Используй бустеры на кнопках ниже:
  🐇 (10⭐️) - временно ускоряет выбранный смайл
  🐢 (10⭐️) - временно замедляет выбранный смайл
  🪖 (40⭐️) - позволяет защититься от 5-ти 🐢`}</p>}
-      {!!data.race && !raceBeforeStart && <div className='booster-legend'>
+      {!!data.race && raceLive && <div className='booster-legend'>
         <span><b>🐇</b> ускорить</span>
         <span><b>🐢</b> замедлить</span>
         <span><b>🪖</b> защитить</span>
@@ -774,7 +815,7 @@ function App() {
           </button>
           </div>
         </div>}
-        {!raceBeforeStart && <div className='booster-shell'>
+        {raceLive && <div className='booster-shell'>
           <div className='booster-actions'>
             <button className='booster booster-bust' aria-label={`Ускорить ${u.playerName}`} title={`Ускорить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }) }}><span>🐇</span></button>
             <button className='booster booster-slow' aria-label={`Замедлить ${u.playerName}`} title={`Замедлить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }) }}><span>🐢</span></button>
@@ -783,6 +824,12 @@ function App() {
         </div>}
       </div>
       })}
+      </div>}
+
+      {raceCompleted && <div className='finish-celebration'>
+        <h3>Гонка завершена</h3>
+        <p className='subtitle'>Победитель: {raceWinner?.playerName || '—'}</p>
+        <p className='winner-name'>{raceResultTitle}</p>
       </div>}
 
       {myBattle && <div className='my-battle-card'>
@@ -808,19 +855,7 @@ function App() {
       </div>}
     </section>}
 
-    {tab === 'race' && <section className='panel race-recent-panel'>
-      {renderSection('recentRaces', 'Последние гонки', <>
-        {recentResultsLoading && <p className='subtitle'>Загружаем последние гонки…</p>}
-        {isRecentResultsLoaded && !recentResults.length && <p className='subtitle'>Пока нет завершённых гонок.</p>}
-        {recentResults.map((result) => <div key={result.matchId} className='recent-result-card'>
-          <div className='recent-result-title'>#{result.matchId} · {getRaceTypeLabel(result.type)}</div>
-          <div className='subtitle'>Победитель: {result.winnerName || '—'}</div>
-          <div className='subtitle'>Участники: {(result.units || []).map((u) => u.playerName).join(' · ')}</div>
-        </div>)}
-      </>)}
-    </section>}
-
-    {tab === 'account' && <section className='panel account-panel'>
+    {tab === 'account' && <section className='panel tab-panel account-panel'>
       {renderSection('account', 'Данные об аккаунте', <>
         <p className='subtitle'>
           {getTelegramAccountLabel(telegramUser)}
@@ -885,6 +920,49 @@ function App() {
         </div>
       </>)}
 
+      <button className='help-btn' onClick={openHelp}>Связаться с поддержкой</button>
+    </section>}
+
+    {tab === 'archive' && <section className='panel tab-panel account-panel'>
+      {renderSection('recentRaces', 'История гонок', <>
+        {recentResultsLoading && <p className='subtitle'>Загружаем последние гонки…</p>}
+        {isRecentResultsLoaded && !recentResults.length && <p className='subtitle'>Пока нет завершённых гонок.</p>}
+        {recentResults.map((result) => <div key={result.matchId} className='recent-result-card'>
+          <div className='recent-result-title'>#{result.matchId} · {getRaceTypeLabel(result.type)}</div>
+          <div className='subtitle'>Победитель: {result.winnerName || '—'}</div>
+          <div className='subtitle'>Участники: {(result.units || []).map((u) => u.playerName).join(' · ')}</div>
+        </div>)}
+      </>)}
+      {renderSection('history', 'История операций', <>
+        {historyLoading && <p className='subtitle'>Загружаем историю операций…</p>}
+        {!!historyItems.length && <div className='history-table-wrap'>
+          <table className='history-table'>
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Операция</th>
+                <th>Сумма</th>
+                <th>Детали</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historyItems.map((item, index) => <tr key={`${item.createdAtMs || 0}-${index}`}>
+                <td>{item.createdAtMs ? new Date(item.createdAtMs).toLocaleString('ru-RU') : '—'}</td>
+                <td>{item.operation}</td>
+                <td className={Number(item.amount) >= 0 ? 'amount-plus' : 'amount-minus'}>{formatStars(item.amount)} ⭐</td>
+                <td>{item.details || '—'}</td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>}
+        {isHistoryLoaded && !historyLoading && !historyItems.length && <p className='subtitle'>История пока пустая.</p>}
+        <div className='row'>
+          <button onClick={downloadHistory}>Скачать всю историю</button>
+        </div>
+      </>)}
+    </section>}
+
+    {tab === 'battle' && <section className='panel tab-panel account-panel'>
       {renderSection('battles', 'Батлы', <>
         <div className='row battle-create-row'>
           <select value={battleEmoji} onChange={(e) => setBattleEmoji(e.target.value)}>{data.allEmojis.map((e) => <option key={e}>{e}</option>)}</select>
@@ -925,37 +1003,8 @@ function App() {
           <button onClick={joinBattleFromUi}>Присоединиться к батлу</button>
         </div>
       </>)}
-
-      {renderSection('history', 'История операций', <>
-        {historyLoading && <p className='subtitle'>Загружаем историю операций…</p>}
-        {!!historyItems.length && <div className='history-table-wrap'>
-          <table className='history-table'>
-            <thead>
-              <tr>
-                <th>Дата</th>
-                <th>Операция</th>
-                <th>Сумма</th>
-                <th>Детали</th>
-              </tr>
-            </thead>
-            <tbody>
-              {historyItems.map((item, index) => <tr key={`${item.createdAtMs || 0}-${index}`}>
-                <td>{item.createdAtMs ? new Date(item.createdAtMs).toLocaleString('ru-RU') : '—'}</td>
-                <td>{item.operation}</td>
-                <td className={Number(item.amount) >= 0 ? 'amount-plus' : 'amount-minus'}>{formatStars(item.amount)} ⭐</td>
-                <td>{item.details || '—'}</td>
-              </tr>)}
-            </tbody>
-          </table>
-        </div>}
-        {isHistoryLoaded && !historyLoading && !historyItems.length && <p className='subtitle'>История пока пустая.</p>}
-        <div className='row'>
-          <button onClick={downloadHistory}>Скачать всю историю</button>
-        </div>
-      </>)}
-
-      <button className='help-btn' onClick={openHelp}>Связаться с поддержкой</button>
     </section>}
+    </main>
     <div className='toasts'>
       {toasts.map((toast) => <div key={toast.id} className='toast' onClick={() => removeToast(toast.id)}>
         <span>{toast.text}</span>
