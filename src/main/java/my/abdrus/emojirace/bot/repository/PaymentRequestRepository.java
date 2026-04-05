@@ -81,4 +81,6 @@ public interface PaymentRequestRepository extends JpaRepository<PaymentRequest, 
     Long sumBattleBank(@Param("match") Match match);
 
     List<PaymentRequest> findAllByUserChatIdOrderByCreatedDateDesc(Long userChatId);
+
+    void deleteAllByMatchPlayer(MatchPlayer matchPlayer);
 }

@@ -175,6 +175,7 @@ public class MatchService {
                     paymentRequestRepository.save(request);
                 });
 
+        paymentRequestRepository.deleteAllByMatchPlayer(target);
         match.getMatchPlayers().remove(target);
         matchPlayerRepository.delete(target);
 
@@ -206,6 +207,7 @@ public class MatchService {
                     paymentRequestRepository.save(request);
                 });
 
+        paymentRequestRepository.deleteAllByMatchPlayer(target);
         match.getMatchPlayers().remove(target);
         matchPlayerRepository.delete(target);
 
