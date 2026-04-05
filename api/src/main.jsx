@@ -10,6 +10,7 @@ const POLL_INTERVAL_MS = 3500
 const INTERACTION_PAUSE_MS = 2500
 const MIN_SPLASH_MS = 900
 const DEFAULT_TRACK_LENGTH = 62
+const REQUEST_TIMEOUT_MS = 15000
 
 const RACE_TYPE_LABELS = {
   REGULAR: 'Обычная',
@@ -223,6 +224,8 @@ function App() {
   const requestApi = async (path, options = {}) => {
     const { method = 'GET', body, includeQuery = true, headers = {}, fallbackErrorMessage } = options
     const url = `${API}/${path}${includeQuery && requestQuery ? `?${requestQuery}` : ''}`
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
     let response
     try {
@@ -233,10 +236,16 @@ function App() {
           ...requestHeaders,
           ...headers
         },
+        signal: controller.signal,
         ...(body != null ? { body: JSON.stringify(body) } : {})
       })
-    } catch {
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        throw new Error(`Сервер не ответил за ${Math.round(REQUEST_TIMEOUT_MS / 1000)} сек. Проверьте VPN/прокси или попробуйте позже.`)
+      }
       throw new Error(fallbackErrorMessage || 'Не удалось связаться с сервером. Проверьте сеть и настройки прокси.')
+    } finally {
+      window.clearTimeout(timeoutId)
     }
 
     const payload = await parseResponsePayload(response)
