@@ -113,7 +113,14 @@ const getTrackTheme = (race) => {
   return TRACK_THEMES[Math.abs(seed) % TRACK_THEMES.length]
 }
 
-const queryUserId = Number(new URLSearchParams(location.search).get('userId') || 0)
+const searchParams = new URLSearchParams(location.search)
+const queryUserId = Number(searchParams.get('userId') || 0)
+const queryBattleId = Number(searchParams.get('battleId') || 0)
+const queryStartApp = String(searchParams.get('startapp') || searchParams.get('tgWebAppStartParam') || '')
+const initStartParam = String(tg?.initDataUnsafe?.start_param || tg?.initDataUnsafe?.startapp || '')
+const deepLinkParam = (initStartParam || queryStartApp || '').trim()
+const deepLinkBattleMatch = deepLinkParam.match(/join_battle_(\d+)/i)
+const deepLinkBattleId = deepLinkBattleMatch ? Number(deepLinkBattleMatch[1]) : (Number.isFinite(queryBattleId) && queryBattleId > 0 ? queryBattleId : null)
 const getUserId = () => telegramUserId || (Number.isFinite(queryUserId) && queryUserId > 0 ? queryUserId : null)
 
 
@@ -151,6 +158,7 @@ function App() {
   const [savedNotifications, setSavedNotifications] = useState([])
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [battleEmoji, setBattleEmoji] = useState('')
+  const [battleStakeInput, setBattleStakeInput] = useState(100)
   const [voteInputs, setVoteInputs] = useState({})
   const [topupAmount, setTopupAmount] = useState(100)
   const [withdrawAmount, setWithdrawAmount] = useState(100)
@@ -371,6 +379,14 @@ function App() {
     }
   }, [tab, sectionOpen.recentRaces, sectionOpen.history])
 
+
+  useEffect(() => {
+    if (!deepLinkBattleId) return
+    setTab('battle')
+    setJoinBattleId(String(deepLinkBattleId))
+    setSectionOpen((current) => ({ ...current, battleCreate: false, battleManage: false, battleJoin: true }))
+  }, [])
+
   useEffect(() => {
     if (!isNotificationsOpen) return
     setSavedNotifications((current) => current.map((item) => ({ ...item, read: true })))
@@ -513,6 +529,9 @@ function App() {
       notify('Укажите ID батла и смайл для входа.', { persist: true })
       return
     }
+    const targetBattle = (data?.race?.matchId === matchId && data?.race?.type === 'BATTLE') ? data.race : null
+    const stake = Number(targetBattle?.battleStake || 0)
+    if (!window.confirm(`Подтвердить вход в батл #${matchId}${stake > 0 ? ` за ${stake} ⭐` : ''}?`)) return
     const response = await act('battle/join', { matchId, playerName: joinBattleEmoji })
     if (response?.httpOk) {
       setBattleMode('joined')
@@ -525,6 +544,16 @@ function App() {
     const response = await act('battle/cancel', { matchId: myBattle.matchId })
     if (response?.httpOk) {
       setBattleMode('idle')
+    }
+  }
+
+
+  const leaveJoinedBattle = async () => {
+    if (!joinedBattle?.matchId) return
+    const response = await act('battle/leave', { matchId: joinedBattle.matchId })
+    if (response?.httpOk) {
+      setBattleMode('idle')
+      setJoinBattleId('')
     }
   }
 
@@ -645,6 +674,7 @@ function App() {
   const raceLive = data?.race?.status === 'LIVE'
   const raceCompleted = data?.race?.status === 'COMPLETED'
   const myBattle = data?.myBattle || null
+  const isMyBattleOwner = !!myBattle && Number((myBattle.units || []).find((unit) => unit.playerNumber === 1)?.ownerUserId || 0) === Number(userId || 0)
   const myBattleCanStart = !!myBattle && myBattle.status === 'CREATED' && !myBattle.battleStartRequested
   const myBattleCanInvite = !!myBattle?.inviteLink
   const myBattleIsLive = myBattle?.status === 'LIVE'
@@ -662,18 +692,26 @@ function App() {
   const unreadCount = savedNotifications.filter((item) => !item.read).length
   const myBattleCanCancel = !!myBattle && myBattle.status === 'CREATED'
   const canCreateBattle = !myBattle && battleMode !== 'joined'
-  const canManageBattle = !!myBattle && battleMode !== 'joined'
-  const canJoinBattle = !myBattle && battleMode !== 'owner'
+  const canManageBattle = !!myBattle && isMyBattleOwner
+  const canJoinBattle = !myBattle || (!!myBattle && !isMyBattleOwner)
+  const joinedBattle = !!myBattle && !isMyBattleOwner ? myBattle : null
+  const joinedBattleIsLive = joinedBattle?.status === 'LIVE'
+  const canLeaveJoinedBattle = !!joinedBattle && !joinedBattleIsLive
 
   useEffect(() => {
-    if (myBattle) {
+    if (myBattle && isMyBattleOwner) {
       setBattleMode('owner')
+      setSectionOpen((current) => ({ ...current, battleCreate: false, battleManage: true, battleJoin: false }))
       return
     }
-    if (battleMode === 'owner') {
+    if (myBattle && !isMyBattleOwner) {
+      setBattleMode('joined')
+      return
+    }
+    if (battleMode === 'owner' || battleMode === 'joined') {
       setBattleMode('idle')
     }
-  }, [myBattle])
+  }, [myBattle, joinedBattle, isMyBattleOwner])
   const raceWinner = raceCompleted ? raceUnits.find((unit) => unit.place === 1) : null
   const racePayout = Number(data?.race?.myPayout || 0)
   const raceResultTitle = racePayout > 0 ? `Вы выиграли ${formatStars(racePayout)} ⭐` : racePayout < 0 ? `Вы проиграли ${formatStars(Math.abs(racePayout))} ⭐` : 'Эта гонка без изменения баланса'
@@ -772,7 +810,7 @@ function App() {
     </div>
 
     <main className='content-zone' onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}>
-    {tab === 'race' && <section className={`panel tab-panel race-panel race-theme-${trackTheme}`}>
+    {tab === 'race' && <section className={`panel tab-panel race-panel race-theme-${trackTheme} ${raceBeforeStart ? 'race-before-start' : ''}`}>
       <div className='race-scale-shell'>
       <div className='race-scale-content' style={{ transform: `scale(${raceScale})`, width: `${100 / raceScale}%` }}>
       <h2>{data.race ? `Гонка #${data.race.matchId} · ${getRaceTypeLabel(data.race.type)}` : 'Нет активной гонки'}</h2>
@@ -883,27 +921,7 @@ function App() {
         <p className='winner-name'>{raceResultTitle}</p>
       </div>}
 
-      {myBattle && <div className='my-battle-card'>
-        <h3>⚔️ Ваш батл #{myBattle.matchId}</h3>
-        <p className='subtitle'>Голос за победу: {myBattle.battleStake || 0} ⭐</p>
-        <p className='subtitle'>Общий банк: {getBattleBank(myBattle)} ⭐</p>
-        <p className='subtitle'>{getBattleStateLabel(myBattle)}</p>
-        <div className='battle-participants-list'>
-          {(myBattle.units || []).map((u) => <div key={u.playerNumber} className='battle-participant-row'>
-            <span>{getBattleParticipantLabel(u)}</span>
-            <button className='chip danger-chip' disabled={myBattleIsLive || u.playerNumber === 1} onClick={() => removeBattleParticipant(u.playerNumber)}>Исключить</button>
-          </div>)}
-        </div>
-        <div className='row battle-action-row'>
-          <button disabled={!myBattleCanInvite} onClick={() => openBattleInvite(myBattle)}>Пригласить друзей</button>
-          <button
-            disabled={!myBattleCanStart}
-            onClick={requestBattleStartFromUi}
-          >
-            Старт батла
-          </button>
-        </div>
-      </div>}
+
       </div>
       </div>
     </section>}
@@ -1022,38 +1040,71 @@ function App() {
         <h3>Батлы</h3>
         {renderSection('battleCreate', 'Создание нового батла', <>
           {!canCreateBattle && <p className='subtitle'>Создание недоступно, пока активен ваш или уже подключённый батл.</p>}
-          {canCreateBattle && <div className='row battle-create-row'>
-            <select value={battleEmoji} onChange={(e) => setBattleEmoji(e.target.value)}>{data.allEmojis.map((e) => <option key={e}>{e}</option>)}</select>
-            <button onClick={async () => {
-              const response = await act('battle', { playerName: battleEmoji, stake: 100 })
-              if (response?.httpOk) setBattleMode('owner')
-            }}>Создать батл 100⭐</button>
-          </div>}
-        </>)}
-
-        {renderSection('battleManage', 'Управление моим батлом', <>
-          {!canManageBattle && <p className='subtitle'>Секция доступна только после создания вашего батла.</p>}
-          {canManageBattle && <>
-            <p className='subtitle'>Голос за победу: {myBattle.battleStake || 0} ⭐</p>
-            <p className='subtitle'>Общий банк: {getBattleBank(myBattle)} ⭐</p>
-            <p className='subtitle'>{getBattleStateLabel(myBattle)}</p>
-            <div className='battle-participants-list'>
-              {(myBattle.units || []).map((u) => <div key={u.playerNumber} className='battle-participant-row'>
-                <span>{getBattleParticipantLabel(u)}</span>
-                <button className='chip danger-chip' disabled={myBattleIsLive || u.playerNumber === 1} onClick={() => removeBattleParticipant(u.playerNumber)}>Исключить</button>
-              </div>)}
-            </div>
-            <div className='row battle-action-row'>
-              {myBattleCanInvite && <button onClick={() => openBattleInvite(myBattle)}>Пригласить друзей в батл #{myBattle.matchId}</button>}
-              {myBattleCanStart && <button onClick={requestBattleStartFromUi}>Старт батла</button>}
-              {myBattleCanCancel && <button className='chip danger-chip' onClick={cancelMyBattle}>Отменить мой батл</button>}
+          {canCreateBattle && <>
+            <p className='subtitle'>Создайте приватный батл, выберите смайл и стоимость входа. Все участники платят одинаковую ставку, победитель забирает банк.</p>
+            <div className='row battle-create-row'>
+              <select value={battleEmoji} onChange={(e) => setBattleEmoji(e.target.value)}>{data.allEmojis.map((e) => <option key={e}>{e}</option>)}</select>
+              <input
+                className='field'
+                type='number'
+                min='1'
+                step='1'
+                value={battleStakeInput}
+                onChange={(e) => setBattleStakeInput(Math.max(1, Number(e.target.value || 1)))}
+              />
+              <button onClick={async () => {
+                const response = await act('battle', { playerName: battleEmoji, stake: Math.max(1, Number(battleStakeInput) || 1) })
+                if (response?.httpOk) {
+                  setBattleMode('owner')
+                  setSectionOpen((current) => ({ ...current, battleCreate: false, battleManage: true, battleJoin: false }))
+                }
+              }}>Создать батл</button>
             </div>
           </>}
         </>)}
 
+        {renderSection('battleManage', 'Управление моим батлом', <>
+          {!canManageBattle && <p className='subtitle'>Секция доступна только после создания вашего батла.</p>}
+          {canManageBattle && <div className='battle-manage-card'>
+            <div className='battle-stats-grid'>
+              <div className='battle-stat'><span>Батл</span><strong>#{myBattle.matchId}</strong></div>
+              <div className='battle-stat'><span>Ставка</span><strong>{myBattle.battleStake || 0} ⭐</strong></div>
+              <div className='battle-stat'><span>Банк</span><strong>{getBattleBank(myBattle)} ⭐</strong></div>
+            </div>
+            <p className='subtitle battle-state-line'>{getBattleStateLabel(myBattle)}</p>
+            <div className='battle-participants-list'>
+              {(myBattle.units || []).map((u) => <div key={u.playerNumber} className='battle-participant-row'>
+                <span>{getBattleParticipantLabel(u)}</span>
+                {Number(u.ownerUserId) !== Number(userId) && <button className='chip danger-chip' disabled={myBattleIsLive} onClick={() => removeBattleParticipant(u.playerNumber)}>Исключить</button>}
+              </div>)}
+            </div>
+            <div className='row battle-action-row'>
+              {myBattleCanInvite && <button onClick={() => openBattleInvite(myBattle)}>Пригласить друзей</button>}
+              {myBattleCanStart && <button onClick={requestBattleStartFromUi}>Поставить в очередь</button>}
+              {myBattleCanCancel && <button className='chip danger-chip' onClick={cancelMyBattle}>Отменить батл</button>}
+            </div>
+          </div>}
+        </>)}
+
         {renderSection('battleJoin', 'Подключение к батлу', <>
           {!canJoinBattle && <p className='subtitle'>Подключение недоступно, пока у вас активен собственный батл.</p>}
-          {canJoinBattle && <div className='row battle-join-row'>
+          {battleMode === 'joined' && joinedBattle && <div className='battle-manage-card'>
+            <div className='battle-stats-grid'>
+              <div className='battle-stat'><span>Батл</span><strong>#{joinedBattle.matchId}</strong></div>
+              <div className='battle-stat'><span>Ставка</span><strong>{joinedBattle.battleStake || 0} ⭐</strong></div>
+              <div className='battle-stat'><span>Банк</span><strong>{getBattleBank(joinedBattle)} ⭐</strong></div>
+            </div>
+            <p className='subtitle battle-state-line'>{getBattleStateLabel(joinedBattle)}</p>
+            <div className='battle-participants-list'>
+              {(joinedBattle.units || []).map((u) => <div key={u.playerNumber} className='battle-participant-row'>
+                <span>{getBattleParticipantLabel(u)}</span>
+              </div>)}
+            </div>
+            <div className='row battle-action-row battle-action-row-single'>
+              <button className='chip danger-chip' disabled={!canLeaveJoinedBattle} onClick={leaveJoinedBattle}>Сбежать (вернуть {joinedBattle.battleStake || 0} ⭐)</button>
+            </div>
+          </div>}
+          {canJoinBattle && battleMode !== 'joined' && <div className='row battle-join-row'>
             <input
               className='field'
               type='number'
@@ -1065,7 +1116,7 @@ function App() {
               onFocus={pausePollingForInteraction}
             />
             <select value={joinBattleEmoji} onChange={(e) => setJoinBattleEmoji(e.target.value)}>{data.allEmojis.map((emoji) => <option key={emoji}>{emoji}</option>)}</select>
-            <button onClick={joinBattleFromUi}>Присоединиться к батлу</button>
+            <button onClick={joinBattleFromUi}>Присоединиться</button>
           </div>}
         </>)}
       </div>

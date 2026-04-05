@@ -154,6 +154,39 @@ public class MatchService {
     }
 
     @Transactional
+    public boolean leaveBattle(Long matchId, Long userChatId) {
+        Match match = matchRepository.findById(matchId).orElse(null);
+        if (match == null || match.getType() != MatchType.BATTLE || match.getStatus() != CREATED || userChatId == null) {
+            return false;
+        }
+
+        MatchPlayer target = match.getMatchPlayers().stream()
+                .filter(mp -> userChatId.equals(mp.getOwnerUserChatId()))
+                .findFirst()
+                .orElse(null);
+        if (target == null || userChatId.equals(match.getCreatorUserChatId())) {
+            return false;
+        }
+
+        paymentRequestRepository.findAllByMatchPlayerAndStatus(target, PaymentRequestStatus.PAYED)
+                .forEach(request -> {
+                    accountService.addBalance(request.getUserChatId(), request.getSum());
+                    request.setStatus(PaymentRequestStatus.COMPLETED);
+                    paymentRequestRepository.save(request);
+                });
+
+        match.getMatchPlayers().remove(target);
+        matchPlayerRepository.delete(target);
+
+        int number = 1;
+        for (MatchPlayer matchPlayer : match.getMatchPlayers()) {
+            matchPlayer.setNumber(number++);
+        }
+        matchRepository.save(match);
+        return true;
+    }
+
+    @Transactional
     public boolean removeBattleParticipant(Long matchId, Long creatorUserChatId, Integer playerNumber) {
         Match match = matchRepository.findById(matchId).orElse(null);
         if (match == null || match.getType() != MatchType.BATTLE || match.getStatus() != CREATED
