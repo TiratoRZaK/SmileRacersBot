@@ -24,6 +24,7 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
     Optional<Match> findById(@Param("id") Long id);
 
     Optional<Match> findFirstByStatusInOrderByCreatedDateDesc(Collection<MatchStatus> statusList);
+    List<Match> findTop10ByStatusInOrderByCreatedDateDesc(Collection<MatchStatus> statusList);
 
     Optional<Match> findFirstByStatusOrderByCreatedDateAsc(MatchStatus status);
 
