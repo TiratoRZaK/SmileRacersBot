@@ -11,6 +11,7 @@ const INTERACTION_PAUSE_MS = 2500
 const MIN_SPLASH_MS = 900
 const DEFAULT_TRACK_LENGTH = 62
 const REQUEST_TIMEOUT_MS = 15000
+const WEB_AUTH_STORAGE_KEY = 'smile_racers_web_auth_v1'
 
 const RACE_TYPE_LABELS = {
   REGULAR: 'Обычная',
@@ -110,6 +111,35 @@ const readTelegramContext = () => {
   }
 }
 
+const readStoredWebAuth = () => {
+  try {
+    const raw = window.localStorage.getItem(WEB_AUTH_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed?.authToken || !parsed?.userId) return null
+    return {
+      authToken: String(parsed.authToken),
+      userId: Number(parsed.userId),
+      accountLabel: parsed.accountLabel ? String(parsed.accountLabel) : null
+    }
+  } catch {
+    return null
+  }
+}
+
+const saveStoredWebAuth = (value) => {
+  if (!value?.authToken || !value?.userId) return
+  window.localStorage.setItem(WEB_AUTH_STORAGE_KEY, JSON.stringify({
+    authToken: String(value.authToken),
+    userId: Number(value.userId),
+    accountLabel: value.accountLabel ? String(value.accountLabel) : null
+  }))
+}
+
+const clearStoredWebAuth = () => {
+  window.localStorage.removeItem(WEB_AUTH_STORAGE_KEY)
+}
+
 const getTelegramAccountLabel = (user) => {
   if (!user) return 'Не удалось определить Telegram-аккаунт'
   if (user.username) return `@${user.username}`
@@ -154,9 +184,17 @@ const getBattleBank = (battle) => {
 
 function App() {
   const [telegramContext, setTelegramContext] = useState(() => readTelegramContext())
+  const [webAuth, setWebAuth] = useState(() => readStoredWebAuth())
+  const [webAuthBotUsername, setWebAuthBotUsername] = useState('')
+  const [webAuthError, setWebAuthError] = useState('')
+  const [isWebAuthLoading, setIsWebAuthLoading] = useState(false)
+  const [webAuthWidgetReady, setWebAuthWidgetReady] = useState(false)
+  const telegramWidgetRef = useRef(null)
   const userId = useMemo(() => {
-    return telegramContext.telegramUserId || (Number.isFinite(queryUserId) && queryUserId > 0 ? queryUserId : null)
-  }, [telegramContext.telegramUserId])
+    if (telegramContext.telegramUserId) return telegramContext.telegramUserId
+    if (webAuth?.userId) return webAuth.userId
+    return Number.isFinite(queryUserId) && queryUserId > 0 ? queryUserId : null
+  }, [telegramContext.telegramUserId, webAuth?.userId])
   const [data, setData] = useState(null)
   const [activeWithdraws, setActiveWithdraws] = useState([])
   const [historyItems, setHistoryItems] = useState([])
@@ -206,17 +244,19 @@ function App() {
     const params = new URLSearchParams()
     if (userId != null) params.set('userId', String(userId))
     if (telegramContext.initData) params.set('tgWebAppData', telegramContext.initData)
+    if (webAuth?.authToken) params.set('authToken', webAuth.authToken)
     return params.toString()
-  }, [telegramContext.initData, userId])
+  }, [telegramContext.initData, userId, webAuth?.authToken])
   const requestHeaders = useMemo(() => {
     const headers = {}
     if (telegramContext.telegramUserId) headers['X-Telegram-User-Id'] = String(telegramContext.telegramUserId)
     if (telegramContext.initData) headers['X-Telegram-Init-Data'] = telegramContext.initData
+    if (webAuth?.authToken) headers['X-Web-Auth-Token'] = webAuth.authToken
     return headers
-  }, [telegramContext.initData, telegramContext.telegramUserId])
+  }, [telegramContext.initData, telegramContext.telegramUserId, webAuth?.authToken])
   const hasMiniAppAuthContext = useMemo(
-    () => Boolean(userId != null || telegramContext.initData),
-    [telegramContext.initData, userId]
+    () => Boolean(userId != null || telegramContext.initData || webAuth?.authToken),
+    [telegramContext.initData, userId, webAuth?.authToken]
   )
 
   const parseResponsePayload = async (response) => {
@@ -240,7 +280,7 @@ function App() {
   const requestApi = async (path, options = {}) => {
     const { method = 'GET', body, includeQuery = true, headers = {}, fallbackErrorMessage } = options
     if (!hasMiniAppAuthContext) {
-      throw new Error('Откройте MiniApp через Telegram: не удалось получить данные авторизации.')
+      throw new Error('Не удалось определить авторизацию Telegram. Войдите через Telegram.')
     }
     const url = `${API}/${path}${includeQuery && requestQuery ? `?${requestQuery}` : ''}`
     const controller = new AbortController()
@@ -367,13 +407,95 @@ function App() {
       }
     }, 400)
 
-    refresh().catch((error) => {
+    if (readTelegramContext().telegramUserId || readTelegramContext().initData || readStoredWebAuth()?.authToken) {
+      refresh().catch((error) => {
+        setBootProgress(100)
+        setIsAppReady(true)
+        notify(error?.message || 'Не удалось загрузить данные MiniApp.', { persist: true })
+      })
+    } else {
       setBootProgress(100)
       setIsAppReady(true)
-      notify(error?.message || 'Не удалось загрузить данные MiniApp.', { persist: true })
-    })
+    }
     return () => window.clearInterval(pollId)
   }, [])
+
+  useEffect(() => {
+    if (telegramContext.initData || telegramContext.telegramUserId || webAuth?.authToken) {
+      return undefined
+    }
+    let cancelled = false
+    fetch(`${API}/auth/config`)
+      .then(async (response) => {
+        const payload = await parseResponsePayload(response)
+        if (!response.ok) throw new Error(payload?.message || 'Не удалось загрузить конфигурацию авторизации.')
+        if (!cancelled) setWebAuthBotUsername(payload?.botUsername || '')
+      })
+      .catch(() => {
+        if (!cancelled) setWebAuthError('Не удалось загрузить Telegram Login. Проверьте бэкенд и имя бота.')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [telegramContext.initData, telegramContext.telegramUserId, webAuth?.authToken])
+
+  useEffect(() => {
+    if (!webAuthBotUsername || telegramContext.initData || telegramContext.telegramUserId || webAuth?.authToken) {
+      return undefined
+    }
+    const target = telegramWidgetRef.current
+    if (!target) return undefined
+    setWebAuthWidgetReady(false)
+    target.innerHTML = ''
+    const script = document.createElement('script')
+    script.src = 'https://telegram.org/js/telegram-widget.js?22'
+    script.async = true
+    script.setAttribute('data-telegram-login', webAuthBotUsername)
+    script.setAttribute('data-size', 'large')
+    script.setAttribute('data-radius', '14')
+    script.setAttribute('data-request-access', 'write')
+    script.setAttribute('data-userpic', 'false')
+    script.setAttribute('data-onauth', 'window.__onTelegramWebAuth(user)')
+    script.onload = () => setWebAuthWidgetReady(true)
+    target.appendChild(script)
+    return () => {
+      target.innerHTML = ''
+    }
+  }, [webAuthBotUsername, telegramContext.initData, telegramContext.telegramUserId, webAuth?.authToken])
+
+  useEffect(() => {
+    window.__onTelegramWebAuth = async (telegramUser) => {
+      if (!telegramUser || isWebAuthLoading) return
+      setWebAuthError('')
+      setIsWebAuthLoading(true)
+      try {
+        const response = await fetch(`${API}/auth/telegram`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(telegramUser)
+        })
+        const payload = await parseResponsePayload(response)
+        if (!response.ok || !payload?.success || !payload?.authToken || !payload?.userId) {
+          throw new Error(payload?.message || 'Telegram авторизация не прошла.')
+        }
+        const nextAuth = {
+          authToken: String(payload.authToken),
+          userId: Number(payload.userId),
+          accountLabel: payload.accountLabel || getTelegramAccountLabel(telegramUser)
+        }
+        setWebAuth(nextAuth)
+        saveStoredWebAuth(nextAuth)
+        await refresh(true)
+      } catch (error) {
+        setWebAuthError(error?.message || 'Telegram авторизация не прошла.')
+      } finally {
+        setIsWebAuthLoading(false)
+      }
+    }
+    return () => {
+      delete window.__onTelegramWebAuth
+    }
+  }, [isWebAuthLoading])
 
   useEffect(() => {
     if (isAppReady) return undefined
@@ -811,6 +933,30 @@ function App() {
     if (Math.abs(deltaX) < 50 || Math.abs(deltaX) < Math.abs(deltaY) || duration > 650) return
     goToTabBySwipe(deltaX < 0 ? 1 : -1)
   }
+
+  if (!hasMiniAppAuthContext) return <div className='loading-screen'>
+    <div className='loading-orb loading-orb-left' />
+    <div className='loading-orb loading-orb-right' />
+    <div className='loading-card auth-card'>
+      <div className='loading-logo'>🔐</div>
+      <h1>Вход через Telegram</h1>
+      <p>Откройте Mini App в Telegram или войдите на этой странице через Telegram Login.</p>
+      <div className='telegram-widget-slot' ref={telegramWidgetRef} />
+      {!webAuthWidgetReady && !!webAuthBotUsername && <p className='subtitle'>Загружаем Telegram Login…</p>}
+      {isWebAuthLoading && <p className='subtitle'>Проверяем Telegram-подпись…</p>}
+      {!!webAuthError && <p className='auth-error'>{webAuthError}</p>}
+      {!!webAuth?.authToken && <button
+        className='chip danger-chip'
+        onClick={() => {
+          clearStoredWebAuth()
+          setWebAuth(null)
+          setWebAuthError('')
+        }}
+      >
+        Сбросить web-сессию
+      </button>}
+    </div>
+  </div>
 
   if (!data || !isAppReady) return <div className='loading-screen'>
     <div className='loading-orb loading-orb-left' />

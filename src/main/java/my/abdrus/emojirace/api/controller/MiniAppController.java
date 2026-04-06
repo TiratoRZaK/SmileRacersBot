@@ -3,10 +3,16 @@ package my.abdrus.emojirace.api.controller;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.StringJoiner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import my.abdrus.emojirace.api.dto.MiniAppDtos;
@@ -42,6 +48,7 @@ import my.abdrus.emojirace.config.BotProperties;
 import my.abdrus.emojirace.config.RaceProperties;
 import org.json.JSONObject;
 import my.abdrus.emojirace.config.ChannelProperties;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -63,6 +70,7 @@ public class MiniAppController {
 
     private static final long FAVORITE_REPLACE_COST = 150L;
     private static final Pattern USER_ID_PATTERN = Pattern.compile("\"id\"\\s*:\\s*(\\d+)");
+    private static final long WEB_AUTH_TTL_SECONDS = 60L * 60L * 24L * 7L;
 
     private final EmojiRaceBot bot;
     private final AccountService accountService;
@@ -132,6 +140,33 @@ public class MiniAppController {
                 emojis,
                 notifications
         );
+    }
+
+    @GetMapping("/auth/config")
+    public MiniAppDtos.TelegramAuthConfigResponse telegramAuthConfig() {
+        return new MiniAppDtos.TelegramAuthConfigResponse(botProperties.getUsername());
+    }
+
+    @PostMapping("/auth/telegram")
+    public MiniAppDtos.TelegramWebAuthResponse telegramWebAuth(@RequestBody Map<String, Object> payload) {
+        if (payload == null || payload.isEmpty()) {
+            return new MiniAppDtos.TelegramWebAuthResponse(false, "Пустые данные Telegram авторизации.", null, null, null);
+        }
+
+        if (!isValidTelegramLoginPayload(payload)) {
+            return new MiniAppDtos.TelegramWebAuthResponse(false, "Не удалось проверить подпись Telegram.", null, null, null);
+        }
+
+        Long userId = parseLong(payload.get("id"));
+        if (userId == null || userId < 1) {
+            return new MiniAppDtos.TelegramWebAuthResponse(false, "Не удалось определить Telegram user id.", null, null, null);
+        }
+
+        accountService.getByUserId(userId);
+        userService.createIfNeed(userId);
+        String accountLabel = extractTelegramAccountLabel(payload, userId);
+        String authToken = generateWebAuthToken(userId);
+        return new MiniAppDtos.TelegramWebAuthResponse(true, "Авторизация выполнена.", userId, authToken, accountLabel);
     }
 
     @PostMapping("/vote")
@@ -642,25 +677,28 @@ public class MiniAppController {
     private Long resolveUserId(Long headerUserId, Long userIdParam) {
         Long userId;
         Long initDataUserId = extractTelegramInitDataUserId();
+        Long webAuthUserId = extractWebAuthTokenUserId();
         if (isLocalTestModeActive()) {
             userId = Optional.ofNullable(botProperties.getLocalTestModeUserId()).orElse(740984236L);
             accountService.getByUserId(userId);
-            logMiniAppConnectionAttempt(userId, headerUserId, userIdParam, initDataUserId, "local_test_mode");
+            logMiniAppConnectionAttempt(userId, headerUserId, userIdParam, initDataUserId, webAuthUserId, "local_test_mode");
             return userId;
         }
 
         userId = Optional.ofNullable(headerUserId)
                 .or(() -> Optional.ofNullable(initDataUserId))
+                .or(() -> Optional.ofNullable(webAuthUserId))
                 .or(() -> Optional.ofNullable(userIdParam))
                 .orElseThrow(() -> {
-                    logMiniAppConnectionAttempt(null, headerUserId, userIdParam, initDataUserId, "unresolved");
+                    logMiniAppConnectionAttempt(null, headerUserId, userIdParam, initDataUserId, webAuthUserId, "unresolved");
                     return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Не удалось определить Telegram user id.");
                 });
         accountService.getByUserId(userId);
         String source = headerUserId != null ? "x_telegram_user_id_header"
                 : initDataUserId != null ? "x_telegram_init_data"
+                : webAuthUserId != null ? "x_web_auth_token"
                 : "user_id_param";
-        logMiniAppConnectionAttempt(userId, headerUserId, userIdParam, initDataUserId, source);
+        logMiniAppConnectionAttempt(userId, headerUserId, userIdParam, initDataUserId, webAuthUserId, source);
         return userId;
     }
 
@@ -669,6 +707,7 @@ public class MiniAppController {
             Long headerUserId,
             Long userIdParam,
             Long initDataUserId,
+            Long webAuthUserId,
             String source
     ) {
         ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
@@ -687,8 +726,9 @@ public class MiniAppController {
 
         String initDataHeader = request.getHeader("X-Telegram-Init-Data");
         String tgWebAppDataParam = request.getParameter("tgWebAppData");
+        String webAuthHeader = request.getHeader("X-Web-Auth-Token");
         log.info(
-                "MiniApp connection attempt: method={}, path={}, query={}, remoteAddr={}, forwardedFor={}, userAgent={}, host={}, origin={}, referer={}, resolvedUserId={}, source={}, headerUserId={}, initDataUserId={}, userIdParam={}, hasInitDataHeader={}, hasTgWebAppDataParam={}",
+                "MiniApp connection attempt: method={}, path={}, query={}, remoteAddr={}, forwardedFor={}, userAgent={}, host={}, origin={}, referer={}, resolvedUserId={}, source={}, headerUserId={}, initDataUserId={}, webAuthUserId={}, userIdParam={}, hasInitDataHeader={}, hasTgWebAppDataParam={}, hasWebAuthHeader={}",
                 request.getMethod(),
                 request.getRequestURI(),
                 request.getQueryString(),
@@ -702,9 +742,11 @@ public class MiniAppController {
                 source,
                 headerUserId,
                 initDataUserId,
+                webAuthUserId,
                 userIdParam,
                 initDataHeader != null && !initDataHeader.isBlank(),
-                tgWebAppDataParam != null && !tgWebAppDataParam.isBlank()
+                tgWebAppDataParam != null && !tgWebAppDataParam.isBlank(),
+                webAuthHeader != null && !webAuthHeader.isBlank()
         );
     }
 
@@ -755,6 +797,160 @@ public class MiniAppController {
             return Long.parseLong(matcher.group(1));
         }
         return null;
+    }
+
+    private Long extractWebAuthTokenUserId() {
+        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs == null || attrs.getRequest() == null) {
+            return null;
+        }
+
+        String authToken = attrs.getRequest().getHeader("X-Web-Auth-Token");
+        if (!StringUtils.hasText(authToken)) {
+            authToken = attrs.getRequest().getParameter("authToken");
+        }
+        if (!StringUtils.hasText(authToken)) {
+            return null;
+        }
+        return validateWebAuthToken(authToken);
+    }
+
+    private String generateWebAuthToken(Long userId) {
+        long exp = (System.currentTimeMillis() / 1000L) + WEB_AUTH_TTL_SECONDS;
+        String payload = userId + ":" + exp;
+        String signature = hex(hmacSha256(payload, botProperties.getToken()));
+        return payload + ":" + signature;
+    }
+
+    private Long validateWebAuthToken(String token) {
+        try {
+            String[] parts = token.split(":");
+            if (parts.length != 3) {
+                return null;
+            }
+            long userId = Long.parseLong(parts[0]);
+            long exp = Long.parseLong(parts[1]);
+            if (userId < 1 || exp < (System.currentTimeMillis() / 1000L)) {
+                return null;
+            }
+            String payload = parts[0] + ":" + parts[1];
+            String expected = hex(hmacSha256(payload, botProperties.getToken()));
+            if (!constantTimeEquals(expected, parts[2])) {
+                return null;
+            }
+            return userId;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private boolean isValidTelegramLoginPayload(Map<String, Object> payload) {
+        if (payload == null || payload.isEmpty()) {
+            return false;
+        }
+        Object hashObject = payload.get("hash");
+        if (!(hashObject instanceof String hash) || !StringUtils.hasText(hash)) {
+            return false;
+        }
+
+        Long authDate = parseLong(payload.get("auth_date"));
+        if (authDate == null || authDate < 1) {
+            return false;
+        }
+        long now = System.currentTimeMillis() / 1000L;
+        if (Math.abs(now - authDate) > WEB_AUTH_TTL_SECONDS) {
+            return false;
+        }
+
+        String dataCheckString = payload.entrySet().stream()
+                .filter(entry -> !"hash".equals(entry.getKey()))
+                .filter(entry -> entry.getValue() != null)
+                .filter(entry -> StringUtils.hasText(String.valueOf(entry.getValue())))
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining("\n"));
+
+        byte[] secret = sha256(botProperties.getToken());
+        String expectedHash = hex(hmacSha256(dataCheckString, secret));
+        return constantTimeEquals(expectedHash, hash.toLowerCase(Locale.ROOT));
+    }
+
+    private String extractTelegramAccountLabel(Map<String, Object> payload, Long userId) {
+        String username = asString(payload.get("username"));
+        if (StringUtils.hasText(username)) {
+            return "@" + username;
+        }
+        String firstName = asString(payload.get("first_name"));
+        String lastName = asString(payload.get("last_name"));
+        StringJoiner joiner = new StringJoiner(" ");
+        if (StringUtils.hasText(firstName)) {
+            joiner.add(firstName);
+        }
+        if (StringUtils.hasText(lastName)) {
+            joiner.add(lastName);
+        }
+        String fullName = joiner.toString().trim();
+        return StringUtils.hasText(fullName) ? fullName : "ID " + userId;
+    }
+
+    private String asString(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private Long parseLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private byte[] hmacSha256(String payload, String secret) {
+        return hmacSha256(payload, secret == null ? new byte[0] : secret.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private byte[] hmacSha256(String payload, byte[] secret) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(secret, "HmacSHA256"));
+            return mac.doFinal(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot calculate HMAC SHA256", e);
+        }
+    }
+
+    private byte[] sha256(String value) {
+        try {
+            return java.security.MessageDigest.getInstance("SHA-256")
+                    .digest((value == null ? "" : value).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot calculate SHA-256", e);
+        }
+    }
+
+    private String hex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+
+    private boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a.length() != b.length()) {
+            return false;
+        }
+        int result = 0;
+        for (int i = 0; i < a.length(); i++) {
+            result |= a.charAt(i) ^ b.charAt(i);
+        }
+        return result == 0;
     }
 
     private boolean isLocalTestModeActive() {
