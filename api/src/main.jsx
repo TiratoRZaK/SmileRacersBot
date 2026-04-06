@@ -219,6 +219,7 @@ function App() {
   const [isAppReady, setIsAppReady] = useState(false)
   const [bootProgress, setBootProgress] = useState(14)
   const [favoriteDirty, setFavoriteDirty] = useState(false)
+  const [bootError, setBootError] = useState('')
   const [raceScale, setRaceScale] = useState(1)
   const [battleMode, setBattleMode] = useState('idle')
   const [boosterHint, setBoosterHint] = useState(null)
@@ -309,10 +310,26 @@ function App() {
 
     const payload = await parseResponsePayload(response)
     if (!response.ok) {
-      throw new Error(getErrorMessage(payload, fallbackErrorMessage || `Ошибка запроса (${response.status}).`))
+      const error = new Error(getErrorMessage(payload, fallbackErrorMessage || `Ошибка запроса (${response.status}).`))
+      error.status = response.status
+      throw error
     }
 
     return payload
+  }
+
+  const isIdentityResolutionError = (error) => {
+    const message = String(error?.message || '').toLowerCase()
+    return Number(error?.status) === 401 && (
+      message.includes('не удалось определить telegram user id') ||
+      message.includes('авторизацию telegram') ||
+      message.includes('telegram user id')
+    )
+  }
+
+  const resetWebAuthSession = () => {
+    clearStoredWebAuth()
+    setWebAuth(null)
   }
 
   useEffect(() => {
@@ -334,6 +351,7 @@ function App() {
       ])
       setData(bootstrapData)
       setActiveWithdraws(withdrawData.items || [])
+      setBootError('')
 
       if (!silent) {
         const elapsed = Date.now() - firstLoadStartedAtRef.current
@@ -409,9 +427,20 @@ function App() {
 
     if (readTelegramContext().telegramUserId || readTelegramContext().initData || readStoredWebAuth()?.authToken) {
       refresh().catch((error) => {
+        if (isIdentityResolutionError(error)) {
+          resetWebAuthSession()
+          setBootError('')
+          setData(null)
+          setBootProgress(100)
+          setIsAppReady(true)
+          notify('Сессия MiniApp недействительна. Войдите через Telegram заново.', { persist: true })
+          return
+        }
+        const errorMessage = error?.message || 'Не удалось загрузить данные MiniApp.'
+        setBootError(errorMessage)
         setBootProgress(100)
         setIsAppReady(true)
-        notify(error?.message || 'Не удалось загрузить данные MiniApp.', { persist: true })
+        notify(errorMessage, { persist: true })
       })
     } else {
       setBootProgress(100)
@@ -955,6 +984,43 @@ function App() {
       >
         Сбросить web-сессию
       </button>}
+    </div>
+  </div>
+
+  if (isAppReady && !data && bootError) return <div className='loading-screen'>
+    <div className='loading-orb loading-orb-left' />
+    <div className='loading-orb loading-orb-right' />
+    <div className='loading-card auth-card'>
+      <div className='loading-logo'>⚠️</div>
+      <h2>MiniApp не загрузился</h2>
+      <p className='subtitle'>{bootError}</p>
+      <button
+        type='button'
+        className='danger-outline'
+        onClick={() => {
+          setBootError('')
+          setBootProgress(26)
+          setIsAppReady(false)
+          refresh().catch((error) => {
+            if (isIdentityResolutionError(error)) {
+              resetWebAuthSession()
+              setBootError('')
+              setData(null)
+              setBootProgress(100)
+              setIsAppReady(true)
+              notify('Сессия MiniApp недействительна. Войдите через Telegram заново.', { persist: true })
+              return
+            }
+            const errorMessage = error?.message || 'Не удалось загрузить данные MiniApp.'
+            setBootError(errorMessage)
+            setBootProgress(100)
+            setIsAppReady(true)
+            notify(errorMessage, { persist: true })
+          })
+        }}
+      >
+        Повторить загрузку
+      </button>
     </div>
   </div>
 
