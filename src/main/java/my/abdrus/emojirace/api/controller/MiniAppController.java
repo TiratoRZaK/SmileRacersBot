@@ -8,6 +8,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import my.abdrus.emojirace.api.dto.MiniAppDtos;
 import my.abdrus.emojirace.bot.entity.Account;
 import my.abdrus.emojirace.bot.entity.Match;
@@ -50,10 +51,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/miniapp")
 @RequiredArgsConstructor
+@Slf4j
 public class MiniAppController {
 
     private static final long FAVORITE_REPLACE_COST = 150L;
@@ -636,18 +639,71 @@ public class MiniAppController {
 
     private Long resolveUserId(Long headerUserId, Long userIdParam) {
         Long userId;
+        Long initDataUserId = extractTelegramInitDataUserId();
         if (isLocalTestModeActive()) {
             userId = Optional.ofNullable(botProperties.getLocalTestModeUserId()).orElse(740984236L);
             accountService.getByUserId(userId);
+            logMiniAppConnectionAttempt(userId, headerUserId, userIdParam, initDataUserId, "local_test_mode");
             return userId;
         }
 
         userId = Optional.ofNullable(headerUserId)
-                .or(() -> Optional.ofNullable(extractTelegramInitDataUserId()))
+                .or(() -> Optional.ofNullable(initDataUserId))
                 .or(() -> Optional.ofNullable(userIdParam))
-                .orElseThrow(() -> new IllegalArgumentException("Не удалось определить Telegram user id."));
+                .orElseThrow(() -> {
+                    logMiniAppConnectionAttempt(null, headerUserId, userIdParam, initDataUserId, "unresolved");
+                    return new IllegalArgumentException("Не удалось определить Telegram user id.");
+                });
         accountService.getByUserId(userId);
+        String source = headerUserId != null ? "x_telegram_user_id_header"
+                : initDataUserId != null ? "x_telegram_init_data"
+                : "user_id_param";
+        logMiniAppConnectionAttempt(userId, headerUserId, userIdParam, initDataUserId, source);
         return userId;
+    }
+
+    private void logMiniAppConnectionAttempt(
+            Long resolvedUserId,
+            Long headerUserId,
+            Long userIdParam,
+            Long initDataUserId,
+            String source
+    ) {
+        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        HttpServletRequest request = attrs == null ? null : attrs.getRequest();
+        if (request == null) {
+            log.info(
+                    "MiniApp connection attempt without request context: resolvedUserId={}, source={}, headerUserId={}, initDataUserId={}, userIdParam={}",
+                    resolvedUserId,
+                    source,
+                    headerUserId,
+                    initDataUserId,
+                    userIdParam
+            );
+            return;
+        }
+
+        String initDataHeader = request.getHeader("X-Telegram-Init-Data");
+        String tgWebAppDataParam = request.getParameter("tgWebAppData");
+        log.info(
+                "MiniApp connection attempt: method={}, path={}, query={}, remoteAddr={}, forwardedFor={}, userAgent={}, host={}, origin={}, referer={}, resolvedUserId={}, source={}, headerUserId={}, initDataUserId={}, userIdParam={}, hasInitDataHeader={}, hasTgWebAppDataParam={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                request.getQueryString(),
+                request.getRemoteAddr(),
+                request.getHeader("X-Forwarded-For"),
+                request.getHeader("User-Agent"),
+                request.getServerName(),
+                request.getHeader("Origin"),
+                request.getHeader("Referer"),
+                resolvedUserId,
+                source,
+                headerUserId,
+                initDataUserId,
+                userIdParam,
+                initDataHeader != null && !initDataHeader.isBlank(),
+                tgWebAppDataParam != null && !tgWebAppDataParam.isBlank()
+        );
     }
 
     private void deleteTelegramMessageIfExists(Long userId, Integer messageId) {
