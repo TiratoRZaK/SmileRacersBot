@@ -205,14 +205,19 @@ function App() {
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams()
     if (userId != null) params.set('userId', String(userId))
+    if (telegramContext.initData) params.set('tgWebAppData', telegramContext.initData)
     return params.toString()
-  }, [userId])
+  }, [telegramContext.initData, userId])
   const requestHeaders = useMemo(() => {
     const headers = {}
     if (telegramContext.telegramUserId) headers['X-Telegram-User-Id'] = String(telegramContext.telegramUserId)
     if (telegramContext.initData) headers['X-Telegram-Init-Data'] = telegramContext.initData
     return headers
   }, [telegramContext.initData, telegramContext.telegramUserId])
+  const hasMiniAppAuthContext = useMemo(
+    () => Boolean(userId != null || telegramContext.initData),
+    [telegramContext.initData, userId]
+  )
 
   const parseResponsePayload = async (response) => {
     const text = await response.text()
@@ -234,6 +239,9 @@ function App() {
 
   const requestApi = async (path, options = {}) => {
     const { method = 'GET', body, includeQuery = true, headers = {}, fallbackErrorMessage } = options
+    if (!hasMiniAppAuthContext) {
+      throw new Error('Откройте MiniApp через Telegram: не удалось получить данные авторизации.')
+    }
     const url = `${API}/${path}${includeQuery && requestQuery ? `?${requestQuery}` : ''}`
     const controller = new AbortController()
     const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -359,10 +367,10 @@ function App() {
       }
     }, 400)
 
-    refresh().catch(() => {
+    refresh().catch((error) => {
       setBootProgress(100)
       setIsAppReady(true)
-      notify('Не удалось загрузить данные MiniApp.', { persist: true })
+      notify(error?.message || 'Не удалось загрузить данные MiniApp.', { persist: true })
     })
     return () => window.clearInterval(pollId)
   }, [])
@@ -378,13 +386,14 @@ function App() {
   }, [isAppReady])
 
   useEffect(() => {
+    if (!hasMiniAppAuthContext) return undefined
     const timer = setInterval(() => {
       if (document.hidden) return
       if (Date.now() < interactionPauseUntilRef.current) return
       refresh(true).catch(() => null)
     }, POLL_INTERVAL_MS)
     return () => clearInterval(timer)
-  }, [userId, tab])
+  }, [hasMiniAppAuthContext, userId, tab])
 
   useEffect(() => {
     if (userId == null) return
