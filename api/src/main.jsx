@@ -98,8 +98,17 @@ const buildTrackBackgroundImage = (theme, units, seed) => {
 
 const normalizeType = (type) => String(type || '').trim().toUpperCase()
 const getRaceTypeLabel = (type) => RACE_TYPE_LABELS[normalizeType(type)] || type || 'Неизвестно'
-const telegramUser = tg?.initDataUnsafe?.user || null
-const telegramUserId = telegramUser?.id || null
+
+const readTelegramContext = () => {
+  const webApp = window.Telegram?.WebApp
+  const user = webApp?.initDataUnsafe?.user || null
+  const telegramUserId = Number(user?.id || 0)
+  return {
+    user,
+    telegramUserId: Number.isFinite(telegramUserId) && telegramUserId > 0 ? telegramUserId : null,
+    initData: webApp?.initData || ''
+  }
+}
 
 const getTelegramAccountLabel = (user) => {
   if (!user) return 'Не удалось определить Telegram-аккаунт'
@@ -122,7 +131,6 @@ const initStartParam = String(tg?.initDataUnsafe?.start_param || tg?.initDataUns
 const deepLinkParam = (initStartParam || queryStartApp || '').trim()
 const deepLinkBattleMatch = deepLinkParam.match(/join_battle_(\d+)/i)
 const deepLinkBattleId = deepLinkBattleMatch ? Number(deepLinkBattleMatch[1]) : (Number.isFinite(queryBattleId) && queryBattleId > 0 ? queryBattleId : null)
-const getUserId = () => telegramUserId || (Number.isFinite(queryUserId) && queryUserId > 0 ? queryUserId : null)
 
 
 const getBattleStateLabel = (battle) => {
@@ -145,7 +153,10 @@ const getBattleBank = (battle) => {
 }
 
 function App() {
-  const userId = useMemo(getUserId, [])
+  const [telegramContext, setTelegramContext] = useState(() => readTelegramContext())
+  const userId = useMemo(() => {
+    return telegramContext.telegramUserId || (Number.isFinite(queryUserId) && queryUserId > 0 ? queryUserId : null)
+  }, [telegramContext.telegramUserId])
   const [data, setData] = useState(null)
   const [activeWithdraws, setActiveWithdraws] = useState([])
   const [historyItems, setHistoryItems] = useState([])
@@ -198,10 +209,10 @@ function App() {
   }, [userId])
   const requestHeaders = useMemo(() => {
     const headers = {}
-    if (telegramUserId) headers['X-Telegram-User-Id'] = String(telegramUserId)
-    if (tg?.initData) headers['X-Telegram-Init-Data'] = tg.initData
+    if (telegramContext.telegramUserId) headers['X-Telegram-User-Id'] = String(telegramContext.telegramUserId)
+    if (telegramContext.initData) headers['X-Telegram-Init-Data'] = telegramContext.initData
     return headers
-  }, [])
+  }, [telegramContext.initData, telegramContext.telegramUserId])
 
   const parseResponsePayload = async (response) => {
     const text = await response.text()
@@ -316,11 +327,44 @@ function App() {
   useEffect(() => {
     tg?.ready()
     tg?.expand?.()
+    const syncTelegramContext = () => {
+      setTelegramContext((current) => {
+        const next = readTelegramContext()
+        if (
+          current.telegramUserId === next.telegramUserId &&
+          current.initData === next.initData &&
+          current.user?.id === next.user?.id
+        ) {
+          return current
+        }
+        return next
+      })
+    }
+
+    syncTelegramContext()
+    const pollId = window.setInterval(() => {
+      const next = readTelegramContext()
+      setTelegramContext((current) => {
+        if (
+          current.telegramUserId === next.telegramUserId &&
+          current.initData === next.initData &&
+          current.user?.id === next.user?.id
+        ) {
+          return current
+        }
+        return next
+      })
+      if (next.telegramUserId || next.initData) {
+        window.clearInterval(pollId)
+      }
+    }, 400)
+
     refresh().catch(() => {
       setBootProgress(100)
       setIsAppReady(true)
       notify('Не удалось загрузить данные MiniApp.', { persist: true })
     })
+    return () => window.clearInterval(pollId)
   }, [])
 
   useEffect(() => {
@@ -341,6 +385,12 @@ function App() {
     }, POLL_INTERVAL_MS)
     return () => clearInterval(timer)
   }, [userId, tab])
+
+  useEffect(() => {
+    if (userId == null) return
+    if (data != null) return
+    refresh(true).catch(() => null)
+  }, [userId, data])
 
   useEffect(() => {
     if (!data?.allEmojis?.length) return
@@ -939,8 +989,8 @@ function App() {
     {tab === 'account' && <section className='panel tab-panel account-panel'>
       {renderSection('account', 'Данные об аккаунте', <>
         <p className='subtitle'>
-          {getTelegramAccountLabel(telegramUser)}
-          {telegramUser?.id ? ` · ID ${telegramUser.id}` : ''}
+          {getTelegramAccountLabel(telegramContext.user)}
+          {telegramContext.user?.id ? ` · ID ${telegramContext.user.id}` : ''}
         </p>
         <p className='subtitle'>
           {data.localTestMode
