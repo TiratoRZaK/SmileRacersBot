@@ -216,6 +216,23 @@ h2 {
   font-size: 12px;
 }
 
+.auth-card {
+  display: grid;
+  gap: 10px;
+  text-align: center;
+}
+
+.telegram-widget-slot {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.auth-error {
+  color: #fecaca;
+  font-size: 12px;
+}
+
 h3 {
   margin-top: 16px;
   margin-bottom: 8px;

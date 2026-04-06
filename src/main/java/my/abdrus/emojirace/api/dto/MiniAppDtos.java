@@ -90,5 +90,15 @@ public class MiniAppDtos {
 
     public record DeleteNotificationRequest(Long notificationId) {}
 
+    public record TelegramAuthConfigResponse(String botUsername) {}
+
+    public record TelegramWebAuthResponse(
+            boolean success,
+            String message,
+            Long userId,
+            String authToken,
+            String accountLabel
+    ) {}
+
     public record ActionResponse(boolean success, String message) {}
 }
