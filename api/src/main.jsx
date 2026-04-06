@@ -205,8 +205,9 @@ function App() {
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams()
     if (userId != null) params.set('userId', String(userId))
+    if (telegramContext.initData) params.set('tgWebAppData', telegramContext.initData)
     return params.toString()
-  }, [userId])
+  }, [telegramContext.initData, userId])
   const requestHeaders = useMemo(() => {
     const headers = {}
     if (telegramContext.telegramUserId) headers['X-Telegram-User-Id'] = String(telegramContext.telegramUserId)
