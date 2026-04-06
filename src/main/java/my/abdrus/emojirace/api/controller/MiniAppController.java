@@ -51,6 +51,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
@@ -652,7 +654,7 @@ public class MiniAppController {
                 .or(() -> Optional.ofNullable(userIdParam))
                 .orElseThrow(() -> {
                     logMiniAppConnectionAttempt(null, headerUserId, userIdParam, initDataUserId, "unresolved");
-                    return new IllegalArgumentException("Не удалось определить Telegram user id.");
+                    return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Не удалось определить Telegram user id.");
                 });
         accountService.getByUserId(userId);
         String source = headerUserId != null ? "x_telegram_user_id_header"
