@@ -6,6 +6,7 @@ public class MiniAppDtos {
 
     public record BootstrapResponse(
             Long userId,
+            boolean isAdmin,
             boolean localTestMode,
             Integer generationIntervalMinutes,
             Long balance,
@@ -99,6 +100,40 @@ public class MiniAppDtos {
             String authToken,
             String accountLabel
     ) {}
+
+    public record WebCredentialsRequest(String username, String password) {}
+
+    public record AuthStatusRequest(String username) {}
+
+    public record AuthStatusResponse(
+            boolean success,
+            String message,
+            boolean userExists,
+            boolean requiresPasswordSetup
+    ) {}
+
+    public record WebAuthResponse(
+            boolean success,
+            String message,
+            Long userId,
+            String authToken,
+            String accountLabel
+    ) {}
+
+    public record AdminWithdrawItem(
+            Long id,
+            Long userId,
+            String username,
+            Long amount,
+            String status,
+            Long createdAtMs
+    ) {}
+
+    public record AdminWithdrawsResponse(List<AdminWithdrawItem> items) {}
+
+    public record AdminWithdrawActionRequest(Long requestId) {}
+
+    public record AdminBalanceAdjustRequest(String username, Long amount) {}
 
     public record ActionResponse(boolean success, String message) {}
 }

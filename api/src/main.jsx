@@ -100,17 +100,6 @@ const buildTrackBackgroundImage = (theme, units, seed) => {
 const normalizeType = (type) => String(type || '').trim().toUpperCase()
 const getRaceTypeLabel = (type) => RACE_TYPE_LABELS[normalizeType(type)] || type || 'Неизвестно'
 
-const readTelegramContext = () => {
-  const webApp = window.Telegram?.WebApp
-  const user = webApp?.initDataUnsafe?.user || null
-  const telegramUserId = Number(user?.id || 0)
-  return {
-    user,
-    telegramUserId: Number.isFinite(telegramUserId) && telegramUserId > 0 ? telegramUserId : null,
-    initData: webApp?.initData || ''
-  }
-}
-
 const readStoredWebAuth = () => {
   try {
     const raw = window.localStorage.getItem(WEB_AUTH_STORAGE_KEY)
@@ -140,13 +129,6 @@ const clearStoredWebAuth = () => {
   window.localStorage.removeItem(WEB_AUTH_STORAGE_KEY)
 }
 
-const getTelegramAccountLabel = (user) => {
-  if (!user) return 'Не удалось определить Telegram-аккаунт'
-  if (user.username) return `@${user.username}`
-  const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim()
-  return fullName || `ID ${user.id}`
-}
-
 const getTrackTheme = (race) => {
   if (!race) return TRACK_THEMES[0]
   const seed = Number(race.matchId || 0)
@@ -157,7 +139,7 @@ const searchParams = new URLSearchParams(location.search)
 const queryUserId = Number(searchParams.get('userId') || 0)
 const queryBattleId = Number(searchParams.get('battleId') || 0)
 const queryStartApp = String(searchParams.get('startapp') || searchParams.get('tgWebAppStartParam') || '')
-const initStartParam = String(tg?.initDataUnsafe?.start_param || tg?.initDataUnsafe?.startapp || '')
+const initStartParam = ''
 const deepLinkParam = (initStartParam || queryStartApp || '').trim()
 const deepLinkBattleMatch = deepLinkParam.match(/join_battle_(\d+)/i)
 const deepLinkBattleId = deepLinkBattleMatch ? Number(deepLinkBattleMatch[1]) : (Number.isFinite(queryBattleId) && queryBattleId > 0 ? queryBattleId : null)
@@ -183,18 +165,17 @@ const getBattleBank = (battle) => {
 }
 
 function App() {
-  const [telegramContext, setTelegramContext] = useState(() => readTelegramContext())
   const [webAuth, setWebAuth] = useState(() => readStoredWebAuth())
-  const [webAuthBotUsername, setWebAuthBotUsername] = useState('')
   const [webAuthError, setWebAuthError] = useState('')
   const [isWebAuthLoading, setIsWebAuthLoading] = useState(false)
-  const [webAuthWidgetReady, setWebAuthWidgetReady] = useState(false)
-  const telegramWidgetRef = useRef(null)
+  const [authMode, setAuthMode] = useState('login')
+  const [authUsername, setAuthUsername] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authPasswordConfirm, setAuthPasswordConfirm] = useState('')
   const userId = useMemo(() => {
-    if (telegramContext.telegramUserId) return telegramContext.telegramUserId
     if (webAuth?.userId) return webAuth.userId
     return Number.isFinite(queryUserId) && queryUserId > 0 ? queryUserId : null
-  }, [telegramContext.telegramUserId, webAuth?.userId])
+  }, [webAuth?.userId])
   const [data, setData] = useState(null)
   const [activeWithdraws, setActiveWithdraws] = useState([])
   const [historyItems, setHistoryItems] = useState([])
@@ -223,6 +204,9 @@ function App() {
   const [raceScale, setRaceScale] = useState(1)
   const [battleMode, setBattleMode] = useState('idle')
   const [boosterHint, setBoosterHint] = useState(null)
+  const [adminWithdraws, setAdminWithdraws] = useState([])
+  const [adminUsername, setAdminUsername] = useState('')
+  const [adminAmount, setAdminAmount] = useState(100)
   const [sectionOpen, setSectionOpen] = useState({
     account: true,
     favorite: false,
@@ -231,7 +215,9 @@ function App() {
     recentRaces: true,
     battleCreate: true,
     battleManage: false,
-    battleJoin: false
+    battleJoin: false,
+    adminWithdraws: true,
+    adminBalance: false
   })
   const refreshInFlightRef = useRef(false)
   const interactionPauseUntilRef = useRef(0)
@@ -244,20 +230,17 @@ function App() {
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams()
     if (userId != null) params.set('userId', String(userId))
-    if (telegramContext.initData) params.set('tgWebAppData', telegramContext.initData)
     if (webAuth?.authToken) params.set('authToken', webAuth.authToken)
     return params.toString()
-  }, [telegramContext.initData, userId, webAuth?.authToken])
+  }, [userId, webAuth?.authToken])
   const requestHeaders = useMemo(() => {
     const headers = {}
-    if (telegramContext.telegramUserId) headers['X-Telegram-User-Id'] = String(telegramContext.telegramUserId)
-    if (telegramContext.initData) headers['X-Telegram-Init-Data'] = telegramContext.initData
     if (webAuth?.authToken) headers['X-Web-Auth-Token'] = webAuth.authToken
     return headers
-  }, [telegramContext.initData, telegramContext.telegramUserId, webAuth?.authToken])
+  }, [webAuth?.authToken])
   const hasMiniAppAuthContext = useMemo(
-    () => Boolean(userId != null || telegramContext.initData || webAuth?.authToken),
-    [telegramContext.initData, userId, webAuth?.authToken]
+    () => Boolean(userId != null && webAuth?.authToken),
+    [userId, webAuth?.authToken]
   )
 
   const parseResponsePayload = async (response) => {
@@ -281,7 +264,7 @@ function App() {
   const requestApi = async (path, options = {}) => {
     const { method = 'GET', body, includeQuery = true, headers = {}, fallbackErrorMessage } = options
     if (!hasMiniAppAuthContext) {
-      throw new Error('Не удалось определить авторизацию Telegram. Войдите через Telegram.')
+      throw new Error('Вы не авторизованы. Войдите по логину и паролю.')
     }
     const url = `${API}/${path}${includeQuery && requestQuery ? `?${requestQuery}` : ''}`
     const controller = new AbortController()
@@ -321,9 +304,8 @@ function App() {
   const isIdentityResolutionError = (error) => {
     const message = String(error?.message || '').toLowerCase()
     return Number(error?.status) === 401 && (
-      message.includes('не удалось определить telegram user id') ||
-      message.includes('авторизацию telegram') ||
-      message.includes('telegram user id')
+      message.includes('не удалось определить user id') ||
+      message.includes('выполните вход')
     )
   }
 
@@ -390,42 +372,42 @@ function App() {
     }
   }
 
-  useEffect(() => {
-    tg?.ready()
-    tg?.expand?.()
-    const syncTelegramContext = () => {
-      setTelegramContext((current) => {
-        const next = readTelegramContext()
-        if (
-          current.telegramUserId === next.telegramUserId &&
-          current.initData === next.initData &&
-          current.user?.id === next.user?.id
-        ) {
-          return current
-        }
-        return next
-      })
+  const loadAdminWithdraws = async () => {
+    if (!data?.isAdmin) return
+    const payload = await requestApi('admin/withdraws', { fallbackErrorMessage: 'Не удалось загрузить админ-выводы.' })
+    setAdminWithdraws(payload.items || [])
+  }
+
+  const adminWithdrawAction = async (requestId, action) => {
+    const endpoint = action === 'pay' ? 'admin/withdraw/pay' : 'admin/withdraw/cancel'
+    const result = await requestApi(endpoint, {
+      method: 'POST',
+      body: { requestId },
+      fallbackErrorMessage: 'Не удалось выполнить действие по выводу.'
+    })
+    notify(result?.message || 'Операция выполнена.')
+    await Promise.all([refresh(true), loadAdminWithdraws()])
+  }
+
+  const adminAdjustBalance = async (mode) => {
+    const username = String(adminUsername || '').trim().replace(/^@/, '')
+    const amount = Number(adminAmount || 0)
+    if (!username || !Number.isFinite(amount) || amount <= 0) {
+      notify('Введите корректный username и сумму > 0', { persist: true })
+      return
     }
+    const endpoint = mode === 'add' ? 'admin/balance/add' : 'admin/balance/subtract'
+    const result = await requestApi(endpoint, {
+      method: 'POST',
+      body: { username, amount: Math.round(amount) },
+      fallbackErrorMessage: 'Не удалось изменить баланс.'
+    })
+    notify(result?.message || 'Баланс обновлён.')
+    await refresh(true)
+  }
 
-    syncTelegramContext()
-    const pollId = window.setInterval(() => {
-      const next = readTelegramContext()
-      setTelegramContext((current) => {
-        if (
-          current.telegramUserId === next.telegramUserId &&
-          current.initData === next.initData &&
-          current.user?.id === next.user?.id
-        ) {
-          return current
-        }
-        return next
-      })
-      if (next.telegramUserId || next.initData) {
-        window.clearInterval(pollId)
-      }
-    }, 400)
-
-    if (readTelegramContext().telegramUserId || readTelegramContext().initData || readStoredWebAuth()?.authToken) {
+  useEffect(() => {
+    if (readStoredWebAuth()?.authToken) {
       refresh().catch((error) => {
         if (isIdentityResolutionError(error)) {
           resetWebAuthSession()
@@ -433,7 +415,7 @@ function App() {
           setData(null)
           setBootProgress(100)
           setIsAppReady(true)
-          notify('Сессия MiniApp недействительна. Войдите через Telegram заново.', { persist: true })
+          notify('Сессия недействительна. Выполните вход заново.', { persist: true })
           return
         }
         const errorMessage = error?.message || 'Не удалось загрузить данные MiniApp.'
@@ -446,85 +428,53 @@ function App() {
       setBootProgress(100)
       setIsAppReady(true)
     }
-    return () => window.clearInterval(pollId)
   }, [])
 
-  useEffect(() => {
-    if (telegramContext.initData || telegramContext.telegramUserId || webAuth?.authToken) {
-      return undefined
+  const submitAuth = async (mode) => {
+    if (isWebAuthLoading) return
+    const username = String(authUsername || '').trim().replace(/^@/, '')
+    const password = String(authPassword || '')
+    if (!username || !password) {
+      setWebAuthError('Введите логин и пароль.')
+      return
     }
-    let cancelled = false
-    fetch(`${API}/auth/config`)
-      .then(async (response) => {
-        const payload = await parseResponsePayload(response)
-        if (!response.ok) throw new Error(payload?.message || 'Не удалось загрузить конфигурацию авторизации.')
-        if (!cancelled) setWebAuthBotUsername(payload?.botUsername || '')
-      })
-      .catch(() => {
-        if (!cancelled) setWebAuthError('Не удалось загрузить Telegram Login. Проверьте бэкенд и имя бота.')
-      })
-    return () => {
-      cancelled = true
+    if (mode !== 'login' && password !== authPasswordConfirm) {
+      setWebAuthError('Пароли не совпадают.')
+      return
     }
-  }, [telegramContext.initData, telegramContext.telegramUserId, webAuth?.authToken])
 
-  useEffect(() => {
-    if (!webAuthBotUsername || telegramContext.initData || telegramContext.telegramUserId || webAuth?.authToken) {
-      return undefined
-    }
-    const target = telegramWidgetRef.current
-    if (!target) return undefined
-    setWebAuthWidgetReady(false)
-    target.innerHTML = ''
-    const script = document.createElement('script')
-    script.src = 'https://telegram.org/js/telegram-widget.js?22'
-    script.async = true
-    script.setAttribute('data-telegram-login', webAuthBotUsername)
-    script.setAttribute('data-size', 'large')
-    script.setAttribute('data-radius', '14')
-    script.setAttribute('data-request-access', 'write')
-    script.setAttribute('data-userpic', 'false')
-    script.setAttribute('data-onauth', 'window.__onTelegramWebAuth(user)')
-    script.onload = () => setWebAuthWidgetReady(true)
-    target.appendChild(script)
-    return () => {
-      target.innerHTML = ''
-    }
-  }, [webAuthBotUsername, telegramContext.initData, telegramContext.telegramUserId, webAuth?.authToken])
-
-  useEffect(() => {
-    window.__onTelegramWebAuth = async (telegramUser) => {
-      if (!telegramUser || isWebAuthLoading) return
-      setWebAuthError('')
-      setIsWebAuthLoading(true)
-      try {
-        const response = await fetch(`${API}/auth/telegram`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(telegramUser)
-        })
-        const payload = await parseResponsePayload(response)
-        if (!response.ok || !payload?.success || !payload?.authToken || !payload?.userId) {
-          throw new Error(payload?.message || 'Telegram авторизация не прошла.')
-        }
-        const nextAuth = {
-          authToken: String(payload.authToken),
-          userId: Number(payload.userId),
-          accountLabel: payload.accountLabel || getTelegramAccountLabel(telegramUser)
-        }
-        setWebAuth(nextAuth)
-        saveStoredWebAuth(nextAuth)
-        await refresh(true)
-      } catch (error) {
-        setWebAuthError(error?.message || 'Telegram авторизация не прошла.')
-      } finally {
-        setIsWebAuthLoading(false)
+    setWebAuthError('')
+    setIsWebAuthLoading(true)
+    try {
+      const response = await fetch(`${API}/auth/${mode === 'register' ? 'register' : mode === 'setup' ? 'password/setup' : 'login'}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      })
+      const payload = await parseResponsePayload(response)
+      if (!response.ok || !payload?.success || !payload?.authToken || !payload?.userId) {
+        throw new Error(payload?.message || 'Авторизация не прошла.')
       }
+      const nextAuth = {
+        authToken: String(payload.authToken),
+        userId: Number(payload.userId),
+        accountLabel: payload.accountLabel || `@${username}`
+      }
+      setWebAuth(nextAuth)
+      saveStoredWebAuth(nextAuth)
+      setAuthPassword('')
+      setAuthPasswordConfirm('')
+      await refresh(true)
+    } catch (error) {
+      const message = error?.message || 'Авторизация не прошла.'
+      setWebAuthError(message)
+      if (mode === 'login' && message.toLowerCase().includes('пароль ещё не задан')) {
+        setAuthMode('setup')
+      }
+    } finally {
+      setIsWebAuthLoading(false)
     }
-    return () => {
-      delete window.__onTelegramWebAuth
-    }
-  }, [isWebAuthLoading])
+  }
 
   useEffect(() => {
     if (isAppReady) return undefined
@@ -545,6 +495,11 @@ function App() {
     }, POLL_INTERVAL_MS)
     return () => clearInterval(timer)
   }, [hasMiniAppAuthContext, userId, tab])
+
+  useEffect(() => {
+    if (tab !== 'account' || !data?.isAdmin) return
+    loadAdminWithdraws().catch(() => null)
+  }, [tab, data?.isAdmin])
 
   useEffect(() => {
     if (userId == null) return
@@ -968,22 +923,19 @@ function App() {
     <div className='loading-orb loading-orb-right' />
     <div className='loading-card auth-card'>
       <div className='loading-logo'>🔐</div>
-      <h1>Вход через Telegram</h1>
-      <p>Откройте Mini App в Telegram или войдите на этой странице через Telegram Login.</p>
-      <div className='telegram-widget-slot' ref={telegramWidgetRef} />
-      {!webAuthWidgetReady && !!webAuthBotUsername && <p className='subtitle'>Загружаем Telegram Login…</p>}
-      {isWebAuthLoading && <p className='subtitle'>Проверяем Telegram-подпись…</p>}
+      <h1>{authMode === 'register' ? 'Регистрация' : authMode === 'setup' ? 'Установка пароля' : 'Вход'}</h1>
+      <p>Логин — это ваш Telegram username (без @).</p>
+      <input className='field' placeholder='telegram_username' value={authUsername} onChange={(e) => setAuthUsername(e.target.value)} />
+      <input className='field' placeholder='Пароль' type='password' value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} />
+      {authMode !== 'login' && <input className='field' placeholder='Повторите пароль' type='password' value={authPasswordConfirm} onChange={(e) => setAuthPasswordConfirm(e.target.value)} />}
+      <button onClick={() => submitAuth(authMode)} disabled={isWebAuthLoading}>
+        {isWebAuthLoading ? 'Проверяем…' : authMode === 'register' ? 'Зарегистрироваться' : authMode === 'setup' ? 'Сохранить пароль и войти' : 'Войти'}
+      </button>
+      <div className='auth-switches'>
+        <button className='chip' onClick={() => setAuthMode('login')} type='button'>Вход</button>
+        <button className='chip' onClick={() => setAuthMode('register')} type='button'>Регистрация</button>
+      </div>
       {!!webAuthError && <p className='auth-error'>{webAuthError}</p>}
-      {!!webAuth?.authToken && <button
-        className='chip danger-chip'
-        onClick={() => {
-          clearStoredWebAuth()
-          setWebAuth(null)
-          setWebAuthError('')
-        }}
-      >
-        Сбросить web-сессию
-      </button>}
     </div>
   </div>
 
@@ -1008,7 +960,7 @@ function App() {
               setData(null)
               setBootProgress(100)
               setIsAppReady(true)
-              notify('Сессия MiniApp недействительна. Войдите через Telegram заново.', { persist: true })
+              notify('Сессия MiniApp недействительна. Войдите заново.', { persist: true })
               return
             }
             const errorMessage = error?.message || 'Не удалось загрузить данные MiniApp.'
@@ -1210,14 +1162,37 @@ function App() {
     {tab === 'account' && <section className='panel tab-panel account-panel'>
       {renderSection('account', 'Данные об аккаунте', <>
         <p className='subtitle'>
-          {getTelegramAccountLabel(telegramContext.user)}
-          {telegramContext.user?.id ? ` · ID ${telegramContext.user.id}` : ''}
+          {webAuth?.accountLabel || 'Веб-аккаунт'}
         </p>
         <p className='subtitle'>
           {data.localTestMode
             ? `Тестовый режим: баланс берётся из аккаунта владельца (ID ${data.userId}).`
             : `Баланс и операции выполняются для текущего аккаунта (ID ${data.userId}).`}
         </p>
+      </>)}
+
+      {!!data?.isAdmin && renderSection('adminWithdraws', 'Админ: выводы', <>
+        {!adminWithdraws.length && <p className='subtitle'>Активных запросов на вывод нет.</p>}
+        {!!adminWithdraws.length && <div className='admin-list'>
+          {adminWithdraws.map((item) => <div key={item.id} className='unit'>
+            <div className='unit-row'>
+              <strong>#{item.id}</strong> <span>{item.username}</span> <span>{formatStars(item.amount)} ⭐</span>
+            </div>
+            <div className='unit-row'>
+              <button className='chip' onClick={() => adminWithdrawAction(item.id, 'pay')}>Подтвердить</button>
+              <button className='chip danger-chip' onClick={() => adminWithdrawAction(item.id, 'cancel')}>Отменить</button>
+            </div>
+          </div>)}
+        </div>}
+      </>)}
+
+      {!!data?.isAdmin && renderSection('adminBalance', 'Админ: баланс пользователя', <>
+        <input className='field' placeholder='telegram_username' value={adminUsername} onChange={(e) => setAdminUsername(e.target.value)} />
+        <input className='field' type='number' min='1' value={adminAmount} onChange={(e) => setAdminAmount(e.target.value)} />
+        <div className='action-row'>
+          <button className='chip' onClick={() => adminAdjustBalance('add')}>+ Зачислить</button>
+          <button className='chip danger-chip' onClick={() => adminAdjustBalance('subtract')}>− Списать</button>
+        </div>
       </>)}
 
       {renderSection('favorite', 'Любимый смайл', <>

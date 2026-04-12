@@ -7,9 +7,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.StringJoiner;
+import java.util.Base64;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+import java.security.SecureRandom;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -17,6 +21,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import my.abdrus.emojirace.api.dto.MiniAppDtos;
 import my.abdrus.emojirace.bot.entity.Account;
+import my.abdrus.emojirace.bot.entity.BalanceTopup;
+import my.abdrus.emojirace.bot.entity.BotUser;
 import my.abdrus.emojirace.bot.entity.Match;
 import my.abdrus.emojirace.bot.entity.PaymentRequest;
 import my.abdrus.emojirace.bot.entity.MatchPlayer;
@@ -31,6 +37,7 @@ import my.abdrus.emojirace.bot.enumeration.PaymentRequestStatus;
 import my.abdrus.emojirace.bot.enumeration.WithdrawRequestStatus;
 import my.abdrus.emojirace.bot.exception.PaymentException;
 import my.abdrus.emojirace.bot.repository.AccountRepository;
+import my.abdrus.emojirace.bot.repository.BalanceTopupRepository;
 import my.abdrus.emojirace.bot.repository.MatchRepository;
 import my.abdrus.emojirace.bot.repository.PaymentRequestRepository;
 import my.abdrus.emojirace.bot.repository.PlayerRepository;
@@ -71,10 +78,14 @@ public class MiniAppController {
     private static final long FAVORITE_REPLACE_COST = 150L;
     private static final Pattern USER_ID_PATTERN = Pattern.compile("\"id\"\\s*:\\s*(\\d+)");
     private static final long WEB_AUTH_TTL_SECONDS = 60L * 60L * 24L * 7L;
+    private static final int PASSWORD_MIN_LENGTH = 6;
+    private static final int PASSWORD_ITERATIONS = 65_536;
+    private static final int PASSWORD_KEY_LENGTH = 256;
 
     private final EmojiRaceBot bot;
     private final AccountService accountService;
     private final AccountRepository accountRepository;
+    private final BalanceTopupRepository balanceTopupRepository;
     private final UserService userService;
     private final UserRepository userRepository;
     private final MatchRepository matchRepository;
@@ -130,6 +141,7 @@ public class MiniAppController {
 
         return new MiniAppDtos.BootstrapResponse(
                 userId,
+                userService.isAdmin(userId),
                 isLocalTestModeActive(),
                 Optional.ofNullable(raceProperties.getGenerationIntervalMinutes()).orElse(3),
                 account.getBalance(),
@@ -167,6 +179,89 @@ public class MiniAppController {
         String accountLabel = extractTelegramAccountLabel(payload, userId);
         String authToken = generateWebAuthToken(userId);
         return new MiniAppDtos.TelegramWebAuthResponse(true, "Авторизация выполнена.", userId, authToken, accountLabel);
+    }
+
+    @PostMapping("/auth/status")
+    public MiniAppDtos.AuthStatusResponse authStatus(@RequestBody MiniAppDtos.AuthStatusRequest request) {
+        String username = normalizeUsername(request == null ? null : request.username());
+        if (!StringUtils.hasText(username)) {
+            return new MiniAppDtos.AuthStatusResponse(false, "Введите логин Telegram username.", false, false);
+        }
+        var user = userService.findByUsername(username);
+        if (user == null) {
+            return new MiniAppDtos.AuthStatusResponse(true, "Пользователь не найден. Можно зарегистрироваться.", false, false);
+        }
+        boolean requiresSetup = !StringUtils.hasText(user.getPasswordHash()) || !StringUtils.hasText(user.getPasswordSalt());
+        return new MiniAppDtos.AuthStatusResponse(true, requiresSetup ? "Нужно задать пароль для входа." : "Пользователь найден.", true, requiresSetup);
+    }
+
+    @PostMapping("/auth/register")
+    public MiniAppDtos.WebAuthResponse register(@RequestBody MiniAppDtos.WebCredentialsRequest request) {
+        String username = normalizeUsername(request == null ? null : request.username());
+        String password = request == null ? null : request.password();
+        if (!StringUtils.hasText(username) || !isValidUsername(username)) {
+            return new MiniAppDtos.WebAuthResponse(false, "Логин должен быть Telegram username (5-32, латиница/цифры/_).", null, null, null);
+        }
+        String passwordError = validatePassword(password);
+        if (passwordError != null) {
+            return new MiniAppDtos.WebAuthResponse(false, passwordError, null, null, null);
+        }
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
+            return new MiniAppDtos.WebAuthResponse(false, "Такой логин уже существует. Войдите в аккаунт.", null, null, null);
+        }
+        var user = userService.createWebUserIfNeed(username);
+        applyPassword(user, password);
+        userRepository.save(user);
+        accountService.getByUserId(user.getUserChatId());
+        String authToken = generateWebAuthToken(user.getUserChatId());
+        return new MiniAppDtos.WebAuthResponse(true, "Регистрация выполнена.", user.getUserChatId(), authToken, "@" + username);
+    }
+
+    @PostMapping("/auth/login")
+    public MiniAppDtos.WebAuthResponse login(@RequestBody MiniAppDtos.WebCredentialsRequest request) {
+        String username = normalizeUsername(request == null ? null : request.username());
+        String password = request == null ? null : request.password();
+        if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
+            return new MiniAppDtos.WebAuthResponse(false, "Введите логин и пароль.", null, null, null);
+        }
+        var user = userService.findByUsername(username);
+        if (user == null) {
+            return new MiniAppDtos.WebAuthResponse(false, "Пользователь с таким логином не найден.", null, null, null);
+        }
+        if (!StringUtils.hasText(user.getPasswordHash()) || !StringUtils.hasText(user.getPasswordSalt())) {
+            return new MiniAppDtos.WebAuthResponse(false, "Для этого аккаунта пароль ещё не задан. Создайте пароль перед входом.", null, null, null);
+        }
+        if (!verifyPassword(password, user.getPasswordSalt(), user.getPasswordHash())) {
+            return new MiniAppDtos.WebAuthResponse(false, "Неверный пароль.", null, null, null);
+        }
+        accountService.getByUserId(user.getUserChatId());
+        String authToken = generateWebAuthToken(user.getUserChatId());
+        return new MiniAppDtos.WebAuthResponse(true, "Вход выполнен.", user.getUserChatId(), authToken, "@" + username);
+    }
+
+    @PostMapping("/auth/password/setup")
+    public MiniAppDtos.WebAuthResponse setupPassword(@RequestBody MiniAppDtos.WebCredentialsRequest request) {
+        String username = normalizeUsername(request == null ? null : request.username());
+        String password = request == null ? null : request.password();
+        if (!StringUtils.hasText(username)) {
+            return new MiniAppDtos.WebAuthResponse(false, "Введите логин.", null, null, null);
+        }
+        String passwordError = validatePassword(password);
+        if (passwordError != null) {
+            return new MiniAppDtos.WebAuthResponse(false, passwordError, null, null, null);
+        }
+        var user = userService.findByUsername(username);
+        if (user == null) {
+            return new MiniAppDtos.WebAuthResponse(false, "Пользователь не найден. Сначала зарегистрируйтесь.", null, null, null);
+        }
+        if (StringUtils.hasText(user.getPasswordHash()) && StringUtils.hasText(user.getPasswordSalt())) {
+            return new MiniAppDtos.WebAuthResponse(false, "Пароль уже задан. Используйте обычный вход.", null, null, null);
+        }
+        applyPassword(user, password);
+        userRepository.save(user);
+        accountService.getByUserId(user.getUserChatId());
+        String authToken = generateWebAuthToken(user.getUserChatId());
+        return new MiniAppDtos.WebAuthResponse(true, "Пароль сохранён. Вход выполнен.", user.getUserChatId(), authToken, "@" + username);
     }
 
     @PostMapping("/vote")
@@ -376,6 +471,102 @@ public class MiniAppController {
             return new MiniAppDtos.ActionResponse(false, "Не удалось отменить вывод.");
         }
         return new MiniAppDtos.ActionResponse(true, "Запрос на вывод отменён.");
+    }
+
+    @GetMapping("/admin/withdraws")
+    public MiniAppDtos.AdminWithdrawsResponse adminWithdraws(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        requireAdmin(userId);
+        List<MiniAppDtos.AdminWithdrawItem> items = withdrawService.getCreatedRequests().stream()
+                .map(item -> {
+                    BotUser targetUser = userRepository.findByUserChatId(item.getUserChatId()).orElse(null);
+                    String username = targetUser != null && StringUtils.hasText(targetUser.getUsername())
+                            ? "@" + targetUser.getUsername()
+                            : "id:" + item.getUserChatId();
+                    return new MiniAppDtos.AdminWithdrawItem(
+                            item.getId(),
+                            item.getUserChatId(),
+                            username,
+                            item.getSum(),
+                            item.getStatus().name(),
+                            item.getCreatedDate() == null ? null : item.getCreatedDate().getTime()
+                    );
+                })
+                .toList();
+        return new MiniAppDtos.AdminWithdrawsResponse(items);
+    }
+
+    @PostMapping("/admin/withdraw/pay")
+    public MiniAppDtos.ActionResponse adminMarkWithdrawPayed(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.AdminWithdrawActionRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        requireAdmin(userId);
+        if (request == null || request.requestId() == null) {
+            return new MiniAppDtos.ActionResponse(false, "Не указан запрос на вывод.");
+        }
+        var withdrawRequest = withdrawService.getById(request.requestId());
+        if (withdrawRequest == null) {
+            return new MiniAppDtos.ActionResponse(false, "Запрос на вывод не найден.");
+        }
+        if (WithdrawRequestStatus.PAYED.equals(withdrawRequest.getStatus())) {
+            return new MiniAppDtos.ActionResponse(false, "Вывод уже выплачен.");
+        }
+        if (WithdrawRequestStatus.CANCELED.equals(withdrawRequest.getStatus())) {
+            return new MiniAppDtos.ActionResponse(false, "Вывод уже отменён.");
+        }
+        withdrawService.markPayedForMiniApp(withdrawRequest);
+        userNotificationService.create(withdrawRequest.getUserChatId(), "✅ Ваш вывод #" + withdrawRequest.getId() + " успешно выполнен.");
+        return new MiniAppDtos.ActionResponse(true, "Вывод отмечен как выплаченный.");
+    }
+
+    @PostMapping("/admin/withdraw/cancel")
+    public MiniAppDtos.ActionResponse adminCancelWithdraw(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.AdminWithdrawActionRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        requireAdmin(userId);
+        if (request == null || request.requestId() == null) {
+            return new MiniAppDtos.ActionResponse(false, "Не указан запрос на вывод.");
+        }
+        var withdrawRequest = withdrawService.getById(request.requestId());
+        if (withdrawRequest == null) {
+            return new MiniAppDtos.ActionResponse(false, "Запрос на вывод не найден.");
+        }
+        if (WithdrawRequestStatus.PAYED.equals(withdrawRequest.getStatus())) {
+            return new MiniAppDtos.ActionResponse(false, "Вывод уже выплачен.");
+        }
+        if (WithdrawRequestStatus.CANCELED.equals(withdrawRequest.getStatus())) {
+            return new MiniAppDtos.ActionResponse(false, "Вывод уже отменён.");
+        }
+        withdrawService.cancelForMiniApp(withdrawRequest);
+        userNotificationService.create(withdrawRequest.getUserChatId(), "❌ Ваш вывод #" + withdrawRequest.getId() + " отменён администратором.");
+        return new MiniAppDtos.ActionResponse(true, "Вывод отменён, средства возвращены пользователю.");
+    }
+
+    @PostMapping("/admin/balance/add")
+    public MiniAppDtos.ActionResponse adminAddBalance(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.AdminBalanceAdjustRequest request
+    ) {
+        return adminAdjustBalance(headerUserId, userIdParam, request, true);
+    }
+
+    @PostMapping("/admin/balance/subtract")
+    public MiniAppDtos.ActionResponse adminSubtractBalance(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.AdminBalanceAdjustRequest request
+    ) {
+        return adminAdjustBalance(headerUserId, userIdParam, request, false);
     }
 
     @PostMapping("/battle")
@@ -685,18 +876,14 @@ public class MiniAppController {
             return userId;
         }
 
-        userId = Optional.ofNullable(headerUserId)
-                .or(() -> Optional.ofNullable(initDataUserId))
-                .or(() -> Optional.ofNullable(webAuthUserId))
+        userId = Optional.ofNullable(webAuthUserId)
                 .or(() -> Optional.ofNullable(userIdParam))
                 .orElseThrow(() -> {
                     logMiniAppConnectionAttempt(null, headerUserId, userIdParam, initDataUserId, webAuthUserId, "unresolved");
-                    return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Не удалось определить Telegram user id.");
+                    return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Не удалось определить user id. Выполните вход по логину и паролю.");
                 });
         accountService.getByUserId(userId);
-        String source = headerUserId != null ? "x_telegram_user_id_header"
-                : initDataUserId != null ? "x_telegram_init_data"
-                : webAuthUserId != null ? "x_web_auth_token"
+        String source = webAuthUserId != null ? "x_web_auth_token"
                 : "user_id_param";
         logMiniAppConnectionAttempt(userId, headerUserId, userIdParam, initDataUserId, webAuthUserId, source);
         return userId;
@@ -830,7 +1017,7 @@ public class MiniAppController {
             }
             long userId = Long.parseLong(parts[0]);
             long exp = Long.parseLong(parts[1]);
-            if (userId < 1 || exp < (System.currentTimeMillis() / 1000L)) {
+            if (userId == 0L || exp < (System.currentTimeMillis() / 1000L)) {
                 return null;
             }
             String payload = parts[0] + ":" + parts[1];
@@ -895,6 +1082,97 @@ public class MiniAppController {
 
     private String asString(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private void requireAdmin(Long userId) {
+        if (!userService.isAdmin(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Доступ только для администратора.");
+        }
+    }
+
+    private MiniAppDtos.ActionResponse adminAdjustBalance(
+            Long headerUserId,
+            Long userIdParam,
+            MiniAppDtos.AdminBalanceAdjustRequest request,
+            boolean increase
+    ) {
+        Long adminId = resolveUserId(headerUserId, userIdParam);
+        requireAdmin(adminId);
+        String username = normalizeUsername(request == null ? null : request.username());
+        Long amount = request == null ? null : request.amount();
+        if (!StringUtils.hasText(username) || amount == null || amount < 1) {
+            return new MiniAppDtos.ActionResponse(false, "Укажите username и сумму > 0.");
+        }
+        BotUser targetUser = userService.findByUsername(username);
+        if (targetUser == null) {
+            return new MiniAppDtos.ActionResponse(false, "Пользователь не найден.");
+        }
+
+        boolean success = accountService.addBalance(targetUser.getUserChatId(), increase ? amount : -amount);
+        if (!success) {
+            return new MiniAppDtos.ActionResponse(false, "Не удалось изменить баланс.");
+        }
+
+        BalanceTopup topup = new BalanceTopup();
+        topup.setUserChatId(targetUser.getUserChatId());
+        topup.setSum(increase ? amount : -amount);
+        topup.setSource(increase ? "admin_plus_web" : "admin_minus_web");
+        balanceTopupRepository.save(topup);
+
+        userNotificationService.create(targetUser.getUserChatId(), increase
+                ? "✅ Администратор зачислил " + amount + " ⭐ на ваш баланс."
+                : "ℹ️ Администратор списал " + amount + " ⭐ с вашего баланса.");
+        return new MiniAppDtos.ActionResponse(true, increase ? "Баланс пополнен." : "Баланс уменьшен.");
+    }
+
+    private String normalizeUsername(String username) {
+        if (!StringUtils.hasText(username)) {
+            return null;
+        }
+        return username.trim().replaceFirst("^@", "");
+    }
+
+    private boolean isValidUsername(String username) {
+        return username != null && username.matches("^[A-Za-z0-9_]{5,32}$");
+    }
+
+    private String validatePassword(String password) {
+        if (!StringUtils.hasText(password)) {
+            return "Введите пароль.";
+        }
+        if (password.length() < PASSWORD_MIN_LENGTH) {
+            return "Пароль должен быть не короче " + PASSWORD_MIN_LENGTH + " символов.";
+        }
+        return null;
+    }
+
+    private void applyPassword(my.abdrus.emojirace.bot.entity.BotUser user, String password) {
+        byte[] salt = new byte[16];
+        new SecureRandom().nextBytes(salt);
+        String saltBase64 = Base64.getEncoder().encodeToString(salt);
+        String hashBase64 = hashPassword(password, salt);
+        user.setPasswordSalt(saltBase64);
+        user.setPasswordHash(hashBase64);
+    }
+
+    private boolean verifyPassword(String password, String saltBase64, String hashBase64) {
+        try {
+            byte[] salt = Base64.getDecoder().decode(saltBase64);
+            String candidateHash = hashPassword(password, salt);
+            return constantTimeEquals(candidateHash, hashBase64);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private String hashPassword(String password, byte[] salt) {
+        try {
+            PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, PASSWORD_ITERATIONS, PASSWORD_KEY_LENGTH);
+            byte[] hash = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded();
+            return Base64.getEncoder().encodeToString(hash);
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot hash password", e);
+        }
     }
 
     private Long parseLong(Object value) {

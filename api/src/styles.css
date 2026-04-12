@@ -233,6 +233,25 @@ h2 {
   font-size: 12px;
 }
 
+.auth-switches {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.admin-list {
+  display: grid;
+  gap: 8px;
+}
+
+.unit-row,
+.action-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 h3 {
   margin-top: 16px;
   margin-bottom: 8px;
