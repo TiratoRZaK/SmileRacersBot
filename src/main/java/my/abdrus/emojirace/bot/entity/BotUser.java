@@ -44,6 +44,12 @@ public class BotUser {
     @Column(name = "L_NAME")
     private String lastName;
 
+    @Column(name = "PASSWORD_HASH")
+    private String passwordHash;
+
+    @Column(name = "PASSWORD_SALT")
+    private String passwordSalt;
+
     @Column(name = "IS_ADMIN")
     private boolean isAdmin = false;
 }

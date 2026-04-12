@@ -4,6 +4,7 @@ import my.abdrus.emojirace.bot.EmojiRaceBot;
 import my.abdrus.emojirace.bot.entity.BotUser;
 import my.abdrus.emojirace.bot.repository.UserRepository;
 import my.abdrus.emojirace.bot.util.TelegramUtils;
+import org.springframework.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMember;
@@ -65,5 +66,34 @@ public class UserService {
         return userRepository.findByUserChatId(userChatId)
                 .map(TelegramUtils::formatTelegramUser)
                 .orElse("id:" + userChatId);
+    }
+
+    public BotUser findByUsername(String username) {
+        if (!StringUtils.hasText(username)) {
+            return null;
+        }
+        return userRepository.findByUsernameIgnoreCase(username.trim()).orElse(null);
+    }
+
+    public BotUser createWebUserIfNeed(String username) {
+        if (!StringUtils.hasText(username)) {
+            throw new IllegalArgumentException("username is required");
+        }
+        String normalizedUsername = username.trim();
+        BotUser existing = userRepository.findByUsernameIgnoreCase(normalizedUsername).orElse(null);
+        if (existing != null) {
+            return existing;
+        }
+        BotUser user = new BotUser();
+        user.setUserChatId(nextWebUserChatId());
+        user.setUsername(normalizedUsername);
+        return userRepository.save(user);
+    }
+
+    private Long nextWebUserChatId() {
+        Long minNegative = userRepository.findFirstByUserChatIdLessThanOrderByUserChatIdAsc()
+                .map(BotUser::getUserChatId)
+                .orElse(0L);
+        return minNegative >= 0 ? -1L : minNegative - 1L;
     }
 }
