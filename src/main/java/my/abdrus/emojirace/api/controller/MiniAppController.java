@@ -44,6 +44,7 @@ import my.abdrus.emojirace.bot.repository.PlayerRepository;
 import my.abdrus.emojirace.bot.repository.UserRepository;
 import my.abdrus.emojirace.bot.service.AccountService;
 import my.abdrus.emojirace.bot.service.InvoiceService;
+import my.abdrus.emojirace.bot.service.LeaderboardService;
 import my.abdrus.emojirace.bot.service.MatchGenerationService;
 import my.abdrus.emojirace.bot.service.MatchService;
 import my.abdrus.emojirace.bot.service.RaceService;
@@ -96,6 +97,7 @@ public class MiniAppController {
     private final MatchService matchService;
     private final WithdrawService withdrawService;
     private final InvoiceService invoiceService;
+    private final LeaderboardService leaderboardService;
     private final UserNotificationService userNotificationService;
     private final UserHistoryReportService userHistoryReportService;
     private final ChannelProperties channelProperties;
@@ -262,6 +264,11 @@ public class MiniAppController {
         accountService.getByUserId(user.getUserChatId());
         String authToken = generateWebAuthToken(user.getUserChatId());
         return new MiniAppDtos.WebAuthResponse(true, "Пароль сохранён. Вход выполнен.", user.getUserChatId(), authToken, "@" + username);
+    }
+
+    @GetMapping("/leaderboards")
+    public MiniAppDtos.LeaderboardsResponse leaderboards() {
+        return leaderboardService.getLeaderboards();
     }
 
     @PostMapping("/vote")
