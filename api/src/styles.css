@@ -97,6 +97,17 @@ body {
   min-width: 0;
 }
 
+.top-card-user {
+  display: flex;
+  align-items: center;
+}
+
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .top-card-actions {
   position: relative;
 }
@@ -251,12 +262,20 @@ h2 {
 }
 
 .auth-brand-logo {
-  width: 42px;
-  height: 42px;
+  width: 58px;
+  height: 58px;
   border-radius: 12px;
   display: grid;
   place-items: center;
   background: linear-gradient(115deg, #7c4dff, #24b0ff);
+  font-size: 9px;
+  line-height: 1.05;
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: .4px;
+  text-shadow: 0 3px 8px rgba(0, 0, 0, .35);
+  box-shadow: 0 10px 20px rgba(36, 176, 255, .35);
+  padding: 6px;
 }
 
 .auth-brand p {
@@ -272,20 +291,31 @@ h2 {
 }
 
 .balance-shortcut {
-  padding: 5px 8px;
-  font-size: 11px;
+  padding: 0;
+  width: 31px;
+  height: 31px;
+  font-size: 15px;
 }
 
 .top-card-actions {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .logout-btn {
-  padding: 6px 8px;
-  font-size: 11px;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  font-size: 14px;
   background: rgba(239, 68, 68, .24);
   border: 1px solid rgba(248, 113, 113, .45);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .ratings-prize-banner {
@@ -1441,12 +1471,21 @@ select:focus {
   }
 
   .top-card-main {
-    grid-template-columns: 1fr;
-    gap: 6px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .top-card-user {
+    grid-column: span 3;
+  }
+
+  .user-row {
+    justify-content: space-between;
+    width: 100%;
   }
 
   .top-card-actions {
-    align-self: center;
+    align-self: flex-start;
   }
 
   .top-card {

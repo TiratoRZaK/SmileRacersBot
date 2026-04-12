@@ -26,13 +26,13 @@ const TRACK_THEME_BACKGROUNDS = {
   grass: ['#2f7d4f', '#1f5938'],
   desert: ['#c9a363', '#9d7040']
 }
-const TAB_ORDER = ['race', 'ratings', 'account', 'archive', 'battle']
+const TAB_ORDER = ['race', 'battle', 'ratings', 'account', 'archive']
 const TAB_TITLES = {
-  race: 'Активная гонка',
+  race: 'Гонка',
+  battle: 'Батлы',
   ratings: 'Рейтинги',
   account: 'Аккаунт',
-  archive: 'Архив',
-  battle: 'Батл'
+  archive: 'Архив'
 }
 
 const TOAST_AUTO_CLOSE_MS = 4500
@@ -211,9 +211,9 @@ function App() {
   const [adminUsername, setAdminUsername] = useState('')
   const [adminAmount, setAdminAmount] = useState(100)
   const [sectionOpen, setSectionOpen] = useState({
-    ratingsEmojis: true,
+    ratingsEmojis: false,
     ratingsPlayersAll: false,
-    ratingsPlayersWeekly: false,
+    ratingsPlayersWeekly: true,
     account: true,
     favorite: false,
     payments: false,
@@ -232,6 +232,7 @@ function App() {
   const favoriteRequestRef = useRef(null)
   const swipeStartRef = useRef(null)
   const topZoneRef = useRef(null)
+  const authLogoText = 'EMOJI RACE'
 
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams()
@@ -945,32 +946,54 @@ function App() {
     goToTabBySwipe(deltaX < 0 ? 1 : -1)
   }
 
+  useEffect(() => {
+    const defaultsByTab = {
+      ratings: ['ratingsPlayersWeekly', 'ratingsEmojis', 'ratingsPlayersAll'],
+      account: ['account', 'favorite', 'payments'],
+      archive: ['recentRaces', 'history'],
+      battle: ['battleCreate', 'battleManage', 'battleJoin']
+    }
+    const keys = defaultsByTab[tab]
+    if (!keys) return
+    if (keys.some((key) => sectionOpen[key])) return
+    setSectionOpen((current) => ({ ...current, [keys[0]]: true }))
+  }, [tab, sectionOpen])
+
   if (!hasMiniAppAuthContext) return <div className='loading-screen'>
     <div className='loading-orb loading-orb-left' />
     <div className='loading-orb loading-orb-right' />
-    <div className='loading-card auth-card'>
+    <form
+      className='loading-card auth-card'
+      onSubmit={(event) => {
+        event.preventDefault()
+        submitAuth(authMode)
+      }}
+    >
       <div className='loading-logo'>🔐</div>
       <h1>{authMode === 'register' ? 'Регистрация' : authMode === 'setup' ? 'Установка пароля' : 'Вход'}</h1>
       <p>Введите логин и пароль для входа в веб-версию.</p>
       <div className='auth-brand'>
-        <div className='auth-brand-logo'>🏁</div>
+        <div className='auth-brand-logo'>
+          <span>{authLogoText}</span>
+        </div>
         <div>
           <strong>Smile Racers</strong>
-          <p>Гонки смайлов за звёзды Telegram</p>
+          <p>Гонки смайлов с динамичными батлами.</p>
         </div>
       </div>
-      <input className='field' placeholder='username' value={authUsername} onChange={(e) => setAuthUsername(e.target.value)} />
+      <input className='field' placeholder='Логин' value={authUsername} onChange={(e) => setAuthUsername(e.target.value)} />
       <input className='field' placeholder='Пароль' type='password' value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} />
       {authMode !== 'login' && <input className='field' placeholder='Повторите пароль' type='password' value={authPasswordConfirm} onChange={(e) => setAuthPasswordConfirm(e.target.value)} />}
-      <button onClick={() => submitAuth(authMode)} disabled={isWebAuthLoading}>
+      <button type='submit' disabled={isWebAuthLoading}>
         {isWebAuthLoading ? 'Проверяем…' : authMode === 'register' ? 'Зарегистрироваться' : authMode === 'setup' ? 'Сохранить пароль и войти' : 'Войти'}
       </button>
       <div className='auth-switches'>
-        <button className='chip' onClick={() => setAuthMode('login')} type='button'>Вход</button>
-        <button className='chip' onClick={() => setAuthMode('register')} type='button'>Регистрация</button>
+        {authMode === 'login'
+          ? <button className='chip' onClick={() => setAuthMode('register')} type='button'>Регистрация</button>
+          : <button className='chip' onClick={() => setAuthMode('login')} type='button'>У меня есть аккаунт</button>}
       </div>
       {!!webAuthError && <p className='auth-error'>{webAuthError}</p>}
-    </div>
+    </form>
   </div>
 
   if (isAppReady && !data && bootError) return <div className='loading-screen'>
@@ -1031,15 +1054,33 @@ function App() {
       <header className='top-card'>
         <div className='top-card-main'>
           <div className='top-card-stat top-card-user'>
-            <span className='label'>Профиль</span>
-            <b>{webAuth?.accountLabel || `ID ${data.userId}`}</b>
+            <div className='user-row'>
+              <b>{webAuth?.accountLabel || `ID ${data.userId}`}</b>
+              <button
+                className='chip icon-btn logout-btn'
+                aria-label='Выйти'
+                title='Выйти'
+                onClick={() => {
+                  resetWebAuthSession()
+                  setData(null)
+                  setLeaderboards(null)
+                  setHistoryItems([])
+                  setRecentResults([])
+                  setIsHistoryLoaded(false)
+                  setIsRecentResultsLoaded(false)
+                  setTab('race')
+                }}
+              >
+                ↪
+              </button>
+            </div>
           </div>
           <div className='top-card-stat'>
             <span className='label'>Баланс</span>
             <b>{formatStars(data.balance)} ⭐</b>
             <div className='balance-shortcuts'>
-              <button className='chip balance-shortcut' onClick={() => { setTab('account'); setSectionOpen((current) => ({ ...current, account: false, favorite: false, payments: true })) }}>Пополнить</button>
-              <button className='chip balance-shortcut' onClick={() => { setTab('account'); setSectionOpen((current) => ({ ...current, account: false, favorite: false, payments: true })) }}>Вывести</button>
+              <button className='chip balance-shortcut icon-btn' title='Пополнить' aria-label='Пополнить' onClick={() => { setTab('account'); setSectionOpen((current) => ({ ...current, account: false, favorite: false, payments: true })) }}>➕</button>
+              <button className='chip balance-shortcut icon-btn' title='Вывести' aria-label='Вывести' onClick={() => { setTab('account'); setSectionOpen((current) => ({ ...current, account: false, favorite: false, payments: true })) }}>💸</button>
             </div>
           </div>
           <div className='top-card-stat'>
@@ -1048,22 +1089,7 @@ function App() {
           </div>
         </div>
         <div className='top-card-actions'>
-          <button
-            className='chip logout-btn'
-            onClick={() => {
-              resetWebAuthSession()
-              setData(null)
-              setLeaderboards(null)
-              setHistoryItems([])
-              setRecentResults([])
-              setIsHistoryLoaded(false)
-              setIsRecentResultsLoaded(false)
-              setTab('race')
-            }}
-          >
-            Выйти
-          </button>
-          <button className='bell-btn' onClick={() => setIsNotificationsOpen((current) => !current)}>
+          <button className='bell-btn icon-btn' title='Уведомления' aria-label='Уведомления' onClick={() => setIsNotificationsOpen((current) => !current)}>
             🔔
             {unreadCount > 0 && <span className='bell-badge'>{unreadCount}</span>}
           </button>
@@ -1218,13 +1244,22 @@ function App() {
 
     {tab === 'ratings' && <section className='panel tab-panel account-panel'>
       <div className='ratings-prize-banner'>
-        <h3>Еженедельный приз 🏆</h3>
-        <p className='subtitle'>Каждую неделю игрок №1 в недельном рейтинге получает <b>100 ⭐</b> и <b>5 бесплатных бустеров</b>.</p>
+        <h3>Недельный рейтинг 🏆</h3>
+        <p className='subtitle'>Ежедневный приз начисляется по этому рейтингу: игрок №1 получает <b>100 ⭐</b> и <b>5 бесплатных бустеров</b>.</p>
         <p className='subtitle'>
           Текущая неделя: {formatPeriodDate(leaderboards?.weeklyPeriodStart)} — {formatPeriodDate(leaderboards?.weeklyPeriodEnd)}
         </p>
       </div>
-      {renderSection('ratingsEmojis', 'Топ смайлов по победам', <>
+      {renderSection('ratingsPlayersWeekly', 'Игроки за неделю', <>
+        {leaderboardsLoading && <p className='subtitle'>Загружаем недельный рейтинг…</p>}
+        {!!leaderboards?.playerWinnersWeekly?.length && <div className='rating-list'>
+          {leaderboards.playerWinnersWeekly.map((item, index) => <div key={`${item.userId}-${index}`} className='rating-row'>
+            <span>#{index + 1} {item.displayName}</span>
+            <strong>{formatStars(item.wonVotesSum)} ⭐</strong>
+          </div>)}
+        </div>}
+      </>)}
+      {renderSection('ratingsEmojis', 'Смайлы по победам', <>
         {leaderboardsLoading && <p className='subtitle'>Загружаем рейтинг смайлов…</p>}
         {!!leaderboards?.emojiWinners?.length && <div className='rating-list'>
           {leaderboards.emojiWinners.map((item, index) => <div key={`${item.emoji}-${index}`} className='rating-row'>
@@ -1233,19 +1268,10 @@ function App() {
           </div>)}
         </div>}
       </>)}
-      {renderSection('ratingsPlayersAll', 'Топ игроков (сумма выигранных голосов)', <>
+      {renderSection('ratingsPlayersAll', 'Игроки за всё время', <>
         {leaderboardsLoading && <p className='subtitle'>Загружаем общий рейтинг игроков…</p>}
         {!!leaderboards?.playerWinnersAllTime?.length && <div className='rating-list'>
           {leaderboards.playerWinnersAllTime.map((item, index) => <div key={`${item.userId}-${index}`} className='rating-row'>
-            <span>#{index + 1} {item.displayName}</span>
-            <strong>{formatStars(item.wonVotesSum)} ⭐</strong>
-          </div>)}
-        </div>}
-      </>)}
-      {renderSection('ratingsPlayersWeekly', 'Топ игроков за неделю (сумма выигранных голосов)', <>
-        {leaderboardsLoading && <p className='subtitle'>Загружаем недельный рейтинг…</p>}
-        {!!leaderboards?.playerWinnersWeekly?.length && <div className='rating-list'>
-          {leaderboards.playerWinnersWeekly.map((item, index) => <div key={`${item.userId}-${index}`} className='rating-row'>
             <span>#{index + 1} {item.displayName}</span>
             <strong>{formatStars(item.wonVotesSum)} ⭐</strong>
           </div>)}
