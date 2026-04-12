@@ -91,7 +91,7 @@ public class UserService {
     }
 
     private Long nextWebUserChatId() {
-        Long minNegative = userRepository.findFirstByUserChatIdLessThanOrderByUserChatIdAsc()
+        Long minNegative = userRepository.findFirstByUserChatIdLessThanOrderByUserChatIdAsc(0L)
                 .map(BotUser::getUserChatId)
                 .orElse(0L);
         return minNegative >= 0 ? -1L : minNegative - 1L;
