@@ -26,6 +26,10 @@ public class UserNotificationService {
         userNotificationRepository.save(notification);
     }
 
+    public void create(Long userChatId, String text) {
+        save(userChatId, text, null);
+    }
+
     public List<UserNotification> getRecent(Long userChatId) {
         if (userChatId == null) {
             return List.of();
