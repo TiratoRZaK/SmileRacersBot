@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.util.Date;
@@ -18,7 +19,8 @@ import lombok.NoArgsConstructor;
 public class WeeklyPrizeLog {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @SequenceGenerator(name = "weekly_prize_logs_seq", sequenceName = "weekly_prize_logs_seq", allocationSize = 50)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "weekly_prize_logs_seq")
     @Column(name = "ID", nullable = false, unique = true)
     private Long id;
 
