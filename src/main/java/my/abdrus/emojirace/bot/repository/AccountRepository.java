@@ -29,5 +29,15 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
     int withdrawFunds(@Param("accountId") UUID accountId,
                       @Param("amount") Long amount);
 
+    @Modifying
+    @Transactional(propagation = Propagation.REQUIRED)
+    @Query("""
+            UPDATE Account a
+            SET a.freeBustCount = COALESCE(a.freeBustCount, 0) + :delta
+            WHERE a.userChatId = :userChatId
+            """)
+    int addFreeBustCount(@Param("userChatId") Long userChatId,
+                         @Param("delta") Integer delta);
+
     Optional<Account> findByUserChatId(@Param("userChatId") Long userChatId);
 }

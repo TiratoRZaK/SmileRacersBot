@@ -87,8 +87,7 @@ body {
 .top-card-main {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, max-content));
-  justify-content: space-between;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -140,7 +139,7 @@ b {
 
 .tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   margin: 0;
   padding: 2px 2px 4px;
@@ -237,6 +236,81 @@ h2 {
   display: flex;
   gap: 8px;
   justify-content: center;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .18);
+  text-align: left;
+}
+
+.auth-brand-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(115deg, #7c4dff, #24b0ff);
+}
+
+.auth-brand p {
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: .75;
+}
+
+.balance-shortcuts {
+  margin-top: 6px;
+  display: flex;
+  gap: 6px;
+}
+
+.balance-shortcut {
+  padding: 5px 8px;
+  font-size: 11px;
+}
+
+.top-card-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.logout-btn {
+  padding: 6px 8px;
+  font-size: 11px;
+  background: rgba(239, 68, 68, .24);
+  border: 1px solid rgba(248, 113, 113, .45);
+}
+
+.ratings-prize-banner {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(250, 204, 21, .45);
+  background: rgba(234, 179, 8, .12);
+}
+
+.ratings-prize-banner h3 {
+  margin: 0;
+}
+
+.rating-list {
+  display: grid;
+  gap: 8px;
+}
+
+.rating-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, .08);
 }
 
 .admin-list {
@@ -1284,7 +1358,7 @@ select:focus {
 
   .tabs button {
     font-size: 10px;
-    padding: 6px 3px;
+    padding: 6px 2px;
   }
 
   .panel {
@@ -1367,7 +1441,7 @@ select:focus {
   }
 
   .top-card-main {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 6px;
   }
 

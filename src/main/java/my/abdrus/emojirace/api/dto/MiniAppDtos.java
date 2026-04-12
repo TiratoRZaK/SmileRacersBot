@@ -79,6 +79,29 @@ public class MiniAppDtos {
 
     public record RecentResultsResponse(List<RaceResultCard> items) {}
 
+    public record LeaderboardEmojiItem(
+            String emoji,
+            Long wins
+    ) {}
+
+    public record LeaderboardPlayerItem(
+            Long userId,
+            String displayName,
+            Long wonVotesSum
+    ) {}
+
+    public record LeaderboardsResponse(
+            List<LeaderboardEmojiItem> emojiWinners,
+            List<LeaderboardPlayerItem> playerWinnersAllTime,
+            List<LeaderboardPlayerItem> playerWinnersWeekly,
+            Long weeklyPrizeStars,
+            Integer weeklyPrizeBoosters,
+            Long weeklyWinnerUserId,
+            String weeklyWinnerName,
+            Long weeklyPeriodStart,
+            Long weeklyPeriodEnd
+    ) {}
+
     public record CreateBattleRequest(String playerName, Long stake) {}
 
     public record StartBattleRequest(Long matchId) {}
