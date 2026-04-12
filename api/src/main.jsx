@@ -232,6 +232,7 @@ function App() {
   const favoriteRequestRef = useRef(null)
   const swipeStartRef = useRef(null)
   const topZoneRef = useRef(null)
+  const previousTabRef = useRef(tab)
   const authLogoText = 'EMOJI RACE'
 
   const requestQuery = useMemo(() => {
@@ -947,6 +948,8 @@ function App() {
   }
 
   useEffect(() => {
+    if (previousTabRef.current === tab) return
+    previousTabRef.current = tab
     const defaultsByTab = {
       ratings: ['ratingsPlayersWeekly', 'ratingsEmojis', 'ratingsPlayersAll'],
       account: ['account', 'favorite', 'payments'],
@@ -955,9 +958,11 @@ function App() {
     }
     const keys = defaultsByTab[tab]
     if (!keys) return
-    if (keys.some((key) => sectionOpen[key])) return
-    setSectionOpen((current) => ({ ...current, [keys[0]]: true }))
-  }, [tab, sectionOpen])
+    setSectionOpen((current) => {
+      if (keys.some((key) => current[key])) return current
+      return { ...current, [keys[0]]: true }
+    })
+  }, [tab])
 
   if (!hasMiniAppAuthContext) return <div className='loading-screen'>
     <div className='loading-orb loading-orb-left' />
@@ -1052,7 +1057,7 @@ function App() {
     <div className='top-zone' ref={topZoneRef}>
       <div className='sticky-header-shell'>
       <header className='top-card'>
-        <div className='top-card-main'>
+        <div className='top-card-user-row'>
           <div className='top-card-stat top-card-user'>
             <div className='user-row'>
               <b>{webAuth?.accountLabel || `ID ${data.userId}`}</b>
@@ -1075,7 +1080,15 @@ function App() {
               </button>
             </div>
           </div>
-          <div className='top-card-stat'>
+          <div className='top-card-actions'>
+            <button className='bell-btn icon-btn' title='Уведомления' aria-label='Уведомления' onClick={() => setIsNotificationsOpen((current) => !current)}>
+              🔔
+              {unreadCount > 0 && <span className='bell-badge'>{unreadCount}</span>}
+            </button>
+          </div>
+        </div>
+        <div className='top-card-main'>
+          <div className='top-card-stat top-card-balance'>
             <span className='label'>Баланс</span>
             <b>{formatStars(data.balance)} ⭐</b>
             <div className='balance-shortcuts'>
@@ -1083,16 +1096,10 @@ function App() {
               <button className='chip balance-shortcut icon-btn' title='Вывести' aria-label='Вывести' onClick={() => { setTab('account'); setSectionOpen((current) => ({ ...current, account: false, favorite: false, payments: true })) }}>💸</button>
             </div>
           </div>
-          <div className='top-card-stat'>
+          <div className='top-card-stat top-card-boosters'>
             <span className='label'>Бустеры</span>
             <b>{formatStars(data.freeBoosters)}</b>
           </div>
-        </div>
-        <div className='top-card-actions'>
-          <button className='bell-btn icon-btn' title='Уведомления' aria-label='Уведомления' onClick={() => setIsNotificationsOpen((current) => !current)}>
-            🔔
-            {unreadCount > 0 && <span className='bell-badge'>{unreadCount}</span>}
-          </button>
         </div>
       </header>
 
@@ -1250,7 +1257,7 @@ function App() {
           Текущая неделя: {formatPeriodDate(leaderboards?.weeklyPeriodStart)} — {formatPeriodDate(leaderboards?.weeklyPeriodEnd)}
         </p>
       </div>
-      {renderSection('ratingsPlayersWeekly', 'Игроки за неделю', <>
+      {renderSection('ratingsPlayersWeekly', 'Недельный топ игроков', <>
         {leaderboardsLoading && <p className='subtitle'>Загружаем недельный рейтинг…</p>}
         {!!leaderboards?.playerWinnersWeekly?.length && <div className='rating-list'>
           {leaderboards.playerWinnersWeekly.map((item, index) => <div key={`${item.userId}-${index}`} className='rating-row'>
@@ -1259,7 +1266,7 @@ function App() {
           </div>)}
         </div>}
       </>)}
-      {renderSection('ratingsEmojis', 'Смайлы по победам', <>
+      {renderSection('ratingsEmojis', 'Топ смайлов', <>
         {leaderboardsLoading && <p className='subtitle'>Загружаем рейтинг смайлов…</p>}
         {!!leaderboards?.emojiWinners?.length && <div className='rating-list'>
           {leaderboards.emojiWinners.map((item, index) => <div key={`${item.emoji}-${index}`} className='rating-row'>
@@ -1268,7 +1275,7 @@ function App() {
           </div>)}
         </div>}
       </>)}
-      {renderSection('ratingsPlayersAll', 'Игроки за всё время', <>
+      {renderSection('ratingsPlayersAll', 'Топ игроков за всё время', <>
         {leaderboardsLoading && <p className='subtitle'>Загружаем общий рейтинг игроков…</p>}
         {!!leaderboards?.playerWinnersAllTime?.length && <div className='rating-list'>
           {leaderboards.playerWinnersAllTime.map((item, index) => <div key={`${item.userId}-${index}`} className='rating-row'>
