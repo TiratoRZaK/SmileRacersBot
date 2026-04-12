@@ -12,5 +12,11 @@ public interface UserRepository extends JpaRepository<BotUser, UUID> {
 
     Optional<BotUser> findByUserChatId(Long userChatId);
 
+    Optional<BotUser> findByUsernameIgnoreCase(String username);
+
+    boolean existsByUsernameIgnoreCase(String username);
+
+    Optional<BotUser> findFirstByUserChatIdLessThanOrderByUserChatIdAsc();
+
     boolean existsByUserChatIdAndIsAdminTrue(Long userChatId);
 }
