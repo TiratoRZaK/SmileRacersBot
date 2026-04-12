@@ -924,8 +924,8 @@ function App() {
     <div className='loading-card auth-card'>
       <div className='loading-logo'>🔐</div>
       <h1>{authMode === 'register' ? 'Регистрация' : authMode === 'setup' ? 'Установка пароля' : 'Вход'}</h1>
-      <p>Логин — это ваш Telegram username (без @).</p>
-      <input className='field' placeholder='telegram_username' value={authUsername} onChange={(e) => setAuthUsername(e.target.value)} />
+      <p>Введите логин и пароль для входа в веб-версию.</p>
+      <input className='field' placeholder='username' value={authUsername} onChange={(e) => setAuthUsername(e.target.value)} />
       <input className='field' placeholder='Пароль' type='password' value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} />
       {authMode !== 'login' && <input className='field' placeholder='Повторите пароль' type='password' value={authPasswordConfirm} onChange={(e) => setAuthPasswordConfirm(e.target.value)} />}
       <button onClick={() => submitAuth(authMode)} disabled={isWebAuthLoading}>
@@ -1187,7 +1187,7 @@ function App() {
       </>)}
 
       {!!data?.isAdmin && renderSection('adminBalance', 'Админ: баланс пользователя', <>
-        <input className='field' placeholder='telegram_username' value={adminUsername} onChange={(e) => setAdminUsername(e.target.value)} />
+        <input className='field' placeholder='username' value={adminUsername} onChange={(e) => setAdminUsername(e.target.value)} />
         <input className='field' type='number' min='1' value={adminAmount} onChange={(e) => setAdminAmount(e.target.value)} />
         <div className='action-row'>
           <button className='chip' onClick={() => adminAdjustBalance('add')}>+ Зачислить</button>

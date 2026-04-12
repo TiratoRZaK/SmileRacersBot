@@ -185,7 +185,7 @@ public class MiniAppController {
     public MiniAppDtos.AuthStatusResponse authStatus(@RequestBody MiniAppDtos.AuthStatusRequest request) {
         String username = normalizeUsername(request == null ? null : request.username());
         if (!StringUtils.hasText(username)) {
-            return new MiniAppDtos.AuthStatusResponse(false, "Введите логин Telegram username.", false, false);
+            return new MiniAppDtos.AuthStatusResponse(false, "Введите логин.", false, false);
         }
         var user = userService.findByUsername(username);
         if (user == null) {
@@ -200,7 +200,7 @@ public class MiniAppController {
         String username = normalizeUsername(request == null ? null : request.username());
         String password = request == null ? null : request.password();
         if (!StringUtils.hasText(username) || !isValidUsername(username)) {
-            return new MiniAppDtos.WebAuthResponse(false, "Логин должен быть Telegram username (5-32, латиница/цифры/_).", null, null, null);
+            return new MiniAppDtos.WebAuthResponse(false, "Логин должен быть 5-32 символа (латиница/цифры/_).", null, null, null);
         }
         String passwordError = validatePassword(password);
         if (passwordError != null) {
