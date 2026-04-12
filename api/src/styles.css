@@ -75,19 +75,23 @@ body {
 }
 
 .top-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  display: grid;
   gap: 10px;
   padding: 10px 12px;
   border-radius: 18px;
   z-index: 42;
 }
 
+.top-card-user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .top-card-main {
-  flex: 1;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -100,6 +104,7 @@ body {
 .top-card-user {
   display: flex;
   align-items: center;
+  flex: 1;
 }
 
 .user-row {
@@ -110,6 +115,13 @@ body {
 
 .top-card-actions {
   position: relative;
+}
+
+.top-card-balance,
+.top-card-boosters {
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .07);
 }
 
 .bell-btn {
@@ -1466,17 +1478,16 @@ select:focus {
   }
 
   .top-card {
-    flex-direction: row;
-    align-items: center;
+    gap: 8px;
   }
 
   .top-card-main {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 4px;
   }
 
-  .top-card-user {
-    grid-column: span 3;
+  .top-card-user-row {
+    align-items: flex-start;
   }
 
   .user-row {
@@ -1488,7 +1499,8 @@ select:focus {
     align-self: flex-start;
   }
 
-  .top-card {
-    align-items: center;
+  .top-card-balance,
+  .top-card-boosters {
+    padding: 8px 9px;
   }
 }
