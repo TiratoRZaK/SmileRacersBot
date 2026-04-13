@@ -207,6 +207,9 @@ function App() {
   const [raceScale, setRaceScale] = useState(1)
   const [battleMode, setBattleMode] = useState('idle')
   const [boosterHint, setBoosterHint] = useState(null)
+  const [balancePulse, setBalancePulse] = useState(false)
+  const [boosterPulse, setBoosterPulse] = useState(false)
+  const [balanceFloatingGain, setBalanceFloatingGain] = useState(null)
   const [adminWithdraws, setAdminWithdraws] = useState([])
   const [adminUsername, setAdminUsername] = useState('')
   const [adminAmount, setAdminAmount] = useState(100)
@@ -233,6 +236,10 @@ function App() {
   const swipeStartRef = useRef(null)
   const topZoneRef = useRef(null)
   const previousTabRef = useRef(tab)
+  const resourcesPrevRef = useRef({
+    balance: null,
+    freeBoosters: null
+  })
   const authLogoText = 'EMOJI RACE'
 
   const requestQuery = useMemo(() => {
@@ -325,6 +332,36 @@ function App() {
   useEffect(() => {
     favoriteDirtyRef.current = favoriteDirty
   }, [favoriteDirty])
+
+  useEffect(() => {
+    if (!data) return
+    const previous = resourcesPrevRef.current
+    const nextBalance = Number(data.balance) || 0
+    const nextBoosters = Number(data.freeBoosters) || 0
+
+    if (previous.balance != null && previous.balance !== nextBalance) {
+      setBalancePulse(true)
+      window.setTimeout(() => setBalancePulse(false), 520)
+      const gain = nextBalance - previous.balance
+      if (gain > 0) {
+        const floatingId = Date.now()
+        setBalanceFloatingGain({ id: floatingId, text: `+${formatStars(gain)} ⭐` })
+        window.setTimeout(() => {
+          setBalanceFloatingGain((current) => (current?.id === floatingId ? null : current))
+        }, 1450)
+      }
+    }
+
+    if (previous.freeBoosters != null && previous.freeBoosters !== nextBoosters) {
+      setBoosterPulse(true)
+      window.setTimeout(() => setBoosterPulse(false), 420)
+    }
+
+    resourcesPrevRef.current = {
+      balance: nextBalance,
+      freeBoosters: nextBoosters
+    }
+  }, [data?.balance, data?.freeBoosters, data])
 
   const pausePollingForInteraction = () => {
     interactionPauseUntilRef.current = Date.now() + INTERACTION_PAUSE_MS
@@ -1088,17 +1125,37 @@ function App() {
           </div>
         </div>
         <div className='top-card-main'>
-          <div className='top-card-stat top-card-balance'>
-            <span className='label'>Баланс</span>
-            <b>{formatStars(data.balance)} ⭐</b>
-            <div className='balance-shortcuts'>
-              <button className='chip balance-shortcut icon-btn' title='Пополнить' aria-label='Пополнить' onClick={() => { setTab('account'); setSectionOpen((current) => ({ ...current, account: false, favorite: false, payments: true })) }}>➕</button>
-              <button className='chip balance-shortcut icon-btn' title='Вывести' aria-label='Вывести' onClick={() => { setTab('account'); setSectionOpen((current) => ({ ...current, account: false, favorite: false, payments: true })) }}>💸</button>
+          <div className='top-card-stat top-card-resources'>
+            <span className='label'>Ресурсы</span>
+            <div className='resource-line'>
+              <div className={`balance-display ${balancePulse ? 'balance-display-pulse' : ''}`}>
+                <span className='resource-icon'>💎</span>
+                <b>{formatStars(data.balance)}</b>
+                {balanceFloatingGain && <span key={balanceFloatingGain.id} className='balance-floating-gain'>{balanceFloatingGain.text}</span>}
+              </div>
+              <div className={`booster-display ${boosterPulse ? 'booster-display-pulse' : ''} ${(Number(data.freeBoosters) || 0) > 0 ? 'booster-display-active' : 'booster-display-empty'}`}>
+                <span className='resource-icon'>⚡</span>
+                <span>{formatStars(data.freeBoosters)}</span>
+              </div>
             </div>
-          </div>
-          <div className='top-card-stat top-card-boosters'>
-            <span className='label'>Бустеры</span>
-            <b>{formatStars(data.freeBoosters)}</b>
+            <div className='balance-actions'>
+              <button
+                className='cta-btn cta-btn-primary'
+                title='Пополнить баланс'
+                aria-label='Пополнить баланс'
+                onClick={() => { setTab('account'); setSectionOpen((current) => ({ ...current, account: false, favorite: false, payments: true })) }}
+              >
+                🚀 Top Up
+              </button>
+              <button
+                className='cta-btn cta-btn-secondary'
+                title='Вывести средства'
+                aria-label='Вывести средства'
+                onClick={() => { setTab('account'); setSectionOpen((current) => ({ ...current, account: false, favorite: false, payments: true })) }}
+              >
+                💸 Withdraw
+              </button>
+            </div>
           </div>
         </div>
       </header>
