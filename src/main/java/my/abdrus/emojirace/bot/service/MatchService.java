@@ -801,7 +801,7 @@ public class MatchService {
                     playerNames + "\n\n" +
                     "Голосование завершено! Ожидайте старта гонки.\n");
 
-            editMessage.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(createMatchLinkButton(match)))));
+            editMessage.setReplyMarkup(new InlineKeyboardMarkup(List.of(List.of(createBotLinkButton()))));
             bot.execute(editMessage);
             bot.deleteMessageScheduled(scoreMessage.getChatId(), scoreMessage.getMessageId().intValue());
         });
@@ -809,7 +809,9 @@ public class MatchService {
     }
 
     public InlineKeyboardButton createMatchLinkButton(Match match) {
-        String messageLink = channelProperties.getChannelLink() + match.getChannelTimerMessageId();
+        String messageLink = match.getChannelTimerMessageId() == null
+                ? channelProperties.getChannelLink()
+                : channelProperties.getChannelLink() + match.getChannelTimerMessageId();
         return InlineKeyboardButton.builder()
                 .text("📢 Перейти к матчу")
                 .url(messageLink)
