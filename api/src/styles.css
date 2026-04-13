@@ -382,6 +382,8 @@ h2 {
   font-size: 11px;
   line-height: 1.35;
   color: #dbeafe;
+  white-space: normal;
+  overflow-wrap: anywhere;
   box-shadow: 0 10px 28px rgba(2, 8, 23, .55);
   opacity: 0;
   pointer-events: none;
@@ -700,15 +702,20 @@ h3 {
 }
 
 
-.vote-field-wrap {
+.vote-field-wrap,
+.ruby-input-wrap {
   position: relative;
+  display: block;
+  flex: 1;
 }
 
-.vote-field {
+.vote-field,
+.ruby-input {
   padding-right: 34px;
 }
 
-.vote-field-suffix {
+.vote-field-suffix,
+.ruby-input-icon {
   position: absolute;
   right: 12px;
   top: 50%;

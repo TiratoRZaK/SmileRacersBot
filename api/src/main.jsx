@@ -165,6 +165,39 @@ const getBattleBank = (battle) => {
   return battle.units.reduce((sum, unit) => sum + (Number(battle.battleStake) || 0), 0)
 }
 
+const parseRubyInput = (rawValue) => {
+  const digits = String(rawValue ?? '').replace(/\D/g, '')
+  return Number(digits || 0)
+}
+
+const RubyAmountField = ({
+  value,
+  min = 1,
+  max = Number.MAX_SAFE_INTEGER,
+  onChange,
+  onFocus,
+  placeholder
+}) => {
+  const safeMax = Math.max(min, Number.isFinite(max) ? Math.floor(max) : min)
+  const safeValue = Math.max(min, Math.min(Number(value) || min, safeMax))
+  return <label className='ruby-input-wrap'>
+    <input
+      className='field ruby-input'
+      type='text'
+      inputMode='numeric'
+      placeholder={placeholder}
+      value={safeValue}
+      onFocus={onFocus}
+      onChange={(e) => {
+        const parsed = parseRubyInput(e.target.value)
+        const next = Math.max(min, Math.min(parsed || min, safeMax))
+        onChange(next)
+      }}
+    />
+    <span className='ruby-input-icon'>💎</span>
+  </label>
+}
+
 function App() {
   const [webAuth, setWebAuth] = useState(() => readStoredWebAuth())
   const [webAuthError, setWebAuthError] = useState('')
@@ -225,7 +258,7 @@ function App() {
     battleCreate: true,
     battleManage: false,
     battleJoin: false,
-    adminWithdraws: true,
+    adminWithdraws: false,
     adminBalance: false
   })
   const refreshInFlightRef = useRef(false)
@@ -449,7 +482,7 @@ function App() {
     const username = String(adminUsername || '').trim().replace(/^@/, '')
     const amount = Number(adminAmount || 0)
     if (!username || !Number.isFinite(amount) || amount <= 0) {
-      notify('Введите корректный username и сумму > 0', { persist: true })
+      notify('Введите корректный логин и сумму > 0', { persist: true })
       return
     }
     const endpoint = mode === 'add' ? 'admin/balance/add' : 'admin/balance/subtract'
@@ -835,6 +868,7 @@ function App() {
       const groups = [
         ['ratingsEmojis', 'ratingsPlayersAll', 'ratingsPlayersWeekly'],
         ['account', 'favorite', 'payments'],
+        ['adminWithdraws', 'adminBalance'],
         ['recentRaces', 'history'],
         ['battleCreate', 'battleManage', 'battleJoin']
       ]
@@ -1126,7 +1160,6 @@ function App() {
         </div>
         <div className='top-card-main'>
           <div className='top-card-stat top-card-resources'>
-            <span className='label'>Ресурсы</span>
             <div className='resource-line'>
               <div className={`balance-display ${balancePulse ? 'balance-display-pulse' : ''}`}>
                 <span className='resource-icon'>💎</span>
@@ -1136,7 +1169,6 @@ function App() {
               <div
                 className={`booster-display booster-display-tooltip ${boosterPulse ? 'booster-display-pulse' : ''} ${(Number(data.freeBoosters) || 0) > 0 ? 'booster-display-active' : 'booster-display-empty'}`}
                 data-tooltip='Бустеры — бесплатные усилители в гонке: ускоряют, замедляют соперников или защищают выбранный смайл.'
-                title='Бустеры — бесплатные усилители в гонке: ускоряют, замедляют соперников или защищают выбранный смайл.'
                 tabIndex={0}
               >
                 <span className='resource-icon'>⚡</span>
@@ -1251,24 +1283,17 @@ function App() {
             <span>Твой голос: {formatStars(localVotes[u.playerNumber] ?? u.myVotes)} 💎</span>
           </div>
           <div className='vote-inline'>
-          <div className='vote-field-wrap'>
-            <input
-              className='field vote-field'
-              type='text'
-              inputMode='numeric'
-              placeholder={`до ${formatStars(Math.max(1, data.balance || 1))}`}
-              value={voteInputs[u.playerNumber] ?? 1}
-              onChange={(e) => {
-                pausePollingForInteraction()
-                const digits = String(e.target.value || '').replace(/\D/g, '')
-                const raw = Number(digits || 1)
-                const next = Math.max(1, Math.min(raw, Math.max(1, data.balance || 1)))
-                setVoteInputs((current) => ({ ...current, [u.playerNumber]: next }))
-              }}
-              onFocus={pausePollingForInteraction}
-            />
-            <span className='vote-field-suffix'>💎</span>
-          </div>
+          <RubyAmountField
+            value={voteInputs[u.playerNumber] ?? 1}
+            min={1}
+            max={Math.max(1, data.balance || 1)}
+            placeholder={`до ${formatStars(Math.max(1, data.balance || 1))}`}
+            onFocus={pausePollingForInteraction}
+            onChange={(next) => {
+              pausePollingForInteraction()
+              setVoteInputs((current) => ({ ...current, [u.playerNumber]: next }))
+            }}
+          />
           <button
             disabled={!data.balance || data.balance < 1}
             onClick={async () => {
@@ -1376,8 +1401,8 @@ function App() {
       </>)}
 
       {!!data?.isAdmin && renderSection('adminBalance', 'Админ: баланс пользователя', <>
-        <input className='field' placeholder='username' value={adminUsername} onChange={(e) => setAdminUsername(e.target.value)} />
-        <input className='field' type='number' min='1' value={adminAmount} onChange={(e) => setAdminAmount(e.target.value)} />
+        <input className='field' placeholder='логин' value={adminUsername} onChange={(e) => setAdminUsername(e.target.value)} />
+        <RubyAmountField value={adminAmount} min={1} max={Math.max(1, data.balance || 1)} onChange={setAdminAmount} />
         <div className='action-row'>
           <button className='chip' onClick={() => adminAdjustBalance('add')}>+ Зачислить</button>
           <button className='chip danger-chip' onClick={() => adminAdjustBalance('subtract')}>− Списать</button>
@@ -1414,20 +1439,11 @@ function App() {
 
       {renderSection('payments', 'Пополнение и вывод', <>
         <div className='row'>
-          <input className='field' type='number' min={TOPUP_MIN} step='1' value={topupAmount} onChange={(e) => { pausePollingForInteraction(); setTopupAmount(Math.max(TOPUP_MIN, Number(e.target.value || TOPUP_MIN))) }} onFocus={pausePollingForInteraction} />
-          <button onClick={() => act('topup', { amount: topupAmount })}>Пополнить через 💎</button>
+          <RubyAmountField value={topupAmount} min={TOPUP_MIN} max={Math.max(1, data.balance || 1)} onChange={(next) => { pausePollingForInteraction(); setTopupAmount(next) }} onFocus={pausePollingForInteraction} />
+          <button onClick={() => act('topup', { amount: topupAmount })}>Пополнить</button>
         </div>
         <div className='row'>
-          <input
-            className='field'
-            type='number'
-            min={WITHDRAW_MIN}
-            max={maxWithdraw}
-            step='1'
-            value={withdrawAmount}
-            onChange={(e) => { pausePollingForInteraction(); setWithdrawAmount(Number(e.target.value || WITHDRAW_MIN)) }}
-            onFocus={pausePollingForInteraction}
-          />
+          <RubyAmountField value={withdrawAmount} min={TOPUP_MIN} max={Math.max(1, maxWithdraw)} onChange={(next) => { pausePollingForInteraction(); setWithdrawAmount(next) }} onFocus={pausePollingForInteraction} />
           <button disabled={clampedWithdraw > maxWithdraw} onClick={() => act('withdraw', { amount: clampedWithdraw })}>Создать запрос на вывод</button>
         </div>
         <p className='subtitle'>Доступно к выводу: до {maxWithdraw} 💎. Минимум: {WITHDRAW_MIN} 💎.</p>
@@ -1489,14 +1505,7 @@ function App() {
             <p className='subtitle'>Создайте приватный батл, выберите смайл и стоимость входа. Все участники платят одинаковую ставку, победитель забирает банк.</p>
             <div className='row battle-create-row'>
               <select value={battleEmoji} onChange={(e) => setBattleEmoji(e.target.value)}>{data.allEmojis.map((e) => <option key={e}>{e}</option>)}</select>
-              <input
-                className='field'
-                type='number'
-                min='1'
-                step='1'
-                value={battleStakeInput}
-                onChange={(e) => setBattleStakeInput(Math.max(1, Number(e.target.value || 1)))}
-              />
+              <RubyAmountField value={battleStakeInput} min={1} max={Math.max(1, data.balance || 1)} onChange={setBattleStakeInput} />
               <button onClick={async () => {
                 const response = await act('battle', { playerName: battleEmoji, stake: Math.max(1, Number(battleStakeInput) || 1) })
                 if (response?.httpOk) {
