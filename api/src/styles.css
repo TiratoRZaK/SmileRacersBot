@@ -705,12 +705,15 @@ h3 {
 .vote-field-wrap,
 .ruby-input-wrap {
   position: relative;
-  display: block;
+  display: flex;
+  align-items: center;
   flex: 1;
+  min-height: 40px;
 }
 
 .vote-field,
 .ruby-input {
+  width: 100%;
   padding-right: 34px;
 }
 
@@ -720,6 +723,10 @@ h3 {
   right: 12px;
   top: 50%;
   transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   opacity: .9;
   pointer-events: none;
 }

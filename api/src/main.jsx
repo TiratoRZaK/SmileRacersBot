@@ -771,8 +771,7 @@ function App() {
     }
   }
 
-  const maxWithdraw = data?.balance || WITHDRAW_MIN
-  const clampedWithdraw = Math.max(WITHDRAW_MIN, Math.min(withdrawAmount || WITHDRAW_MIN, maxWithdraw))
+  const maxWithdraw = Math.max(0, Number(data?.balance) || 0)
 
 
   const requestBattleStartFromUi = async () => {
@@ -852,6 +851,17 @@ function App() {
     notify('Ссылка на поддержку временно недоступна.')
   }
 
+  const requestWithdrawFromUi = async () => {
+    const amount = Math.round(Number(withdrawAmount || 0))
+    const isOutOfRange = !Number.isFinite(amount) || amount < WITHDRAW_MIN || amount > maxWithdraw
+    if (isOutOfRange) {
+      notify(`Сумма вывода должна быть от ${WITHDRAW_MIN} до ${formatStars(maxWithdraw)} 💎.`, { persist: true })
+      setWithdrawAmount(WITHDRAW_MIN)
+      return
+    }
+    await act('withdraw', { amount })
+  }
+
 
   const toggleSection = (key) => {
     setSectionOpen((current) => {
@@ -865,16 +875,8 @@ function App() {
       if (!nextOpen) {
         return { ...current, [key]: false }
       }
-      const groups = [
-        ['ratingsEmojis', 'ratingsPlayersAll', 'ratingsPlayersWeekly'],
-        ['account', 'favorite', 'payments'],
-        ['adminWithdraws', 'adminBalance'],
-        ['recentRaces', 'history'],
-        ['battleCreate', 'battleManage', 'battleJoin']
-      ]
-      const group = groups.find((items) => items.includes(key)) || [key]
       const updated = { ...current }
-      group.forEach((item) => {
+      Object.keys(updated).forEach((item) => {
         updated[item] = item === key
       })
       return updated
@@ -1280,7 +1282,7 @@ function App() {
         </div>
         {raceBeforeStart && <div className='vote-inline-wrap'>
           <div className='vote-caption'>
-            <span>Твой голос: {formatStars(localVotes[u.playerNumber] ?? u.myVotes)} 💎</span>
+            <span>Твой голос: {formatStars(localVotes[u.playerNumber] ?? u.myVotes)}</span>
           </div>
           <div className='vote-inline'>
           <RubyAmountField
@@ -1443,8 +1445,8 @@ function App() {
           <button onClick={() => act('topup', { amount: topupAmount })}>Пополнить</button>
         </div>
         <div className='row'>
-          <RubyAmountField value={withdrawAmount} min={TOPUP_MIN} max={Math.max(1, maxWithdraw)} onChange={(next) => { pausePollingForInteraction(); setWithdrawAmount(next) }} onFocus={pausePollingForInteraction} />
-          <button disabled={clampedWithdraw > maxWithdraw} onClick={() => act('withdraw', { amount: clampedWithdraw })}>Создать запрос на вывод</button>
+          <RubyAmountField value={withdrawAmount} min={WITHDRAW_MIN} max={Math.max(WITHDRAW_MIN, maxWithdraw)} onChange={(next) => { pausePollingForInteraction(); setWithdrawAmount(next) }} onFocus={pausePollingForInteraction} />
+          <button onClick={requestWithdrawFromUi}>Создать запрос на вывод</button>
         </div>
         <p className='subtitle'>Доступно к выводу: до {maxWithdraw} 💎. Минимум: {WITHDRAW_MIN} 💎.</p>
         <div className='grid'>
