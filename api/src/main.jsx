@@ -178,20 +178,34 @@ const RubyAmountField = ({
   onFocus,
   placeholder
 }) => {
-  const safeMax = Math.max(min, Number.isFinite(max) ? Math.floor(max) : min)
-  const safeValue = Math.max(min, Math.min(Number(value) || min, safeMax))
+  const safeMin = Math.max(1, Number.isFinite(min) ? Math.floor(min) : 1)
+  const safeMax = Math.max(safeMin, Number.isFinite(max) ? Math.floor(max) : safeMin)
+  const clampValue = (nextValue) => Math.max(safeMin, Math.min(nextValue, safeMax))
+  const normalizedValue = clampValue(Number(value) || safeMin)
+  const [draftValue, setDraftValue] = useState(String(normalizedValue))
+
+  useEffect(() => {
+    setDraftValue(String(normalizedValue))
+  }, [normalizedValue])
+
   return <label className='ruby-input-wrap'>
     <input
       className='field ruby-input'
       type='text'
       inputMode='numeric'
       placeholder={placeholder}
-      value={safeValue}
+      value={draftValue}
       onFocus={onFocus}
       onChange={(e) => {
-        const parsed = parseRubyInput(e.target.value)
-        const next = Math.max(min, Math.min(parsed || min, safeMax))
+        const rawValue = String(e.target.value ?? '')
+        const digits = rawValue.replace(/\D/g, '')
+        setDraftValue(digits)
+      }}
+      onBlur={() => {
+        const parsed = parseRubyInput(draftValue)
+        const next = clampValue(parsed || safeMin)
         onChange(next)
+        setDraftValue(String(next))
       }}
     />
     <span className='ruby-input-icon'>💎</span>
