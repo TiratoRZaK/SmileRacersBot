@@ -3,6 +3,7 @@ package my.abdrus.emojirace.bot.service;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -24,6 +25,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 public class MatchGenerationService {
+    private static final Duration LIVE_MATCH_STUCK_TIMEOUT = Duration.ofMinutes(10);
 
     @Autowired
     private PlayerRepository playerRepository;
@@ -48,6 +50,15 @@ public class MatchGenerationService {
             try {
                 var liveMatch = matchRepository.findFirstByStatusOrderByCreatedDateAsc(MatchStatus.LIVE).orElse(null);
                 if (liveMatch != null) {
+                    var liveSince = liveMatch.getCreatedDate();
+                    var isStuckLive = liveSince != null
+                            && Date.from(liveSince.toInstant().plus(LIVE_MATCH_STUCK_TIMEOUT)).before(new Date());
+                    if (isStuckLive) {
+                        liveMatch.setStatus(MatchStatus.CREATED);
+                        matchRepository.save(liveMatch);
+                        log.warn("Матч #{} завис в LIVE дольше {} минут. Возвращён в CREATED.",
+                                liveMatch.getId(), LIVE_MATCH_STUCK_TIMEOUT.toMinutes());
+                    }
                     return;
                 }
 
