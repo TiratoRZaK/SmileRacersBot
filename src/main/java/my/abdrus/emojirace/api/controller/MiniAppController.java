@@ -112,6 +112,7 @@ public class MiniAppController {
         Long userId = resolveUserId(headerUserId, userIdParam);
         Account account = accountService.getByUserId(userId);
         var user = userService.createIfNeed(userId);
+        boolean isAdmin = userService.isAdmin(userId);
 
         Race activeRace = raceService.getActiveRace();
         Match selectedMatch = activeRace != null
@@ -140,10 +141,11 @@ public class MiniAppController {
         List<MiniAppDtos.UiNotification> notifications = userNotificationService.getRecent(userId).stream()
                 .map(item -> new MiniAppDtos.UiNotification(item.getId(), item.getText(), item.getCreatedDate().getTime()))
                 .toList();
+        List<String> adminUsernames = isAdmin ? userRepository.findAllUsernames() : List.of();
 
         return new MiniAppDtos.BootstrapResponse(
                 userId,
-                userService.isAdmin(userId),
+                isAdmin,
                 isLocalTestModeActive(),
                 Optional.ofNullable(raceProperties.getGenerationIntervalMinutes()).orElse(3),
                 account.getBalance(),
@@ -152,7 +154,8 @@ public class MiniAppController {
                 raceCard,
                 myBattleCard,
                 emojis,
-                notifications
+                notifications,
+                adminUsernames
         );
     }
 

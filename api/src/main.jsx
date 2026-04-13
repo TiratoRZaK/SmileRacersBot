@@ -34,6 +34,7 @@ const TAB_TITLES = {
   account: 'Аккаунт',
   archive: 'Архив'
 }
+const UNKNOWN_AVATAR = '❔'
 
 const TOAST_AUTO_CLOSE_MS = 4500
 const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'battle', 'battle/start', 'topup'])
@@ -174,6 +175,7 @@ const RubyAmountField = ({
   value,
   min = 1,
   max = Number.MAX_SAFE_INTEGER,
+  clampOnBlur = true,
   onChange,
   onFocus,
   placeholder
@@ -203,7 +205,8 @@ const RubyAmountField = ({
       }}
       onBlur={() => {
         const parsed = parseRubyInput(draftValue)
-        const next = clampValue(parsed || safeMin)
+        const fallbackValue = clampOnBlur ? safeMin : 0
+        const next = clampOnBlur ? clampValue(parsed || safeMin) : Math.max(fallbackValue, parsed || 0)
         onChange(next)
         setDraftValue(String(next))
       }}
@@ -260,6 +263,7 @@ function App() {
   const [adminWithdraws, setAdminWithdraws] = useState([])
   const [adminUsername, setAdminUsername] = useState('')
   const [adminAmount, setAdminAmount] = useState(100)
+  const [adminUserOptions, setAdminUserOptions] = useState([])
   const [sectionOpen, setSectionOpen] = useState({
     ratingsEmojis: false,
     ratingsPlayersAll: false,
@@ -628,6 +632,19 @@ function App() {
   }, [data])
 
   useEffect(() => {
+    if (!isNotificationsOpen || savedNotifications.length) return
+    setIsNotificationsOpen(false)
+  }, [isNotificationsOpen, savedNotifications.length])
+
+  useEffect(() => {
+    if (!data?.isAdmin) {
+      setAdminUserOptions([])
+      return
+    }
+    setAdminUserOptions(Array.isArray(data?.adminUsernames) ? data.adminUsernames : [])
+  }, [data?.isAdmin, data?.adminUsernames])
+
+  useEffect(() => {
     if (!data?.race?.matchId) {
       setLocalVotes({})
       return
@@ -658,6 +675,11 @@ function App() {
       loadHistory().catch(() => notify('Не удалось загрузить историю операций.', { persist: true }))
     }
   }, [tab, sectionOpen.recentRaces, sectionOpen.history])
+
+  useEffect(() => {
+    if (!hasMiniAppAuthContext || leaderboards != null) return
+    loadLeaderboards().catch(() => null)
+  }, [hasMiniAppAuthContext, leaderboards])
 
 
   useEffect(() => {
@@ -870,7 +892,6 @@ function App() {
     const isOutOfRange = !Number.isFinite(amount) || amount < WITHDRAW_MIN || amount > maxWithdraw
     if (isOutOfRange) {
       notify(`Сумма вывода должна быть от ${WITHDRAW_MIN} до ${formatStars(maxWithdraw)} 💎.`, { persist: true })
-      setWithdrawAmount(WITHDRAW_MIN)
       return
     }
     await act('withdraw', { amount })
@@ -981,6 +1002,20 @@ function App() {
     backgroundPosition: 'center'
   }), [trackTheme, raceUnits, visibleRace?.matchId])
   const unreadCount = savedNotifications.filter((item) => !item.read).length
+  const raceParticipationActive = raceLive && raceUnits.some((unit) => (Number(unit.myVotes) || 0) > 0)
+  const battleAttentionActive = !!myBattle && myBattle.status === 'CREATED'
+  const weeklyTopPlace = useMemo(() => {
+    if (!leaderboards?.playerWinnersWeekly?.length || !userId) return null
+    const index = leaderboards.playerWinnersWeekly.findIndex((item) => Number(item.userId || 0) === Number(userId))
+    if (index < 0 || index > 9) return null
+    return index + 1
+  }, [leaderboards?.playerWinnersWeekly, userId])
+  const favoriteEmojiPlace = useMemo(() => {
+    if (!leaderboards?.emojiWinners?.length || !data?.favoriteEmoji) return null
+    const index = leaderboards.emojiWinners.findIndex((item) => item.emoji === data.favoriteEmoji)
+    return index >= 0 ? index + 1 : null
+  }, [leaderboards?.emojiWinners, data?.favoriteEmoji])
+  const accountAvatar = data?.favoriteEmoji || UNKNOWN_AVATAR
   const myBattleCanCancel = !!myBattle && myBattle.status === 'CREATED'
   const canCreateBattle = !myBattle && battleMode !== 'joined'
   const canManageBattle = !!myBattle && isMyBattleOwner
@@ -1147,7 +1182,23 @@ function App() {
         <div className='top-card-user-row'>
           <div className='top-card-stat top-card-user'>
             <div className='user-row'>
-              <b>{String(webAuth?.accountLabel || `ID ${data.userId}`).replace(/^@/, '')}</b>
+              <button
+                className='avatar-emoji-btn'
+                type='button'
+                onClick={() => {
+                  setTab('account')
+                  setSectionOpen((current) => ({ ...current, account: false, favorite: true, payments: false }))
+                }}
+              >
+                <span>{accountAvatar}</span>
+              </button>
+              <button
+                className='user-link-btn'
+                type='button'
+                onClick={() => setTab('account')}
+              >
+                <b>{String(webAuth?.accountLabel || `ID ${data.userId}`).replace(/^@/, '')}</b>
+              </button>
               <button
                 className='chip icon-btn logout-btn'
                 aria-label='Выйти'
@@ -1214,7 +1265,20 @@ function App() {
       </header>
 
       <nav className='tabs'>
-        {TAB_ORDER.map((tabKey) => <button key={tabKey} className={tab === tabKey ? 'active' : ''} onClick={() => setTab(tabKey)}>{TAB_TITLES[tabKey]}</button>)}
+        {TAB_ORDER.map((tabKey) => {
+          const isRace = tabKey === 'race'
+          const isBattle = tabKey === 'battle'
+          const isRatings = tabKey === 'ratings'
+          const raceBadge = isRace && raceParticipationActive
+          const battleBadge = isBattle && battleAttentionActive
+          const ratingBadge = isRatings && weeklyTopPlace
+          return <button key={tabKey} className={tab === tabKey ? 'active' : ''} onClick={() => setTab(tabKey)}>
+            <span>{TAB_TITLES[tabKey]}</span>
+            {raceBadge && <span className='tab-dot tab-dot-glow' />}
+            {battleBadge && <span className='tab-dot tab-dot-glow' />}
+            {ratingBadge && <span className='tab-rank-badge'>{weeklyTopPlace}</span>}
+          </button>
+        })}
       </nav>
       </div>
 
@@ -1331,6 +1395,7 @@ function App() {
           </div>
         </div>}
         {raceLive && <div className='booster-shell'>
+          <div className='booster-vote-info'>Твоя ставка: {formatStars(localVotes[u.playerNumber] ?? u.myVotes)} 💎</div>
           <div className='booster-actions'>
             <button className='booster booster-bust' aria-label={`Ускорить ${u.playerName}`} title={`Ускорить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }) }}><span>🐇</span></button>
             <button className='booster booster-slow' aria-label={`Замедлить ${u.playerName}`} title={`Замедлить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }) }}><span>🐢</span></button>
@@ -1371,6 +1436,9 @@ function App() {
       </>)}
       {renderSection('ratingsEmojis', 'Топ смайлов', <>
         {leaderboardsLoading && <p className='subtitle'>Загружаем рейтинг смайлов…</p>}
+        {data.favoriteEmoji && <p className='subtitle'>
+          Любимый смайл: <b>{data.favoriteEmoji}</b>{favoriteEmojiPlace ? ` · место #${favoriteEmojiPlace}` : ' · пока вне таблицы'}
+        </p>}
         {!!leaderboards?.emojiWinners?.length && <div className='rating-list'>
           {leaderboards.emojiWinners.map((item, index) => <div key={`${item.emoji}-${index}`} className='rating-row'>
             <span>#{index + 1} {item.emoji}</span>
@@ -1417,11 +1485,14 @@ function App() {
       </>)}
 
       {!!data?.isAdmin && renderSection('adminBalance', 'Админ: баланс пользователя', <>
-        <input className='field' placeholder='логин' value={adminUsername} onChange={(e) => setAdminUsername(e.target.value)} />
+        <input className='field admin-login-field' list='admin-usernames' placeholder='логин' value={adminUsername} onChange={(e) => setAdminUsername(e.target.value)} />
+        <datalist id='admin-usernames'>
+          {adminUserOptions.map((username) => <option key={username} value={username} />)}
+        </datalist>
         <RubyAmountField value={adminAmount} min={1} max={Math.max(1, data.balance || 1)} onChange={setAdminAmount} />
         <div className='action-row'>
-          <button className='chip' onClick={() => adminAdjustBalance('add')}>+ Зачислить</button>
-          <button className='chip danger-chip' onClick={() => adminAdjustBalance('subtract')}>− Списать</button>
+          <button className='chip admin-balance-btn' onClick={() => adminAdjustBalance('add')}>Зачислить</button>
+          <button className='chip danger-chip admin-balance-btn' onClick={() => adminAdjustBalance('subtract')}>Списать</button>
         </div>
       </>)}
 
@@ -1459,7 +1530,7 @@ function App() {
           <button onClick={() => act('topup', { amount: topupAmount })}>Пополнить</button>
         </div>
         <div className='row'>
-          <RubyAmountField value={withdrawAmount} min={WITHDRAW_MIN} max={Math.max(WITHDRAW_MIN, maxWithdraw)} onChange={(next) => { pausePollingForInteraction(); setWithdrawAmount(next) }} onFocus={pausePollingForInteraction} />
+          <RubyAmountField value={withdrawAmount} min={WITHDRAW_MIN} max={Math.max(WITHDRAW_MIN, maxWithdraw)} clampOnBlur={false} onChange={(next) => { pausePollingForInteraction(); setWithdrawAmount(next) }} onFocus={pausePollingForInteraction} />
           <button onClick={requestWithdrawFromUi}>Создать запрос на вывод</button>
         </div>
         <p className='subtitle'>Доступно к выводу: до {maxWithdraw} 💎. Минимум: {WITHDRAW_MIN} 💎.</p>
