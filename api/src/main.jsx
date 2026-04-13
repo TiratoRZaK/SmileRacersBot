@@ -345,7 +345,7 @@ function App() {
       const gain = nextBalance - previous.balance
       if (gain > 0) {
         const floatingId = Date.now()
-        setBalanceFloatingGain({ id: floatingId, text: `+${formatStars(gain)} ⭐` })
+        setBalanceFloatingGain({ id: floatingId, text: `+${formatStars(gain)} 💎` })
         window.setTimeout(() => {
           setBalanceFloatingGain((current) => (current?.id === floatingId ? null : current))
         }, 1450)
@@ -514,7 +514,7 @@ function App() {
       const nextAuth = {
         authToken: String(payload.authToken),
         userId: Number(payload.userId),
-        accountLabel: payload.accountLabel || `@${username}`
+        accountLabel: payload.accountLabel || username
       }
       setWebAuth(nextAuth)
       saveStoredWebAuth(nextAuth)
@@ -706,7 +706,7 @@ function App() {
       if (path === 'vote' && body?.amount && body?.playerNumber) {
         const votedUnit = (data?.race?.units || []).find((u) => u.playerNumber === body.playerNumber)
         const target = votedUnit?.playerName || `участника #${body.playerNumber}`
-        notify(`✅ Принято: ${formatStars(body.amount)} ⭐ за ${target}`)
+        notify(`✅ Принято: ${formatStars(body.amount)} 💎 за ${target}`)
       } else if (path === 'boost') {
         const toastId = notify(r.message)
         if (toastId != null) {
@@ -764,7 +764,7 @@ function App() {
     }
     const targetBattle = (data?.race?.matchId === matchId && data?.race?.type === 'BATTLE') ? data.race : null
     const stake = Number(targetBattle?.battleStake || 0)
-    if (!window.confirm(`Подтвердить вход в батл #${matchId}${stake > 0 ? ` за ${stake} ⭐` : ''}?`)) return
+    if (!window.confirm(`Подтвердить вход в батл #${matchId}${stake > 0 ? ` за ${stake} 💎` : ''}?`)) return
     const response = await act('battle/join', { matchId, playerName: joinBattleEmoji })
     if (response?.httpOk) {
       setBattleMode('joined')
@@ -955,7 +955,7 @@ function App() {
   }, [myBattle, joinedBattle, isMyBattleOwner])
   const raceWinner = raceCompleted ? raceUnits.find((unit) => unit.place === 1) : null
   const racePayout = Number(visibleRace?.myPayout || 0)
-  const raceResultTitle = racePayout > 0 ? `Вы выиграли ${formatStars(racePayout)} ⭐` : racePayout < 0 ? `Вы проиграли ${formatStars(Math.abs(racePayout))} ⭐` : 'Эта гонка без изменения баланса'
+  const raceResultTitle = racePayout > 0 ? `Вы выиграли ${formatStars(racePayout)} 💎` : racePayout < 0 ? `Вы проиграли ${formatStars(Math.abs(racePayout))} 💎` : 'Эта гонка без изменения баланса'
 
   const goToTabBySwipe = (direction) => {
     const currentIndex = TAB_ORDER.indexOf(tab)
@@ -1097,7 +1097,7 @@ function App() {
         <div className='top-card-user-row'>
           <div className='top-card-stat top-card-user'>
             <div className='user-row'>
-              <b>{webAuth?.accountLabel || `ID ${data.userId}`}</b>
+              <b>{String(webAuth?.accountLabel || `ID ${data.userId}`).replace(/^@/, '')}</b>
               <button
                 className='chip icon-btn logout-btn'
                 aria-label='Выйти'
@@ -1133,7 +1133,12 @@ function App() {
                 <b>{formatStars(data.balance)}</b>
                 {balanceFloatingGain && <span key={balanceFloatingGain.id} className='balance-floating-gain'>{balanceFloatingGain.text}</span>}
               </div>
-              <div className={`booster-display ${boosterPulse ? 'booster-display-pulse' : ''} ${(Number(data.freeBoosters) || 0) > 0 ? 'booster-display-active' : 'booster-display-empty'}`}>
+              <div
+                className={`booster-display booster-display-tooltip ${boosterPulse ? 'booster-display-pulse' : ''} ${(Number(data.freeBoosters) || 0) > 0 ? 'booster-display-active' : 'booster-display-empty'}`}
+                data-tooltip='Бустеры — бесплатные усилители в гонке: ускоряют, замедляют соперников или защищают выбранный смайл.'
+                title='Бустеры — бесплатные усилители в гонке: ускоряют, замедляют соперников или защищают выбранный смайл.'
+                tabIndex={0}
+              >
                 <span className='resource-icon'>⚡</span>
                 <span>{formatStars(data.freeBoosters)}</span>
               </div>
@@ -1145,7 +1150,7 @@ function App() {
                 aria-label='Пополнить баланс'
                 onClick={() => { setTab('account'); setSectionOpen((current) => ({ ...current, account: false, favorite: false, payments: true })) }}
               >
-                🚀 Top Up
+                💳 Пополнить
               </button>
               <button
                 className='cta-btn cta-btn-secondary'
@@ -1153,7 +1158,7 @@ function App() {
                 aria-label='Вывести средства'
                 onClick={() => { setTab('account'); setSectionOpen((current) => ({ ...current, account: false, favorite: false, payments: true })) }}
               >
-                💸 Withdraw
+                💸 Вывести
               </button>
             </div>
           </div>
@@ -1197,9 +1202,9 @@ function App() {
       {!visibleRace && <p className='subtitle'>Скоро начнётся новая гонка или создайте батл (вкладка «Батл»).</p>}
 
       {!!visibleRace && raceLive && <div className='booster-legend'>
-        <button type='button' onClick={() => setBoosterHint('BUST')}><b>🐇</b> ускорить · 10⭐</button>
-        <button type='button' onClick={() => setBoosterHint('SLOW')}><b>🐢</b> замедлить · 10⭐</button>
-        <button type='button' onClick={() => setBoosterHint('SHIELD')}><b>🪖</b> защитить · 40⭐</button>
+        <button type='button' onClick={() => setBoosterHint('BUST')}><b>🐇</b> ускорить · 10💎</button>
+        <button type='button' onClick={() => setBoosterHint('SLOW')}><b>🐢</b> замедлить · 10💎</button>
+        <button type='button' onClick={() => setBoosterHint('SHIELD')}><b>🪖</b> защитить · 40💎</button>
       </div>}
       {boosterHint && <div className='booster-hint-popover'>
         <div>
@@ -1243,7 +1248,7 @@ function App() {
         </div>
         {raceBeforeStart && <div className='vote-inline-wrap'>
           <div className='vote-caption'>
-            <span>Твой голос: {formatStars(localVotes[u.playerNumber] ?? u.myVotes)} ⭐</span>
+            <span>Твой голос: {formatStars(localVotes[u.playerNumber] ?? u.myVotes)} 💎</span>
           </div>
           <div className='vote-inline'>
           <div className='vote-field-wrap'>
@@ -1262,7 +1267,7 @@ function App() {
               }}
               onFocus={pausePollingForInteraction}
             />
-            <span className='vote-field-suffix'>⭐</span>
+            <span className='vote-field-suffix'>💎</span>
           </div>
           <button
             disabled={!data.balance || data.balance < 1}
@@ -1309,7 +1314,7 @@ function App() {
     {tab === 'ratings' && <section className='panel tab-panel account-panel'>
       <div className='ratings-prize-banner'>
         <h3>Недельный рейтинг 🏆</h3>
-        <p className='subtitle'>Ежедневный приз начисляется по этому рейтингу: игрок №1 получает <b>100 ⭐</b> и <b>5 бесплатных бустеров</b>.</p>
+        <p className='subtitle'>Ежедневный приз начисляется по этому рейтингу: игрок №1 получает <b>100 💎</b> и <b>5 бесплатных бустеров</b>.</p>
         <p className='subtitle'>
           Текущая неделя: {formatPeriodDate(leaderboards?.weeklyPeriodStart)} — {formatPeriodDate(leaderboards?.weeklyPeriodEnd)}
         </p>
@@ -1319,7 +1324,7 @@ function App() {
         {!!leaderboards?.playerWinnersWeekly?.length && <div className='rating-list'>
           {leaderboards.playerWinnersWeekly.map((item, index) => <div key={`${item.userId}-${index}`} className='rating-row'>
             <span>#{index + 1} {item.displayName}</span>
-            <strong>{formatStars(item.wonVotesSum)} ⭐</strong>
+            <strong>{formatStars(item.wonVotesSum)} 💎</strong>
           </div>)}
         </div>}
       </>)}
@@ -1337,7 +1342,7 @@ function App() {
         {!!leaderboards?.playerWinnersAllTime?.length && <div className='rating-list'>
           {leaderboards.playerWinnersAllTime.map((item, index) => <div key={`${item.userId}-${index}`} className='rating-row'>
             <span>#{index + 1} {item.displayName}</span>
-            <strong>{formatStars(item.wonVotesSum)} ⭐</strong>
+            <strong>{formatStars(item.wonVotesSum)} 💎</strong>
           </div>)}
         </div>}
       </>)}
@@ -1360,7 +1365,7 @@ function App() {
         {!!adminWithdraws.length && <div className='admin-list'>
           {adminWithdraws.map((item) => <div key={item.id} className='unit'>
             <div className='unit-row'>
-              <strong>#{item.id}</strong> <span>{item.username}</span> <span>{formatStars(item.amount)} ⭐</span>
+              <strong>#{item.id}</strong> <span>{item.username}</span> <span>{formatStars(item.amount)} 💎</span>
             </div>
             <div className='unit-row'>
               <button className='chip' onClick={() => adminWithdrawAction(item.id, 'pay')}>Подтвердить</button>
@@ -1401,16 +1406,16 @@ function App() {
             }}>Сохранить любимый смайл</button>
           </div>
         </div>
-        <p className='subtitle'>Смена любимого смайла — 150⭐ (первый выбор бесплатный).</p>
+        <p className='subtitle'>Смена любимого смайла — 150💎 (первый выбор бесплатный).</p>
         <div className='row'>
-          <button disabled={!data.favoriteEmoji} onClick={() => act('queue', { playerName: data.favoriteEmoji })}>Добавить любимый смайл в очередь (10⭐)</button>
+          <button disabled={!data.favoriteEmoji} onClick={() => act('queue', { playerName: data.favoriteEmoji })}>Добавить любимый смайл в очередь (10💎)</button>
         </div>
       </>)}
 
       {renderSection('payments', 'Пополнение и вывод', <>
         <div className='row'>
           <input className='field' type='number' min={TOPUP_MIN} step='1' value={topupAmount} onChange={(e) => { pausePollingForInteraction(); setTopupAmount(Math.max(TOPUP_MIN, Number(e.target.value || TOPUP_MIN))) }} onFocus={pausePollingForInteraction} />
-          <button onClick={() => act('topup', { amount: topupAmount })}>Пополнить через ⭐</button>
+          <button onClick={() => act('topup', { amount: topupAmount })}>Пополнить через 💎</button>
         </div>
         <div className='row'>
           <input
@@ -1425,9 +1430,9 @@ function App() {
           />
           <button disabled={clampedWithdraw > maxWithdraw} onClick={() => act('withdraw', { amount: clampedWithdraw })}>Создать запрос на вывод</button>
         </div>
-        <p className='subtitle'>Доступно к выводу: до {maxWithdraw} ⭐. Минимум: {WITHDRAW_MIN} ⭐.</p>
+        <p className='subtitle'>Доступно к выводу: до {maxWithdraw} 💎. Минимум: {WITHDRAW_MIN} 💎.</p>
         <div className='grid'>
-          {activeWithdraws.map((w) => <button key={w.id} className='chip' onClick={() => act('withdraw/cancel', { requestId: w.id })}>Отменить вывод #{w.id} ({w.amount}⭐)</button>)}
+          {activeWithdraws.map((w) => <button key={w.id} className='chip' onClick={() => act('withdraw/cancel', { requestId: w.id })}>Отменить вывод #{w.id} ({w.amount}💎)</button>)}
         </div>
       </>)}
 
@@ -1462,7 +1467,7 @@ function App() {
               {historyItems.map((item, index) => <tr key={`${item.createdAtMs || 0}-${index}`}>
                 <td>{item.createdAtMs ? new Date(item.createdAtMs).toLocaleString('ru-RU') : '—'}</td>
                 <td>{item.operation}</td>
-                <td className={Number(item.amount) >= 0 ? 'amount-plus' : 'amount-minus'}>{formatStars(item.amount)} ⭐</td>
+                <td className={Number(item.amount) >= 0 ? 'amount-plus' : 'amount-minus'}>{formatStars(item.amount)} 💎</td>
                 <td>{item.details || '—'}</td>
               </tr>)}
             </tbody>
@@ -1508,8 +1513,8 @@ function App() {
           {canManageBattle && <div className='battle-manage-card'>
             <div className='battle-stats-grid'>
               <div className='battle-stat'><span>Батл</span><strong>#{myBattle.matchId}</strong></div>
-              <div className='battle-stat'><span>Ставка</span><strong>{myBattle.battleStake || 0} ⭐</strong></div>
-              <div className='battle-stat'><span>Банк</span><strong>{getBattleBank(myBattle)} ⭐</strong></div>
+              <div className='battle-stat'><span>Ставка</span><strong>{myBattle.battleStake || 0} 💎</strong></div>
+              <div className='battle-stat'><span>Банк</span><strong>{getBattleBank(myBattle)} 💎</strong></div>
             </div>
             <p className='subtitle battle-state-line'>{getBattleStateLabel(myBattle)}</p>
             <div className='battle-participants-list'>
@@ -1531,8 +1536,8 @@ function App() {
           {battleMode === 'joined' && joinedBattle && <div className='battle-manage-card'>
             <div className='battle-stats-grid'>
               <div className='battle-stat'><span>Батл</span><strong>#{joinedBattle.matchId}</strong></div>
-              <div className='battle-stat'><span>Ставка</span><strong>{joinedBattle.battleStake || 0} ⭐</strong></div>
-              <div className='battle-stat'><span>Банк</span><strong>{getBattleBank(joinedBattle)} ⭐</strong></div>
+              <div className='battle-stat'><span>Ставка</span><strong>{joinedBattle.battleStake || 0} 💎</strong></div>
+              <div className='battle-stat'><span>Банк</span><strong>{getBattleBank(joinedBattle)} 💎</strong></div>
             </div>
             <p className='subtitle battle-state-line'>{getBattleStateLabel(joinedBattle)}</p>
             <div className='battle-participants-list'>
@@ -1541,7 +1546,7 @@ function App() {
               </div>)}
             </div>
             <div className='row battle-action-row battle-action-row-single'>
-              <button className='chip danger-chip' disabled={!canLeaveJoinedBattle} onClick={leaveJoinedBattle}>Сбежать (вернуть {joinedBattle.battleStake || 0} ⭐)</button>
+              <button className='chip danger-chip' disabled={!canLeaveJoinedBattle} onClick={leaveJoinedBattle}>Сбежать (вернуть {joinedBattle.battleStake || 0} 💎)</button>
             </div>
           </div>}
           {canJoinBattle && battleMode !== 'joined' && <div className='row battle-join-row'>
