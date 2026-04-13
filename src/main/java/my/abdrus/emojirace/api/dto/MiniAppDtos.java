@@ -15,7 +15,8 @@ public class MiniAppDtos {
             RaceCard race,
             RaceCard myBattle,
             List<String> allEmojis,
-            List<UiNotification> notifications
+            List<UiNotification> notifications,
+            List<String> adminUsernames
     ) {}
 
     public record UiNotification(

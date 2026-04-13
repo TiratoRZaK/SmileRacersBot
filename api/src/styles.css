@@ -113,6 +113,35 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+}
+
+.avatar-emoji-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  padding: 0;
+  flex: 0 0 auto;
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-link-btn {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  text-align: left;
+  flex: 1;
+}
+
+.user-link-btn:active:not(:disabled),
+.user-link-btn:hover:not(:disabled) {
+  transform: none;
+  filter: none;
+  box-shadow: none;
 }
 
 .top-card-actions {
@@ -218,6 +247,38 @@ button:disabled {
   padding: 7px 5px;
   font-size: 11px;
   border-radius: 12px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.tab-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22d3ee;
+  flex: 0 0 auto;
+}
+
+.tab-dot-glow {
+  box-shadow: 0 0 10px #22d3ee;
+  animation: tabGlow 1.2s ease-in-out infinite alternate;
+}
+
+.tab-rank-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  background: rgba(250, 204, 21, .9);
+  color: #1f2937;
+  font-weight: 800;
+  animation: tabGlow 1.2s ease-in-out infinite alternate;
 }
 
 .panel {
@@ -373,7 +434,8 @@ h2 {
   content: attr(data-tooltip);
   position: absolute;
   right: 0;
-  top: calc(100% + 8px);
+  bottom: calc(100% + 8px);
+  top: auto;
   width: min(240px, 70vw);
   padding: 8px 10px;
   border-radius: 10px;
@@ -389,7 +451,7 @@ h2 {
   pointer-events: none;
   transform: translateY(-4px);
   transition: opacity .18s ease, transform .18s ease;
-  z-index: 30;
+  z-index: 50;
 }
 
 .booster-display-tooltip:hover::after,
@@ -927,6 +989,15 @@ select:focus {
   border: 1px solid rgba(255, 255, 255, .2);
   display: grid;
   gap: 10px;
+  position: relative;
+  z-index: 6;
+}
+
+.booster-vote-info {
+  margin-bottom: 6px;
+  font-size: 11px;
+  opacity: .85;
+  text-align: center;
 }
 
 .race-panel::before,
@@ -1331,6 +1402,8 @@ select:focus {
   border-radius: 18px;
   max-height: min(42vh, 320px);
   overflow: auto;
+  position: relative;
+  z-index: 46;
 }
 
 .finish-celebration {
@@ -1391,6 +1464,17 @@ select:focus {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+}
+
+.admin-login-field {
+  width: 100%;
+}
+
+.admin-balance-btn {
+  flex: 1;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
 }
 
 
@@ -1660,7 +1744,6 @@ select:focus {
 
   .user-row {
     justify-content: space-between;
-    width: 100%;
   }
 
   .top-card-actions {
@@ -1673,5 +1756,16 @@ select:focus {
 
   .balance-actions {
     flex-direction: column;
+  }
+}
+
+@keyframes tabGlow {
+  from {
+    transform: scale(1);
+    opacity: .7;
+  }
+  to {
+    transform: scale(1.12);
+    opacity: 1;
   }
 }

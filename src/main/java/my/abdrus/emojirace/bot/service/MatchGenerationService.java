@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class MatchGenerationService {
     private static final Duration LIVE_MATCH_STUCK_TIMEOUT = Duration.ofMinutes(10);
+    private static final Duration CREATED_MATCH_STUCK_TIMEOUT = Duration.ofMinutes(10);
 
     @Autowired
     private PlayerRepository playerRepository;
@@ -78,6 +79,25 @@ public class MatchGenerationService {
                 if (waitingRegularMatch != null) {
                     matchRepository.findById(waitingRegularMatch.getId()).ifPresent(match -> matchService.startLiveByActiveMatch(match, bot));
                     return;
+                }
+
+                var staleCreatedMatch = matchRepository
+                        .findFirstByStatusOrderByCreatedDateAsc(MatchStatus.CREATED)
+                        .filter(match -> {
+                            Date createdDate = match.getCreatedDate();
+                            return createdDate != null
+                                    && Date.from(createdDate.toInstant().plus(CREATED_MATCH_STUCK_TIMEOUT)).before(new Date());
+                        })
+                        .orElse(null);
+                if (staleCreatedMatch != null) {
+                    boolean canStart = staleCreatedMatch.getType() != MatchType.BATTLE
+                            || matchService.canStartBattle(staleCreatedMatch.getId(), staleCreatedMatch.getCreatorUserChatId());
+                    if (canStart) {
+                        log.warn("Матч #{} в CREATED дольше {} минут — запускаем принудительно.",
+                                staleCreatedMatch.getId(), CREATED_MATCH_STUCK_TIMEOUT.toMinutes());
+                        matchRepository.findById(staleCreatedMatch.getId()).ifPresent(match -> matchService.startLiveByActiveMatch(match, bot));
+                        return;
+                    }
                 }
 
                 Match createdRegularMatch = matchService.createMatchByPlayers(getPlayersForMatch());
