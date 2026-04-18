@@ -38,7 +38,7 @@ const TAB_TITLES = {
 const UNKNOWN_AVATAR = '❔'
 
 const TOAST_AUTO_CLOSE_MS = 4500
-const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'battle', 'battle/start', 'topup'])
+const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'topup'])
 const NOTIFICATION_ACTIONS = new Set(['notification/delete', 'notification/clear'])
 const MAX_SAVED_NOTIFICATIONS = 200
 
@@ -149,13 +149,14 @@ const deepLinkBattleMatch = deepLinkParam.match(/join_battle_(\d+)/i)
 const deepLinkBattleId = deepLinkBattleMatch ? Number(deepLinkBattleMatch[1]) : (Number.isFinite(queryBattleId) && queryBattleId > 0 ? queryBattleId : null)
 
 
-const getBattleStateLabel = (battle) => {
+const getBattleStateLabel = (battle, options = {}) => {
+  const { isOwner = false } = options
   if (!battle) return ''
   if (battle.status === 'LIVE') return '🚦 Батл уже начался'
   if (battle.status === 'COMPLETED') return '🏁 Батл завершён'
   if (battle.battleStartRequested) return '⏳ Батл ждёт очереди на запуск'
   if ((battle.units?.length || 0) < 2) return 'Нужно минимум 2 участника для старта'
-  return 'Готов к старту. Нажмите «Старт батла»'
+  return isOwner ? 'Готов к старту. Нажмите «Поставить в очередь»' : 'Готов к старту. Ожидайте запуска создателем батла'
 }
 
 const getBattleParticipantLabel = (unit) => {
@@ -1075,6 +1076,19 @@ function App() {
     setNotificationsOpen(false)
   }
 
+  const handleBattleInviteAccept = async (notification) => {
+    if (!notification) return
+    await deleteSavedNotification(notification.id)
+    openBattleFromNotification(notification.text)
+    notify('Выберите персонажа и нажмите «Присоединиться».')
+  }
+
+  const handleBattleInviteDecline = async (notification) => {
+    if (!notification) return
+    await deleteSavedNotification(notification.id)
+    setNotificationsOpen(false)
+  }
+
   const clearSavedNotifications = async () => {
     const serverNotifications = savedNotifications.filter((item) => item.source === 'server')
     setSavedNotifications([])
@@ -1100,7 +1114,7 @@ function App() {
   const myBattle = data?.myBattle || null
   const isMyBattleOwner = !!myBattle && Number((myBattle.units || []).find((unit) => unit.playerNumber === 1)?.ownerUserId || 0) === Number(userId || 0)
   const myBattleCanStart = !!myBattle && myBattle.status === 'CREATED' && !myBattle.battleStartRequested
-  const myBattleCanInvite = !!myBattle?.inviteLink
+  const myBattleCanInvite = !!myBattle?.inviteLink && myBattle.status === 'CREATED' && !myBattle.battleStartRequested
   const myBattleIsLive = myBattle?.status === 'LIVE'
   const boostersDisabled = !visibleRace || raceBeforeStart
   const trackTheme = getTrackTheme(visibleRace)
@@ -1416,10 +1430,10 @@ function App() {
               </div>
               {battleInvite?.battleId
                 ? <div className='row battle-action-row battle-action-row-single'>
-                    <button className='chip' onClick={() => openBattleFromNotification(item.text)}>
+                    <button className='chip' onClick={() => handleBattleInviteAccept(item)}>
                       Подключиться
                     </button>
-                    <button className='chip danger-chip' onClick={() => deleteSavedNotification(item.id)}>
+                    <button className='chip danger-chip' onClick={() => handleBattleInviteDecline(item)}>
                       Отказаться
                     </button>
                   </div>
@@ -1736,7 +1750,7 @@ function App() {
               <div className='battle-stat'><span>Ставка</span><strong>{myBattle.battleStake || 0} 💎</strong></div>
               <div className='battle-stat'><span>Банк</span><strong>{getBattleBank(myBattle)} 💎</strong></div>
             </div>
-            <p className='subtitle battle-state-line'>{getBattleStateLabel(myBattle)}</p>
+            <p className='subtitle battle-state-line'>{getBattleStateLabel(myBattle, { isOwner: true })}</p>
             <div className='battle-participants-list'>
               {(myBattle.units || []).map((u) => <div key={u.playerNumber} className='battle-participant-row'>
                 <span>{getBattleParticipantLabel(u)}</span>
@@ -1748,7 +1762,7 @@ function App() {
               {myBattleCanStart && <button onClick={requestBattleStartFromUi}>Поставить в очередь</button>}
               {myBattleCanCancel && <button className='chip danger-chip' onClick={cancelMyBattle}>Отменить батл</button>}
             </div>
-            <div className='row battle-action-row'>
+            {myBattleCanInvite && <div className='row battle-action-row'>
               <input
                 className='field'
                 type='text'
@@ -1758,7 +1772,7 @@ function App() {
                 onFocus={pausePollingForInteraction}
               />
               <button onClick={inviteUserToBattleByUsername}>Пригласить друзей</button>
-            </div>
+            </div>}
           </div>}
         </>)}
 
@@ -1770,7 +1784,7 @@ function App() {
               <div className='battle-stat'><span>Ставка</span><strong>{joinedBattle.battleStake || 0} 💎</strong></div>
               <div className='battle-stat'><span>Банк</span><strong>{getBattleBank(joinedBattle)} 💎</strong></div>
             </div>
-            <p className='subtitle battle-state-line'>{getBattleStateLabel(joinedBattle)}</p>
+            <p className='subtitle battle-state-line'>{getBattleStateLabel(joinedBattle, { isOwner: false })}</p>
             <div className='battle-participants-list'>
               {(joinedBattle.units || []).map((u) => <div key={u.playerNumber} className='battle-participant-row'>
                 <span>{getBattleParticipantLabel(u)}</span>
