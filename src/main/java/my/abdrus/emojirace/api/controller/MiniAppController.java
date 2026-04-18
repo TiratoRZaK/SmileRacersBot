@@ -910,7 +910,7 @@ public class MiniAppController {
         ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         HttpServletRequest request = attrs == null ? null : attrs.getRequest();
         if (request == null) {
-            log.info(
+            log.debug(
                     "MiniApp connection attempt without request context: resolvedUserId={}, source={}, headerUserId={}, initDataUserId={}, userIdParam={}",
                     resolvedUserId,
                     source,
@@ -924,7 +924,7 @@ public class MiniAppController {
         String initDataHeader = request.getHeader("X-Telegram-Init-Data");
         String tgWebAppDataParam = request.getParameter("tgWebAppData");
         String webAuthHeader = request.getHeader("X-Web-Auth-Token");
-        log.info(
+        log.debug(
                 "MiniApp connection attempt: method={}, path={}, query={}, remoteAddr={}, forwardedFor={}, userAgent={}, host={}, origin={}, referer={}, resolvedUserId={}, source={}, headerUserId={}, initDataUserId={}, webAuthUserId={}, userIdParam={}, hasInitDataHeader={}, hasTgWebAppDataParam={}, hasWebAuthHeader={}",
                 request.getMethod(),
                 request.getRequestURI(),
