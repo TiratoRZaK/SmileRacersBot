@@ -540,7 +540,7 @@ function App() {
     const username = String(adminUsername || '').trim().replace(/^@/, '')
     const amount = Number(adminAmount || 0)
     if (!username || !Number.isFinite(amount) || amount <= 0) {
-      notify('Введите корректный логин и сумму > 0', { persist: true })
+      notify('Введите корректный логин и сумму > 0')
       return
     }
     const endpoint = mode === 'add' ? 'admin/balance/add' : 'admin/balance/subtract'
@@ -562,14 +562,14 @@ function App() {
           setData(null)
           setBootProgress(100)
           setIsAppReady(true)
-          notify('Сессия недействительна. Выполните вход заново.', { persist: true })
+          notify('Сессия недействительна. Выполните вход заново.')
           return
         }
         const errorMessage = error?.message || 'Не удалось загрузить данные MiniApp.'
         setBootError(errorMessage)
         setBootProgress(100)
         setIsAppReady(true)
-        notify(errorMessage, { persist: true })
+        notify(errorMessage)
       })
     } else {
       setBootProgress(100)
@@ -714,13 +714,13 @@ function App() {
 
   useEffect(() => {
     if (tab === 'ratings') {
-      loadLeaderboards().catch(() => notify('Не удалось загрузить рейтинги.', { persist: true }))
+      loadLeaderboards().catch(() => notify('Не удалось загрузить рейтинги.'))
     }
     if (tab === 'archive' && sectionOpen.recentRaces) {
-      loadRecentResults().catch(() => notify('Не удалось загрузить последние гонки.', { persist: true }))
+      loadRecentResults().catch(() => notify('Не удалось загрузить последние гонки.'))
     }
     if (tab === 'archive' && sectionOpen.history) {
-      loadHistory().catch(() => notify('Не удалось загрузить историю операций.', { persist: true }))
+      loadHistory().catch(() => notify('Не удалось загрузить историю операций.'))
     }
   }, [tab, sectionOpen.recentRaces, sectionOpen.history])
 
@@ -868,7 +868,7 @@ function App() {
 
   const requestBattleStartFromUi = async () => {
     if (!myBattle) {
-      notify('Сначала создайте батл, затем можно стартовать и приглашать друзей.', { persist: true })
+      notify('Сначала создайте батл, затем можно стартовать и приглашать друзей.')
       return
     }
     await act('battle/start', { matchId: myBattle.matchId })
@@ -883,7 +883,7 @@ function App() {
   const joinBattleFromUi = async () => {
     const matchId = Number(joinBattleId)
     if (!matchId || !joinBattleEmoji) {
-      notify('Укажите ID батла и смайл для входа.', { persist: true })
+      notify('Укажите ID батла и смайл для входа.')
       return
     }
     const targetBattle = (data?.race?.matchId === matchId && data?.race?.type === 'BATTLE') ? data.race : null
@@ -900,7 +900,7 @@ function App() {
     const matchId = Number(joinBattleId || deepLinkBattleId)
     if (!matchId) return
     if (!joinBattleEmoji) {
-      notify('Выберите смайл перед подключением к батлу.', { persist: true })
+      notify('Выберите смайл перед подключением к батлу.')
       return
     }
     const stake = Number(queryBattleStake || 0)
@@ -934,15 +934,15 @@ function App() {
 
   const copyBattleInviteLink = async (battle) => {
     if (!battle?.inviteLink) {
-      notify('Ссылка приглашения для батла недоступна.', { persist: true })
+      notify('Ссылка приглашения для батла недоступна.')
       return
     }
     const absoluteInviteLink = `${window.location.origin}${battle.inviteLink}`
     try {
       await navigator.clipboard.writeText(absoluteInviteLink)
-      notify('Ссылка на батл скопирована в буфер обмена.', { persist: true })
+      notify('Ссылка на батл скопирована в буфер обмена.')
     } catch (error) {
-      notify(`Скопируйте ссылку вручную: ${absoluteInviteLink}`, { persist: true })
+      notify(`Скопируйте ссылку вручную: ${absoluteInviteLink}`)
     }
   }
 
@@ -950,7 +950,7 @@ function App() {
     if (!myBattle?.matchId) return
     const normalizedUsername = String(inviteUsername || '').trim().replace(/^@/, '')
     if (!normalizedUsername) {
-      notify('Введите логин пользователя для приглашения.', { persist: true })
+      notify('Введите логин пользователя для приглашения.')
       return
     }
     const response = await act('battle/invite-user', { matchId: myBattle.matchId, username: normalizedUsername })
@@ -981,7 +981,7 @@ function App() {
     const amount = Math.round(Number(withdrawAmount || 0))
     const isOutOfRange = !Number.isFinite(amount) || amount < WITHDRAW_MIN || amount > maxWithdraw
     if (isOutOfRange) {
-      notify(`Сумма вывода должна быть от ${WITHDRAW_MIN} до ${formatStars(maxWithdraw)} 💎.`, { persist: true })
+      notify(`Сумма вывода должна быть от ${WITHDRAW_MIN} до ${formatStars(maxWithdraw)} 💎.`)
       return
     }
     await act('withdraw', { amount })
@@ -992,10 +992,10 @@ function App() {
     setSectionOpen((current) => {
       const nextOpen = !current[key]
       if (nextOpen && key === 'history') {
-        loadHistory().catch(() => notify('Не удалось загрузить историю операций.', { persist: true }))
+        loadHistory().catch(() => notify('Не удалось загрузить историю операций.'))
       }
       if (nextOpen && key === 'recentRaces') {
-        loadRecentResults().catch(() => notify('Не удалось загрузить последние гонки.', { persist: true }))
+        loadRecentResults().catch(() => notify('Не удалось загрузить последние гонки.'))
       }
       if (!nextOpen) {
         return { ...current, [key]: false }
@@ -1011,7 +1011,7 @@ function App() {
   const downloadHistory = async () => {
     const response = await act('history/export')
     if (response?.httpOk) {
-      notify('Файл отправлен в чат с ботом.', { persist: true })
+      notify('Файл с историей отправлен в чат с ботом.', { persist: true })
     }
   }
 
@@ -1234,14 +1234,14 @@ function App() {
               setData(null)
               setBootProgress(100)
               setIsAppReady(true)
-              notify('Сессия MiniApp недействительна. Войдите заново.', { persist: true })
+              notify('Сессия MiniApp недействительна. Войдите заново.')
               return
             }
             const errorMessage = error?.message || 'Не удалось загрузить данные MiniApp.'
             setBootError(errorMessage)
             setBootProgress(100)
             setIsAppReady(true)
-            notify(errorMessage, { persist: true })
+            notify(errorMessage)
           })
         }}
       >
