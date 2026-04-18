@@ -287,6 +287,7 @@ function App() {
   const firstLoadStartedAtRef = useRef(Date.now())
   const favoriteDirtyRef = useRef(false)
   const favoriteRequestRef = useRef(null)
+  const localVotesMatchIdRef = useRef(null)
   const swipeStartRef = useRef(null)
   const topZoneRef = useRef(null)
   const previousTabRef = useRef(tab)
@@ -682,14 +683,22 @@ function App() {
 
   useEffect(() => {
     if (!data?.race?.matchId) {
+      localVotesMatchIdRef.current = null
       setLocalVotes({})
       return
     }
 
+    const currentMatchId = Number(data.race.matchId)
     const raceVotes = (data.race.units || []).reduce((acc, unit) => {
       acc[unit.playerNumber] = Number(unit.myVotes) || 0
       return acc
     }, {})
+
+    if (localVotesMatchIdRef.current !== currentMatchId) {
+      localVotesMatchIdRef.current = currentMatchId
+      setLocalVotes(raceVotes)
+      return
+    }
 
     setLocalVotes((current) => {
       const merged = { ...current }
