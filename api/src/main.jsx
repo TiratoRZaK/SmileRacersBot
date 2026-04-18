@@ -421,6 +421,19 @@ function App() {
     interactionPauseUntilRef.current = Date.now() + INTERACTION_PAUSE_MS
   }
 
+  const withBootstrapDefaults = (next, previous = null) => ({
+    ...next,
+    allEmojis: Array.isArray(next?.allEmojis)
+      ? next.allEmojis
+      : (Array.isArray(previous?.allEmojis) ? previous.allEmojis : []),
+    notifications: Array.isArray(next?.notifications)
+      ? next.notifications
+      : (Array.isArray(previous?.notifications) ? previous.notifications : []),
+    adminUsernames: Array.isArray(next?.adminUsernames)
+      ? next.adminUsernames
+      : (Array.isArray(previous?.adminUsernames) ? previous.adminUsernames : [])
+  })
+
   const loadBootstrapExtras = async ({ force = false } = {}) => {
     const now = Date.now()
     if (bootstrapExtrasInFlightRef.current) return
@@ -431,12 +444,7 @@ function App() {
       const extras = await requestApi('bootstrap/extras', {
         fallbackErrorMessage: 'Не удалось загрузить дополнительные данные MiniApp.'
       })
-      setData((current) => current ? {
-        ...current,
-        allEmojis: extras?.allEmojis || [],
-        notifications: extras?.notifications || [],
-        adminUsernames: extras?.adminUsernames || []
-      } : current)
+      setData((current) => current ? withBootstrapDefaults({ ...current, ...extras }, current) : current)
       bootstrapExtrasLastLoadedAtRef.current = Date.now()
     } finally {
       bootstrapExtrasInFlightRef.current = false
@@ -452,7 +460,7 @@ function App() {
         requestApi('bootstrap', { fallbackErrorMessage: 'Не удалось загрузить состояние MiniApp.' }),
         requestApi('withdraw/active', { fallbackErrorMessage: 'Не удалось загрузить активные выводы.' })
       ])
-      setData(bootstrapData)
+      setData((current) => withBootstrapDefaults(bootstrapData, current))
       setActiveWithdraws(withdrawData.items || [])
       setBootError('')
 
