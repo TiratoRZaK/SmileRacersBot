@@ -13,7 +13,10 @@ public class MiniAppDtos {
             Integer freeBoosters,
             String favoriteEmoji,
             RaceCard race,
-            RaceCard myBattle,
+            RaceCard myBattle
+    ) {}
+
+    public record BootstrapExtrasResponse(
             List<String> allEmojis,
             List<UiNotification> notifications,
             List<String> adminUsernames
