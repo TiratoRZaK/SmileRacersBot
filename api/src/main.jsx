@@ -38,7 +38,7 @@ const TAB_TITLES = {
 const UNKNOWN_AVATAR = '❔'
 
 const TOAST_AUTO_CLOSE_MS = 1500
-const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'topup'])
+const PERSISTENT_ACTIONS = new Set()
 const NOTIFICATION_ACTIONS = new Set(['notification/delete', 'notification/clear'])
 const MAX_SAVED_NOTIFICATIONS = 200
 
@@ -828,7 +828,7 @@ function App() {
       source
     }
 
-    setToasts((current) => [...current, notification])
+    setToasts([notification])
     if (persist) {
       setSavedNotifications((current) => [notification, ...current].slice(0, MAX_SAVED_NOTIFICATIONS))
     }
@@ -1355,6 +1355,11 @@ function App() {
               🔔
               {unreadCount > 0 && <span className='bell-badge'>{unreadCount}</span>}
             </button>
+            <div className='toasts toasts-overlay'>
+              {toasts.map((toast) => <div key={toast.id} className={`toast ${toast.closing ? 'is-closing' : ''}`} onClick={() => removeToast(toast.id, { immediate: true })}>
+                <span>{toast.text}</span>
+              </div>)}
+            </div>
           </div>
         </div>
         <div className='top-card-main'>
@@ -1448,11 +1453,6 @@ function App() {
           })}
         </div>}
       </section>}
-      <div className='toasts toasts-top'>
-        {toasts.map((toast) => <div key={toast.id} className={`toast ${toast.closing ? 'is-closing' : ''}`} onClick={() => removeToast(toast.id, { immediate: true })}>
-          <span>{toast.text}</span>
-        </div>)}
-      </div>
     </div>
 
     <main className='content-zone' onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}>
