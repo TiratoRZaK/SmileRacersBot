@@ -146,6 +146,7 @@ body {
 
 .top-card-actions {
   position: relative;
+  overflow: visible;
 }
 
 .top-card-resources {
@@ -1131,7 +1132,6 @@ select:focus {
 }
 
 .toasts {
-  width: 100%;
   z-index: 30;
   display: grid;
   gap: 6px;
@@ -1142,10 +1142,13 @@ select:focus {
   pointer-events: auto;
 }
 
-.toasts-top {
-  grid-column: 1;
-  margin-top: -2px;
-  margin-bottom: 2px;
+.toasts-overlay {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(320px, calc(100vw - 44px));
+  z-index: 70;
 }
 
 .loading,
