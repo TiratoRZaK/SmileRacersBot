@@ -687,6 +687,48 @@ public class MiniAppController {
         }
     }
 
+    @PostMapping("/battle/invite-user")
+    public MiniAppDtos.ActionResponse inviteUserToBattle(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.InviteUserToBattleRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.matchId() == null || !StringUtils.hasText(request.username())) {
+            return new MiniAppDtos.ActionResponse(false, "Укажите батл и логин пользователя для приглашения.");
+        }
+
+        Match battle = matchRepository.findById(request.matchId()).orElse(null);
+        if (battle == null || battle.getType() != MatchType.BATTLE || battle.getStatus() != MatchStatus.CREATED) {
+            return new MiniAppDtos.ActionResponse(false, "Батл недоступен для приглашений.");
+        }
+        if (!userId.equals(battle.getCreatorUserChatId())) {
+            return new MiniAppDtos.ActionResponse(false, "Приглашать может только создатель батла.");
+        }
+
+        String normalizedUsername = normalizeUsername(request.username());
+        if (!StringUtils.hasText(normalizedUsername)) {
+            return new MiniAppDtos.ActionResponse(false, "Введите корректный логин.");
+        }
+        BotUser targetUser = userService.findByUsername(normalizedUsername);
+        if (targetUser == null || targetUser.getUserChatId() == null) {
+            return new MiniAppDtos.ActionResponse(false, "Пользователь с таким логином не найден.");
+        }
+        if (userId.equals(targetUser.getUserChatId())) {
+            return new MiniAppDtos.ActionResponse(false, "Нельзя пригласить самого себя.");
+        }
+
+        String inviterLabel = userService.getUsernameOrFallback(userId);
+        long stake = matchService.getBattleStake(battle);
+        String joinLink = "/?battleId=" + battle.getId() + "&battleStake=" + stake;
+        userNotificationService.create(
+                targetUser.getUserChatId(),
+                "⚔️ " + inviterLabel + " приглашает вас в батл #" + battle.getId() + ". " +
+                        "Вход: " + stake + " 💎. Откройте ссылку: " + joinLink
+        );
+        return new MiniAppDtos.ActionResponse(true, "Приглашение отправлено пользователю @" + normalizedUsername + ".");
+    }
+
     @PostMapping("/battle/leave")
     public MiniAppDtos.ActionResponse leaveBattle(
             @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
@@ -839,7 +881,7 @@ public class MiniAppController {
                 : null;
 
         String inviteLink = match.getType() == MatchType.BATTLE
-                ? channelProperties.getBotLink() + "?start=join_battle_" + match.getId()
+                ? "/?battleId=" + match.getId() + "&battleStake=" + Optional.ofNullable(match.getBattleStake()).orElse(0L)
                 : null;
 
         return new MiniAppDtos.RaceCard(

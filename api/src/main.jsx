@@ -141,6 +141,7 @@ const getTrackTheme = (race) => {
 const searchParams = new URLSearchParams(location.search)
 const queryUserId = Number(searchParams.get('userId') || 0)
 const queryBattleId = Number(searchParams.get('battleId') || 0)
+const queryBattleStake = Number(searchParams.get('battleStake') || 0)
 const queryStartApp = String(searchParams.get('startapp') || searchParams.get('tgWebAppStartParam') || '')
 const initStartParam = ''
 const deepLinkParam = (initStartParam || queryStartApp || '').trim()
@@ -250,6 +251,7 @@ function App() {
   const [favoriteIndex, setFavoriteIndex] = useState(0)
   const [joinBattleId, setJoinBattleId] = useState('')
   const [joinBattleEmoji, setJoinBattleEmoji] = useState('')
+  const [inviteUsername, setInviteUsername] = useState('')
   const [localVotes, setLocalVotes] = useState({})
   const [isAppReady, setIsAppReady] = useState(false)
   const [bootProgress, setBootProgress] = useState(14)
@@ -289,6 +291,7 @@ function App() {
   const favoriteRequestRef = useRef(null)
   const localVotesMatchIdRef = useRef(null)
   const swipeStartRef = useRef(null)
+  const deepLinkJoinPromptShownRef = useRef(false)
   const topZoneRef = useRef(null)
   const previousTabRef = useRef(tab)
   const resourcesPrevRef = useRef({
@@ -735,6 +738,14 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (!deepLinkBattleId || deepLinkJoinPromptShownRef.current) return
+    if (!hasMiniAppAuthContext || !data?.allEmojis?.length) return
+    deepLinkJoinPromptShownRef.current = true
+    notify(`🔔 Запрос на подключение к батлу #${deepLinkBattleId}${queryBattleStake > 0 ? ` за ${queryBattleStake} 💎` : ''}.`, { persist: true })
+    joinBattleByLink().catch(() => null)
+  }, [hasMiniAppAuthContext, data?.allEmojis?.length])
+
+  useEffect(() => {
     if (!isNotificationsOpen) return
     setSavedNotifications((current) => current.map((item) => ({ ...item, read: true })))
   }, [isNotificationsOpen])
@@ -885,6 +896,24 @@ function App() {
     }
   }
 
+  const joinBattleByLink = async () => {
+    const matchId = Number(joinBattleId || deepLinkBattleId)
+    if (!matchId) return
+    if (!joinBattleEmoji) {
+      notify('Выберите смайл перед подключением к батлу.', { persist: true })
+      return
+    }
+    const stake = Number(queryBattleStake || 0)
+    if (!window.confirm(`Подключиться к батлу #${matchId}${stake > 0 ? ` за ${stake} 💎` : ''}?`)) return
+    const response = await act('battle/join', { matchId, playerName: joinBattleEmoji })
+    if (response?.httpOk) {
+      setTab('battle')
+      setSectionOpen((current) => ({ ...current, battleCreate: false, battleManage: false, battleJoin: true }))
+      setBattleMode('joined')
+      setJoinBattleId('')
+    }
+  }
+
   const cancelMyBattle = async () => {
     if (!myBattle?.matchId) return
     const response = await act('battle/cancel', { matchId: myBattle.matchId })
@@ -903,15 +932,31 @@ function App() {
     }
   }
 
-  const openBattleInvite = (battle) => {
+  const copyBattleInviteLink = async (battle) => {
     if (!battle?.inviteLink) {
       notify('Ссылка приглашения для батла недоступна.', { persist: true })
       return
     }
-    const shareText = encodeURIComponent(`✨ Вызываю тебя на батл Emoji Race!\nБатл #${battle.matchId} уже ждёт тебя.`)
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(battle.inviteLink)}&text=${shareText}`
-    if (tg?.openLink) tg.openLink(shareUrl)
-    else window.open(shareUrl, '_blank')
+    const absoluteInviteLink = `${window.location.origin}${battle.inviteLink}`
+    try {
+      await navigator.clipboard.writeText(absoluteInviteLink)
+      notify('Ссылка на батл скопирована в буфер обмена.', { persist: true })
+    } catch (error) {
+      notify(`Скопируйте ссылку вручную: ${absoluteInviteLink}`, { persist: true })
+    }
+  }
+
+  const inviteUserToBattleByUsername = async () => {
+    if (!myBattle?.matchId) return
+    const normalizedUsername = String(inviteUsername || '').trim().replace(/^@/, '')
+    if (!normalizedUsername) {
+      notify('Введите логин пользователя для приглашения.', { persist: true })
+      return
+    }
+    const response = await act('battle/invite-user', { matchId: myBattle.matchId, username: normalizedUsername })
+    if (response?.httpOk) {
+      setInviteUsername('')
+    }
   }
 
   const openHelp = async () => {
@@ -1665,9 +1710,20 @@ function App() {
               </div>)}
             </div>
             <div className='row battle-action-row'>
-              {myBattleCanInvite && <button onClick={() => openBattleInvite(myBattle)}>Пригласить друзей</button>}
+              {myBattleCanInvite && <button onClick={() => copyBattleInviteLink(myBattle)}>Скопировать ссылку</button>}
               {myBattleCanStart && <button onClick={requestBattleStartFromUi}>Поставить в очередь</button>}
               {myBattleCanCancel && <button className='chip danger-chip' onClick={cancelMyBattle}>Отменить батл</button>}
+            </div>
+            <div className='row battle-action-row'>
+              <input
+                className='field'
+                type='text'
+                placeholder='Логин друга'
+                value={inviteUsername}
+                onChange={(e) => { pausePollingForInteraction(); setInviteUsername(e.target.value) }}
+                onFocus={pausePollingForInteraction}
+              />
+              <button onClick={inviteUserToBattleByUsername}>Пригласить друзей</button>
             </div>
           </div>}
         </>)}
