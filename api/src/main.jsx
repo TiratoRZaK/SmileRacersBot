@@ -1355,11 +1355,11 @@ function App() {
               🔔
               {unreadCount > 0 && <span className='bell-badge'>{unreadCount}</span>}
             </button>
-            <div className='toasts toasts-overlay'>
-              {toasts.map((toast) => <div key={toast.id} className={`toast ${toast.closing ? 'is-closing' : ''}`} onClick={() => removeToast(toast.id, { immediate: true })}>
-                <span>{toast.text}</span>
-              </div>)}
-            </div>
+          </div>
+          <div className='toasts toasts-overlay'>
+            {toasts.map((toast) => <div key={toast.id} className={`toast ${toast.closing ? 'is-closing' : ''}`} onClick={() => removeToast(toast.id, { immediate: true })}>
+              <span>{toast.text}</span>
+            </div>)}
           </div>
         </div>
         <div className='top-card-main'>
