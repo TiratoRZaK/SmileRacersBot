@@ -9,6 +9,7 @@ const TOPUP_MIN = 1
 const POLL_INTERVAL_MS = 3500
 const INTERACTION_PAUSE_MS = 2500
 const MIN_SPLASH_MS = 900
+const BOOTSTRAP_EXTRAS_REFRESH_MS = 15000
 const DEFAULT_TRACK_LENGTH = 62
 const REQUEST_TIMEOUT_MS = 15000
 const WEB_AUTH_STORAGE_KEY = 'smile_racers_web_auth_v1'
@@ -280,6 +281,8 @@ function App() {
     adminBalance: false
   })
   const refreshInFlightRef = useRef(false)
+  const bootstrapExtrasInFlightRef = useRef(false)
+  const bootstrapExtrasLastLoadedAtRef = useRef(0)
   const interactionPauseUntilRef = useRef(0)
   const firstLoadStartedAtRef = useRef(Date.now())
   const favoriteDirtyRef = useRef(false)
@@ -418,6 +421,28 @@ function App() {
     interactionPauseUntilRef.current = Date.now() + INTERACTION_PAUSE_MS
   }
 
+  const loadBootstrapExtras = async ({ force = false } = {}) => {
+    const now = Date.now()
+    if (bootstrapExtrasInFlightRef.current) return
+    if (!force && now - bootstrapExtrasLastLoadedAtRef.current < BOOTSTRAP_EXTRAS_REFRESH_MS) return
+
+    bootstrapExtrasInFlightRef.current = true
+    try {
+      const extras = await requestApi('bootstrap/extras', {
+        fallbackErrorMessage: 'Не удалось загрузить дополнительные данные MiniApp.'
+      })
+      setData((current) => current ? {
+        ...current,
+        allEmojis: extras?.allEmojis || [],
+        notifications: extras?.notifications || [],
+        adminUsernames: extras?.adminUsernames || []
+      } : current)
+      bootstrapExtrasLastLoadedAtRef.current = Date.now()
+    } finally {
+      bootstrapExtrasInFlightRef.current = false
+    }
+  }
+
   const refresh = async (silent = false) => {
     if (refreshInFlightRef.current) return
     refreshInFlightRef.current = true
@@ -430,6 +455,9 @@ function App() {
       setData(bootstrapData)
       setActiveWithdraws(withdrawData.items || [])
       setBootError('')
+
+      const shouldForceExtras = !silent || !bootstrapExtrasLastLoadedAtRef.current
+      loadBootstrapExtras({ force: shouldForceExtras }).catch(() => null)
 
       if (!silent) {
         const elapsed = Date.now() - firstLoadStartedAtRef.current

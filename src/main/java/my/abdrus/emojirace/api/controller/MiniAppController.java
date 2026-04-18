@@ -20,6 +20,7 @@ import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import my.abdrus.emojirace.api.dto.MiniAppDtos;
+import my.abdrus.emojirace.api.service.MiniAppReferenceDataService;
 import my.abdrus.emojirace.bot.entity.Account;
 import my.abdrus.emojirace.bot.entity.BalanceTopup;
 import my.abdrus.emojirace.bot.entity.BotUser;
@@ -103,6 +104,7 @@ public class MiniAppController {
     private final ChannelProperties channelProperties;
     private final BotProperties botProperties;
     private final RaceProperties raceProperties;
+    private final MiniAppReferenceDataService miniAppReferenceDataService;
 
     @GetMapping("/bootstrap")
     public MiniAppDtos.BootstrapResponse bootstrap(
@@ -133,16 +135,6 @@ public class MiniAppController {
                 .map(match -> toRaceCard(match, activeRace, userId))
                 .orElse(null);
 
-        List<String> emojis = playerRepository.findAll().stream()
-                .map(Player::getName)
-                .sorted(Comparator.naturalOrder())
-                .toList();
-
-        List<MiniAppDtos.UiNotification> notifications = userNotificationService.getRecent(userId).stream()
-                .map(item -> new MiniAppDtos.UiNotification(item.getId(), item.getText(), item.getCreatedDate().getTime()))
-                .toList();
-        List<String> adminUsernames = isAdmin ? userRepository.findAllUsernames() : List.of();
-
         return new MiniAppDtos.BootstrapResponse(
                 userId,
                 isAdmin,
@@ -152,7 +144,25 @@ public class MiniAppController {
                 account.getFreeBustCount(),
                 user.getFavoritePlayer() == null ? null : user.getFavoritePlayer().getName(),
                 raceCard,
-                myBattleCard,
+                myBattleCard
+        );
+    }
+
+    @GetMapping("/bootstrap/extras")
+    public MiniAppDtos.BootstrapExtrasResponse bootstrapExtras(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        boolean isAdmin = userService.isAdmin(userId);
+
+        List<String> emojis = miniAppReferenceDataService.getAllEmojis();
+        List<MiniAppDtos.UiNotification> notifications = userNotificationService.getRecent(userId).stream()
+                .map(item -> new MiniAppDtos.UiNotification(item.getId(), item.getText(), item.getCreatedDate().getTime()))
+                .toList();
+        List<String> adminUsernames = isAdmin ? userRepository.findAllUsernames() : List.of();
+
+        return new MiniAppDtos.BootstrapExtrasResponse(
                 emojis,
                 notifications,
                 adminUsernames

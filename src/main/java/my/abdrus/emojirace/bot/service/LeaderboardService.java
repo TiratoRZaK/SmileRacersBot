@@ -15,6 +15,9 @@ import my.abdrus.emojirace.bot.repository.AccountRepository;
 import my.abdrus.emojirace.bot.repository.PaymentRequestRepository;
 import my.abdrus.emojirace.bot.repository.UserRepository;
 import my.abdrus.emojirace.bot.repository.WeeklyPrizeLogRepository;
+import my.abdrus.emojirace.config.CacheConfig;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +36,7 @@ public class LeaderboardService {
     private final AccountRepository accountRepository;
     private final WeeklyPrizeLogRepository weeklyPrizeLogRepository;
 
+    @Cacheable(CacheConfig.LEADERBOARDS_CACHE)
     public MiniAppDtos.LeaderboardsResponse getLeaderboards() {
         LocalDate currentWeekStart = getCurrentWeekStart();
         Date from = Date.from(currentWeekStart.atStartOfDay().toInstant(ZoneOffset.UTC));
@@ -62,6 +66,7 @@ public class LeaderboardService {
 
     @Scheduled(cron = "0 10 0 * * MON", zone = "UTC")
     @Transactional
+    @CacheEvict(cacheNames = CacheConfig.LEADERBOARDS_CACHE, allEntries = true)
     public void processWeeklyPrize() {
         LocalDate currentWeekStart = getCurrentWeekStart();
         LocalDate previousWeekStart = currentWeekStart.minusWeeks(1);
