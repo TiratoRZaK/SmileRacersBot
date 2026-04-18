@@ -114,6 +114,8 @@ public class MiniAppDtos {
 
     public record JoinBattleRequest(Long matchId, String playerName) {}
 
+    public record InviteUserToBattleRequest(Long matchId, String username) {}
+
     public record CancelBattleRequest(Long matchId) {}
 
     public record DeleteNotificationRequest(Long notificationId) {}
