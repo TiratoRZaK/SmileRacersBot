@@ -168,6 +168,17 @@ const getBattleBank = (battle) => {
   return battle.units.reduce((sum, unit) => sum + (Number(battle.battleStake) || 0), 0)
 }
 
+const parseBattleInviteNotification = (text) => {
+  const value = String(text || '')
+  const matchIdMatch = value.match(/батл\s*#(\d+)/i)
+  if (!matchIdMatch) return null
+  const stakeMatch = value.match(/вход:\s*(\d+)/i)
+  return {
+    battleId: Number(matchIdMatch[1]),
+    stake: stakeMatch ? Number(stakeMatch[1]) : 0
+  }
+}
+
 const parseRubyInput = (rawValue) => {
   const digits = String(rawValue ?? '').replace(/\D/g, '')
   return Number(digits || 0)
@@ -1053,6 +1064,17 @@ function App() {
     }
   }
 
+  const openBattleFromNotification = (notificationText) => {
+    const invite = parseBattleInviteNotification(notificationText)
+    if (!invite?.battleId) return
+
+    setTab('battle')
+    setBattleMode('idle')
+    setJoinBattleId(String(invite.battleId))
+    setSectionOpen((current) => ({ ...current, battleCreate: false, battleManage: false, battleJoin: true }))
+    setNotificationsOpen(false)
+  }
+
   const clearSavedNotifications = async () => {
     const serverNotifications = savedNotifications.filter((item) => item.source === 'server')
     setSavedNotifications([])
@@ -1385,13 +1407,25 @@ function App() {
         </div>
         {!savedNotifications.length && <p className='subtitle'>Пока нет сохранённых уведомлений.</p>}
         {!!savedNotifications.length && <div className='notifications-list'>
-          {savedNotifications.map((item) => <div key={item.id} className='notification-item'>
-            <div>
-              <p>{item.text}</p>
-              <p className='subtitle'>{new Date(item.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</p>
+          {savedNotifications.map((item) => {
+            const battleInvite = parseBattleInviteNotification(item.text)
+            return <div key={item.id} className='notification-item'>
+              <div>
+                <p>{item.text}</p>
+                <p className='subtitle'>{new Date(item.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</p>
+              </div>
+              {battleInvite?.battleId
+                ? <div className='row battle-action-row battle-action-row-single'>
+                    <button className='chip' onClick={() => openBattleFromNotification(item.text)}>
+                      Подключиться
+                    </button>
+                    <button className='chip danger-chip' onClick={() => deleteSavedNotification(item.id)}>
+                      Отказаться
+                    </button>
+                  </div>
+                : <button className='chip danger-chip' onClick={() => deleteSavedNotification(item.id)}>Удалить</button>}
             </div>
-            <button className='chip danger-chip' onClick={() => deleteSavedNotification(item.id)}>Удалить</button>
-          </div>)}
+          })}
         </div>}
       </section>}
     </div>

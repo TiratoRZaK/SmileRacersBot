@@ -720,11 +720,10 @@ public class MiniAppController {
 
         String inviterLabel = userService.getUsernameOrFallback(userId);
         long stake = matchService.getBattleStake(battle);
-        String joinLink = "/?battleId=" + battle.getId() + "&battleStake=" + stake;
         userNotificationService.create(
                 targetUser.getUserChatId(),
                 "⚔️ " + inviterLabel + " приглашает вас в батл #" + battle.getId() + ". " +
-                        "Вход: " + stake + " 💎. Откройте ссылку: " + joinLink
+                        "Вход: " + stake + " 💎. Выберите действие в уведомлении: подключиться или отказаться."
         );
         return new MiniAppDtos.ActionResponse(true, "Приглашение отправлено пользователю @" + normalizedUsername + ".");
     }
