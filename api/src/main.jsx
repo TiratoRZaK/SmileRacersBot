@@ -37,7 +37,7 @@ const TAB_TITLES = {
 }
 const UNKNOWN_AVATAR = '❔'
 
-const TOAST_AUTO_CLOSE_MS = 5200
+const TOAST_AUTO_CLOSE_MS = 1500
 const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'topup'])
 const NOTIFICATION_ACTIONS = new Set(['notification/delete', 'notification/clear'])
 const MAX_SAVED_NOTIFICATIONS = 200
