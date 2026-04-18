@@ -37,7 +37,7 @@ const TAB_TITLES = {
 }
 const UNKNOWN_AVATAR = '❔'
 
-const TOAST_AUTO_CLOSE_MS = 4500
+const TOAST_AUTO_CLOSE_MS = 5200
 const PERSISTENT_ACTIONS = new Set(['withdraw', 'withdraw/cancel', 'topup'])
 const NOTIFICATION_ACTIONS = new Set(['notification/delete', 'notification/clear'])
 const MAX_SAVED_NOTIFICATIONS = 200
@@ -802,11 +802,17 @@ function App() {
     return () => window.removeEventListener('resize', updateRaceScale)
   }, [tab, isNotificationsOpen])
 
-  const removeToast = (id) => {
+  const removeToast = (id, options = {}) => {
+    const { immediate = false } = options
+    if (immediate) {
+      setToasts((current) => current.filter((item) => item.id !== id))
+      return
+    }
+
     setToasts((current) => current.map((item) => item.id === id ? { ...item, closing: true } : item))
     setTimeout(() => {
       setToasts((current) => current.filter((item) => item.id !== id))
-    }, 280)
+    }, 1100)
   }
 
   const notify = (text, options = {}) => {
@@ -1442,6 +1448,11 @@ function App() {
           })}
         </div>}
       </section>}
+      <div className='toasts toasts-top'>
+        {toasts.map((toast) => <div key={toast.id} className={`toast ${toast.closing ? 'is-closing' : ''}`} onClick={() => removeToast(toast.id, { immediate: true })}>
+          <span>{toast.text}</span>
+        </div>)}
+      </div>
     </div>
 
     <main className='content-zone' onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}>
@@ -1812,12 +1823,6 @@ function App() {
       </div>
     </section>}
     </main>
-    <div className='toasts'>
-      {toasts.map((toast) => <div key={toast.id} className={`toast ${toast.closing ? 'is-closing' : ''}`} onClick={() => removeToast(toast.id)}>
-        <span>{toast.text}</span>
-        <button className='toast-close' onClick={(e) => { e.stopPropagation(); removeToast(toast.id) }}>✕</button>
-      </div>)}
-    </div>
   </div>
 }
 
