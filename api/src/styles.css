@@ -648,10 +648,21 @@ h3 {
   color: #82d4ff;
 }
 
-.pre-race-rank-over-runner {
+.pre-race-meta-over-runner {
   position: absolute;
-  top: -20px;
+  top: -24px;
   transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 6;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.pre-race-meta-badge {
   padding: 1px 7px;
   border-radius: 999px;
   background: rgba(99, 102, 241, .26);
@@ -660,9 +671,45 @@ h3 {
   font-weight: 700;
   font-size: 10px;
   line-height: 1.4;
-  z-index: 6;
   white-space: nowrap;
+}
+
+.pre-race-meta-tooltip {
+  position: absolute;
+}
+
+.pre-race-meta-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%) translateY(4px);
+  width: min(240px, 72vw);
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .2);
+  background: rgba(7, 12, 30, .96);
+  color: rgba(230, 239, 255, .95);
+  font-size: 11px;
+  line-height: 1.35;
+  opacity: 0;
   pointer-events: none;
+  white-space: normal;
+  text-align: left;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .32);
+  transition: opacity .16s ease, transform .16s ease;
+}
+
+.pre-race-meta-tooltip:hover::after,
+.pre-race-meta-tooltip:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.pre-race-meta-tooltip:focus-visible {
+  outline: 2px solid rgba(191, 219, 254, .72);
+  outline-offset: 4px;
+  border-radius: 999px;
 }
 
 .meter {
@@ -818,6 +865,13 @@ h3 {
   font-size: 11px;
   opacity: .92;
   text-align: center;
+}
+
+.vote-caption-active {
+  margin-bottom: 4px;
+  color: #fef3c7;
+  text-shadow: 0 1px 8px rgba(245, 158, 11, .4);
+  font-weight: 700;
 }
 
 .vote-inline button {
@@ -1557,13 +1611,12 @@ select:focus {
 
 .race-result-actions {
   margin-top: 12px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  display: flex;
+  justify-content: center;
 }
 
 .race-result-actions .chip {
-  width: 100%;
+  width: min(240px, 100%);
   justify-content: center;
 }
 
