@@ -797,7 +797,9 @@ function App() {
       const viewportHeight = window.innerHeight || 0
       const topZoneHeight = topZoneRef.current?.offsetHeight || 0
       const availableHeight = viewportHeight - topZoneHeight - 24
-      const nextScale = Math.max(0.72, Math.min(1, availableHeight / 680))
+      const nextScale = isNotificationsOpen
+        ? 1
+        : Math.max(0.72, Math.min(1, availableHeight / 680))
       setRaceScale(nextScale)
     }
 
@@ -1187,8 +1189,8 @@ function App() {
   const raceWinner = raceCompleted ? raceUnits.find((unit) => unit.place === 1) : null
   const racePayout = Number(visibleRace?.myPayout || 0)
   const raceResultTitle = racePayout > 0 ? `Вы выиграли ${formatStars(racePayout)} 💎` : racePayout < 0 ? `Вы проиграли ${formatStars(Math.abs(racePayout))} 💎` : 'Эта гонка без изменения баланса'
-  const winnerTotalVotes = raceWinner ? raceUnits.reduce((sum, unit) => sum + (unit.playerName === raceWinner.playerName ? (Number(unit.myVotes) || 0) : 0), 0) : 0
-  const totalVotesInRace = raceUnits.reduce((sum, unit) => sum + (Number(unit.myVotes) || 0), 0)
+  const winnerTotalVotes = Math.max(0, Number(raceWinner?.score) || 0)
+  const totalVotesInRace = raceUnits.reduce((sum, unit) => sum + Math.max(0, Number(unit.score) || 0), 0)
   const winnerWinChance = totalVotesInRace > 0 ? winnerTotalVotes / totalVotesInRace : 0
   const winnerTotalPayout = winnerTotalVotes > 0 ? winnerTotalVotes * 2 : 0
   const winnerVictoryCount = Number((leaderboards?.emojiWinners || []).find((item) => item.emoji === raceWinner?.playerName)?.wins || 0)
@@ -1212,8 +1214,8 @@ function App() {
       winnerName: result?.winnerName || '—',
       victoryCount: Number((leaderboards?.emojiWinners || []).find((item) => item.emoji === result?.winnerName)?.wins || 0),
       probability: allScore > 0 ? winnerScore / allScore : 0,
-      totalWinnersPayout: null,
-      myPayout: null
+      totalWinnersPayout: winnerScore > 0 ? winnerScore * 2 : 0,
+      myPayout: winnerUnit ? Math.max(0, Number(winnerUnit.myVotes) || 0) * 2 : 0
     }
   }
 
@@ -1663,7 +1665,7 @@ function App() {
           </div>
         </div>}
         {raceLive && <div className='booster-shell'>
-          <div className='booster-vote-info'>Твоя ставка: {formatStars(localVotes[u.playerNumber] ?? u.myVotes)} 💎</div>
+          {myVoteAmount > 0 && <div className='booster-vote-info'>Твоя ставка: {formatStars(myVoteAmount)} 💎</div>}
           <div className='booster-actions'>
             <button className='booster booster-bust' aria-label={`Ускорить ${u.playerName}`} title={`Ускорить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'BUST' }) }}><span>🐇</span></button>
             <button className='booster booster-slow' aria-label={`Замедлить ${u.playerName}`} title={`Замедлить ${u.playerName}`} disabled={boostersDisabled} onClick={async () => { await act('boost', { playerNumber: u.playerNumber, type: 'SLOW' }) }}><span>🐢</span></button>
