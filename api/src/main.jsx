@@ -1325,16 +1325,16 @@ function App() {
         submitAuth(authMode)
       }}
     >
-      <div className='loading-logo'><img src='./emoji-race-logo.svg' alt='Emoji Race logo' className='loading-logo-image' /></div>
+      <div className='loading-logo'>🔐</div>
       <h1>{authMode === 'register' ? 'Регистрация' : authMode === 'setup' ? 'Установка пароля' : 'Вход'}</h1>
-      <p>Введите логин и пароль для входа в веб-версию.</p>
+      <p>Введите логин и пароль для входа. Предпочтительно использовать в качестве логина ваш никнейм Telegram.</p>
       <div className='auth-brand'>
         <div className='auth-brand-logo'>
           <img src='./emoji-race-logo.svg' alt='Emoji Race logo' className='auth-brand-logo-image' />
         </div>
         <div>
-          <strong>Smile Racers</strong>
-          <p>Гонки смайлов с динамичными батлами.</p>
+          <strong>Emoji Race</strong>
+          <p>Каждая гонка — это скорость, риск и один правильный выбор.</p>
         </div>
       </div>
       <input className='field' placeholder='Логин' value={authUsername} onChange={(e) => setAuthUsername(e.target.value)} />
@@ -1373,10 +1373,10 @@ function App() {
               setData(null)
               setBootProgress(100)
               setIsAppReady(true)
-              notify('Сессия MiniApp недействительна. Войдите заново.')
+              notify('Сессия недействительна. Войдите заново.')
               return
             }
-            const errorMessage = error?.message || 'Не удалось загрузить данные MiniApp.'
+            const errorMessage = error?.message || 'Не удалось загрузить данные.'
             setBootError(errorMessage)
             setBootProgress(100)
             setIsAppReady(true)
@@ -1394,7 +1394,7 @@ function App() {
     <div className='loading-orb loading-orb-right' />
     <div className='loading-card'>
       <div className='loading-logo'><img src='./emoji-race-logo.svg' alt='Emoji Race logo' className='loading-logo-image' /></div>
-      <h1>Smile Racers</h1>
+      <h1>Emoji Race</h1>
       <p>Подготавливаем трассу, смайлы и бустеры…</p>
       <div className='loading-bar'>
         <div className='loading-bar-fill' style={{ width: `${bootProgress}%` }} />
