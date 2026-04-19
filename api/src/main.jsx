@@ -1290,6 +1290,11 @@ function App() {
 
   const renderRaceResultCard = (result) => {
     if (!result) return null
+    const victoryCount = Math.max(1, Number(result.victoryCount) || 0)
+    const openRaceHistory = () => {
+      setTab('archive')
+      setSectionOpen((current) => ({ ...current, recentRaces: true }))
+    }
     return <div className='race-result-card'>
       <div className='race-result-glow race-result-glow-left' />
       <div className='race-result-glow race-result-glow-right' />
@@ -1297,12 +1302,15 @@ function App() {
         <span>🎉</span><span>✨</span><span>🏆</span><span>💎</span><span>🎊</span>
       </div>
       <p className='race-result-kicker'>🏁 Финиш · Гонка #{result.matchId}</p>
-      <h3>Победил смайл {result.winnerName}</h3>
+      <h3>Победил {result.winnerName}</h3>
       <div className='race-result-grid'>
-        <div><span>Победа по счёту</span><strong>{formatStars(result.victoryCount)}-я</strong></div>
-        <div><span>Вероятность победы</span><strong>{formatChance(result.probability)}</strong></div>
-        <div><span>Выигрыш всех победителей</span><strong>{result.totalWinnersPayout == null ? '—' : `${formatStars(result.totalWinnersPayout)} 💎`}</strong></div>
-        <div><span>Твой выигрыш</span><strong>{result.myPayout == null ? '—' : result.myPayout > 0 ? `+${formatStars(result.myPayout)} 💎` : '0 💎'}</strong></div>
+        <div><span>Общее количество побед</span><strong>{formatStars(victoryCount)}</strong></div>
+        <div><span>🏆💎 Общий выигрыш победителей</span><strong>{result.totalWinnersPayout == null ? '—' : `${formatStars(result.totalWinnersPayout)} 💎`}</strong></div>
+        <div><span>💎✨ Твой выигрыш</span><strong>{result.myPayout == null ? '—' : result.myPayout > 0 ? `+${formatStars(result.myPayout)} 💎` : '0 💎'}</strong></div>
+      </div>
+      <div className='race-result-actions'>
+        <button type='button' className='chip' onClick={openRaceHistory}>История гонок</button>
+        <button type='button' className='chip' onClick={openRaceHistory}>Все результаты</button>
       </div>
     </div>
   }
@@ -1551,7 +1559,7 @@ function App() {
       <h2>{visibleRace ? `Гонка #${visibleRace.matchId} · ${getRaceTypeLabel(visibleRace.type)}` : 'Нет активной гонки'}</h2>
       {!visibleRace && <p className='subtitle'>Скоро начнётся новая гонка или создайте батл (вкладка «Батл»).</p>}
       {!visibleRace && !!raceTabLastResult && <div className='race-last-result-wrap'>
-        <p className='subtitle race-last-result-hint'>Результаты прошедшей гонки</p>
+        <p className='subtitle race-last-result-hint'>Результаты прошедшей гонки:</p>
         {renderRaceResultCard(raceTabLastResult)}
       </div>}
 
