@@ -399,12 +399,13 @@ public class MiniAppController {
     ) {
         Long userId = resolveUserId(headerUserId, userIdParam);
         var user = userService.createIfNeed(userId);
-        if (user.getFavoritePlayer() == null) {
+        var favPlayer = user.getFavoritePlayer();
+        if (favPlayer == null) {
             return new MiniAppDtos.ActionResponse(false, "Сначала выберите любимый смайл.");
         }
 
         if (request != null && request.playerName() != null
-                && !request.playerName().equals(user.getFavoritePlayer().getName())) {
+                && !request.playerName().equals(favPlayer.getName())) {
             return new MiniAppDtos.ActionResponse(false, "В очередь можно отправить только любимый смайл.");
         }
 
@@ -416,8 +417,8 @@ public class MiniAppController {
         } catch (PaymentException e) {
             return new MiniAppDtos.ActionResponse(false, e.getMessage());
         }
-        int position = matchGenerationService.addPlayerToQueue(user.getFavoritePlayer());
-        return new MiniAppDtos.ActionResponse(true, "Смайл добавлен в очередь. В очереди перед тобой: " + position);
+        int position = matchGenerationService.addPlayerToQueue(favPlayer);
+        return new MiniAppDtos.ActionResponse(true, favPlayer.getName() + " добавлен в очередь. В очереди: " + position + ".");
     }
 
     @PostMapping("/topup")
