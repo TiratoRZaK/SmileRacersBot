@@ -1499,12 +1499,21 @@ select:focus {
   width: min(430px, 100%);
   border-radius: 24px;
   padding: 22px 18px;
-  background: linear-gradient(145deg, rgba(21, 28, 64, .93), rgba(47, 17, 77, .92));
-  border: 1px solid rgba(167, 139, 250, .5);
-  box-shadow: 0 26px 60px rgba(0, 0, 0, .45);
+  background:
+    radial-gradient(circle at 84% -12%, rgba(251, 191, 36, .35), transparent 40%),
+    linear-gradient(145deg, rgba(15, 27, 72, .95), rgba(73, 20, 115, .94));
+  border: 1px solid rgba(196, 181, 253, .72);
+  box-shadow: 0 26px 60px rgba(0, 0, 0, .45), 0 0 24px rgba(59, 130, 246, .26);
   position: relative;
   overflow: hidden;
   animation: resultCardRise .4s ease;
+}
+
+.race-result-card h3 {
+  margin: 8px 0 0;
+  font-size: 28px;
+  line-height: 1.18;
+  text-shadow: 0 8px 30px rgba(0, 0, 0, .35);
 }
 
 .race-result-kicker {
@@ -1513,6 +1522,24 @@ select:focus {
   letter-spacing: .8px;
   opacity: .85;
 }
+
+.race-result-confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.race-result-confetti span {
+  position: absolute;
+  animation: confettiFloat 2.8s ease-in-out infinite;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .24));
+}
+
+.race-result-confetti span:nth-child(1) { top: 14px; right: 16px; font-size: 20px; animation-delay: .1s; }
+.race-result-confetti span:nth-child(2) { top: 16px; right: 54px; font-size: 15px; animation-delay: .7s; }
+.race-result-confetti span:nth-child(3) { top: 46px; right: 24px; font-size: 16px; animation-delay: .35s; }
+.race-result-confetti span:nth-child(4) { bottom: 14px; left: 16px; font-size: 14px; animation-delay: .52s; }
+.race-result-confetti span:nth-child(5) { bottom: 24px; left: 52px; font-size: 19px; animation-delay: .92s; }
 
 .race-result-grid {
   margin-top: 14px;
@@ -1562,6 +1589,17 @@ select:focus {
   background: rgba(168, 85, 247, .7);
 }
 
+.race-last-result-wrap {
+  margin-top: 14px;
+}
+
+.race-last-result-hint {
+  margin-bottom: 8px;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: .04em;
+}
+
 @keyframes resultOverlayFade {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -1570,6 +1608,11 @@ select:focus {
 @keyframes resultCardRise {
   from { opacity: 0; transform: translateY(20px) scale(.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes confettiFloat {
+  0%, 100% { transform: translateY(0) scale(1); opacity: .86; }
+  50% { transform: translateY(-5px) scale(1.08); opacity: 1; }
 }
 
 .notifications-header {
