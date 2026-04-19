@@ -1305,12 +1305,11 @@ function App() {
       <h3>Победил {result.winnerName}</h3>
       <div className='race-result-grid'>
         <div><span>Общее количество побед</span><strong>{formatStars(victoryCount)}</strong></div>
-        <div><span>🏆💎 Общий выигрыш победителей</span><strong>{result.totalWinnersPayout == null ? '—' : `${formatStars(result.totalWinnersPayout)} 💎`}</strong></div>
-        <div><span>💎✨ Твой выигрыш</span><strong>{result.myPayout == null ? '—' : result.myPayout > 0 ? `+${formatStars(result.myPayout)} 💎` : '0 💎'}</strong></div>
+        <div><span>🏆 Общий выигрыш победителей</span><strong>{result.totalWinnersPayout == null ? '—' : `${formatStars(result.totalWinnersPayout)} 💎`}</strong></div>
+        <div><span>✨ Твой выигрыш</span><strong>{result.myPayout == null ? '—' : result.myPayout > 0 ? `+${formatStars(result.myPayout)} 💎` : '0 💎'}</strong></div>
       </div>
       <div className='race-result-actions'>
         <button type='button' className='chip' onClick={openRaceHistory}>История гонок</button>
-        <button type='button' className='chip' onClick={openRaceHistory}>Все результаты</button>
       </div>
     </div>
   }
@@ -1585,7 +1584,7 @@ function App() {
         const shieldsCount = Math.max(0, Number(u.playerShields) || 0)
         const shieldSlots = 5
         const consumedShields = shieldsCount > shieldSlots ? 0 : shieldSlots - shieldsCount
-        const emojiRank = emojiRankMap.get(u.playerName)?.place || null
+        const emojiStats = emojiRankMap.get(u.playerName)
 
         return <div className='unit lane' key={u.playerNumber}>
         <div className='unit-head'>
@@ -1593,7 +1592,10 @@ function App() {
         </div>
         <div className='meter'>
           <div className='meter-fill' style={{ width: `${percent}%` }} />
-          {raceBeforeStart && !!emojiRank && <div className='pre-race-rank-over-runner' style={{ left: runnerLeft }}>Топ: #{emojiRank}</div>}
+          {raceBeforeStart && !!emojiStats && <div className='pre-race-meta-over-runner' style={{ left: runnerLeft }}>
+            <span className='pre-race-meta-badge'>🏆 #{emojiStats.place}</span>
+            {emojiStats.wins > 0 && <span className='pre-race-meta-badge'>✨ {formatStars(emojiStats.wins)}</span>}
+          </div>}
           <div className='runner' style={{ left: runnerLeft }}>{u.playerName}</div>
           {activeBooster === 'BUST' && <div className='runner-booster runner-booster-bust' style={{ left: runnerLeft }}>
             <span className='runner-booster-icon'>🐇</span>
