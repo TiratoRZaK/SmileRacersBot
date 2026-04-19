@@ -1376,6 +1376,11 @@ select:focus {
   background: rgba(255, 255, 255, .06);
 }
 
+.recent-result-card-btn {
+  width: 100%;
+  text-align: left;
+}
+
 .recent-result-title {
   font-weight: 700;
 }
@@ -1440,6 +1445,99 @@ select:focus {
   line-height: 1.25;
   text-shadow: 0 4px 14px rgba(0, 0, 0, .28);
   word-break: break-word;
+}
+
+.race-result-preview-btn {
+  margin-top: 12px;
+}
+
+.race-result-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: radial-gradient(circle at 25% 20%, rgba(56, 189, 248, .25), transparent 45%), rgba(8, 10, 24, .85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: resultOverlayFade .3s ease;
+}
+
+.race-result-card {
+  width: min(430px, 100%);
+  border-radius: 24px;
+  padding: 22px 18px;
+  background: linear-gradient(145deg, rgba(21, 28, 64, .93), rgba(47, 17, 77, .92));
+  border: 1px solid rgba(167, 139, 250, .5);
+  box-shadow: 0 26px 60px rgba(0, 0, 0, .45);
+  position: relative;
+  overflow: hidden;
+  animation: resultCardRise .4s ease;
+}
+
+.race-result-kicker {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  opacity: .85;
+}
+
+.race-result-grid {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.race-result-grid > div {
+  padding: 10px 11px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid rgba(255, 255, 255, .14);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.race-result-grid span {
+  font-size: 12px;
+  opacity: .86;
+}
+
+.race-result-grid strong {
+  font-size: 17px;
+}
+
+.race-result-glow {
+  position: absolute;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  filter: blur(24px);
+  opacity: .45;
+  pointer-events: none;
+}
+
+.race-result-glow-left {
+  top: -70px;
+  left: -35px;
+  background: rgba(34, 211, 238, .65);
+}
+
+.race-result-glow-right {
+  right: -45px;
+  bottom: -78px;
+  background: rgba(168, 85, 247, .7);
+}
+
+@keyframes resultOverlayFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes resultCardRise {
+  from { opacity: 0; transform: translateY(20px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .notifications-header {
