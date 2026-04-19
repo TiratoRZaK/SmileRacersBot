@@ -106,33 +106,31 @@ public interface PaymentRequestRepository extends JpaRepository<PaymentRequest, 
     List<EmojiWinsProjection> findTopWinningEmojis(@Param("limit") Integer limit);
 
     @Query(value = """
-            SELECT mp.owner_user_chat_id AS userId, COALESCE(SUM(pr.sum), 0) AS wonVotesSum
+            SELECT pr.user_chat_id AS userId, COALESCE(SUM(pr.sum * 2), 0) AS wonVotesSum
             FROM payment_requests pr
             JOIN match_players mp ON pr.match_player_id = mp.id
             JOIN matches m ON mp.match_id = m.id
             WHERE pr.to_winner = true
               AND pr.status = 'COMPLETED'
               AND m.status = 'COMPLETED'
-              AND mp.owner_user_chat_id IS NOT NULL
-            GROUP BY mp.owner_user_chat_id
-            ORDER BY wonVotesSum DESC, mp.owner_user_chat_id ASC
+            GROUP BY pr.user_chat_id
+            ORDER BY wonVotesSum DESC, pr.user_chat_id ASC
             LIMIT :limit
             """, nativeQuery = true)
     List<PlayerWonVotesProjection> findTopWinningPlayersAllTime(@Param("limit") Integer limit);
 
     @Query(value = """
-            SELECT mp.owner_user_chat_id AS userId, COALESCE(SUM(pr.sum), 0) AS wonVotesSum
+            SELECT pr.user_chat_id AS userId, COALESCE(SUM(pr.sum * 2), 0) AS wonVotesSum
             FROM payment_requests pr
             JOIN match_players mp ON pr.match_player_id = mp.id
             JOIN matches m ON mp.match_id = m.id
             WHERE pr.to_winner = true
               AND pr.status = 'COMPLETED'
               AND m.status = 'COMPLETED'
-              AND mp.owner_user_chat_id IS NOT NULL
               AND m.created_date >= :fromDate
               AND m.created_date < :toDate
-            GROUP BY mp.owner_user_chat_id
-            ORDER BY wonVotesSum DESC, mp.owner_user_chat_id ASC
+            GROUP BY pr.user_chat_id
+            ORDER BY wonVotesSum DESC, pr.user_chat_id ASC
             LIMIT :limit
             """, nativeQuery = true)
     List<PlayerWonVotesProjection> findTopWinningPlayersByPeriod(@Param("fromDate") java.util.Date fromDate,

@@ -769,10 +769,10 @@ public class MiniAppController {
             @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
             @RequestParam(value = "userId", required = false) Long userIdParam
     ) {
-        resolveUserId(headerUserId, userIdParam);
+        Long userId = resolveUserId(headerUserId, userIdParam);
         List<MiniAppDtos.RaceResultCard> items = matchRepository
                 .findTop5ByStatusOrderByCreatedDateDesc(MatchStatus.COMPLETED).stream()
-                .map(this::toRaceResultCard)
+                .map(match -> toRaceResultCard(match, userId))
                 .toList();
         return new MiniAppDtos.RecentResultsResponse(items);
     }
@@ -896,7 +896,7 @@ public class MiniAppController {
     }
 
 
-    private MiniAppDtos.RaceResultCard toRaceResultCard(Match match) {
+    private MiniAppDtos.RaceResultCard toRaceResultCard(Match match, Long userId) {
         if (match == null) {
             return null;
         }
@@ -909,7 +909,7 @@ public class MiniAppController {
                         mp.getOwnerUserChatId() == null ? null : userService.getUsernameOrFallback(mp.getOwnerUserChatId()),
                         mp.getOwnerUserChatId(),
                         mp.getScore(),
-                        0L,
+                        paymentRequestRepository.sumMyVotesByMatchPlayer(mp, userId),
                         0,
                         null
                 ))

@@ -100,9 +100,18 @@ public class UserHistoryReportService {
 
         for (PaymentRequest request : paymentRequestRepository.findAllByUserChatIdOrderByCreatedDateDesc(userId)) {
             String details = "Матч #" + request.getMatchPlayer().getMatch().getId()
-                    + ", смайл " + request.getMatchPlayer().getPlayerName()
-                    + ", статус: " + mapVoteStatus(request);
+                    + ", смайл " + request.getMatchPlayer().getPlayerName();
             result.add(new HistoryItem(request.getCreatedDate(), "Голос", -request.getSum(), details));
+
+            if (request.getStatus() == PaymentRequestStatus.COMPLETED && request.isToWinner()) {
+                result.add(new HistoryItem(
+                        request.getCreatedDate(),
+                        "Начисление выигрыша",
+                        request.getSum() * 2,
+                        "Матч #" + request.getMatchPlayer().getMatch().getId()
+                                + ", смайл " + request.getMatchPlayer().getPlayerName()
+                ));
+            }
         }
 
         for (WithdrawRequest request : withdrawRequestRepository.findAllByUserChatIdOrderByCreatedDateDesc(userId)) {
@@ -121,16 +130,6 @@ public class UserHistoryReportService {
 
         result.sort(Comparator.comparing((HistoryItem h) -> h.createdDate).reversed());
         return result;
-    }
-
-    private String mapVoteStatus(PaymentRequest request) {
-        if (request.getStatus() == PaymentRequestStatus.WAIT_PAYMENT) {
-            return "ожидает оплаты";
-        }
-        if (request.getStatus() == PaymentRequestStatus.PAYED) {
-            return "гонка не завершена";
-        }
-        return request.isToWinner() ? "выигрыш" : "проигрыш";
     }
 
     private void sendExcel(Long requesterChatId, Long userId, String userLabel, List<HistoryItem> history, EmojiRaceBot bot) {
