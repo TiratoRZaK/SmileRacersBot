@@ -650,7 +650,7 @@ h3 {
 
 .pre-race-meta-over-runner {
   position: absolute;
-  top: -24px;
+  top: -32px;
   transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
@@ -1520,6 +1520,10 @@ select:focus {
   position: relative;
   overflow: hidden;
   animation: resultCardRise .4s ease;
+}
+
+.race-result-overlay-history .race-result-card {
+  width: min(480px, 100%);
 }
 
 .race-result-card h3 {
