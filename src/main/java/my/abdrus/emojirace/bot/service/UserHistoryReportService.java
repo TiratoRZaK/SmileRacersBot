@@ -13,7 +13,6 @@ import my.abdrus.emojirace.bot.entity.BalanceTopup;
 import my.abdrus.emojirace.bot.entity.BotUser;
 import my.abdrus.emojirace.bot.entity.PaymentRequest;
 import my.abdrus.emojirace.bot.entity.WithdrawRequest;
-import my.abdrus.emojirace.bot.enumeration.PaymentRequestStatus;
 import my.abdrus.emojirace.bot.enumeration.WithdrawRequestStatus;
 import my.abdrus.emojirace.bot.repository.BalanceTopupRepository;
 import my.abdrus.emojirace.bot.repository.PaymentRequestRepository;
@@ -103,15 +102,6 @@ public class UserHistoryReportService {
                     + ", смайл " + request.getMatchPlayer().getPlayerName();
             result.add(new HistoryItem(request.getCreatedDate(), "Голос", -request.getSum(), details));
 
-            if (request.getStatus() == PaymentRequestStatus.COMPLETED && request.isToWinner()) {
-                result.add(new HistoryItem(
-                        request.getCreatedDate(),
-                        "Начисление выигрыша",
-                        request.getSum() * 2,
-                        "Матч #" + request.getMatchPlayer().getMatch().getId()
-                                + ", смайл " + request.getMatchPlayer().getPlayerName()
-                ));
-            }
         }
 
         for (WithdrawRequest request : withdrawRequestRepository.findAllByUserChatIdOrderByCreatedDateDesc(userId)) {
