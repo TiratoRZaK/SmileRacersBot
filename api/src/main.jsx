@@ -1290,7 +1290,6 @@ function App() {
 
   const renderRaceResultCard = (result) => {
     if (!result) return null
-    const victoryCount = Math.max(1, Number(result.victoryCount) || 0)
     const openRaceHistory = () => {
       setTab('archive')
       setSectionOpen((current) => ({ ...current, recentRaces: true }))
@@ -1304,7 +1303,6 @@ function App() {
       <p className='race-result-kicker'>🏁 Финиш · Гонка #{result.matchId}</p>
       <h3>Победил {result.winnerName}</h3>
       <div className='race-result-grid'>
-        <div><span>Общее количество побед</span><strong>{formatStars(victoryCount)}</strong></div>
         <div><span>🏆 Общий выигрыш победителей</span><strong>{result.totalWinnersPayout == null ? '—' : `${formatStars(result.totalWinnersPayout)} 💎`}</strong></div>
         <div><span>✨ Твой выигрыш</span><strong>{result.myPayout == null ? '—' : result.myPayout > 0 ? `+${formatStars(result.myPayout)} 💎` : '0 💎'}</strong></div>
       </div>
@@ -1585,6 +1583,15 @@ function App() {
         const shieldSlots = 5
         const consumedShields = shieldsCount > shieldSlots ? 0 : shieldSlots - shieldsCount
         const emojiStats = emojiRankMap.get(u.playerName)
+        const isFavoriteEmoji = data?.favoriteEmoji === u.playerName
+        const myVoteAmount = Number(localVotes[u.playerNumber] ?? u.myVotes) || 0
+        const emojiMetaTooltip = emojiStats
+          ? `Занимает #${emojiStats.place} в топе, имеет ${formatStars(emojiStats.wins)} побед${isFavoriteEmoji ? ', является вашим любимым смайлом' : ''}.`
+          : ''
+        const openEmojiTop = () => {
+          setTab('ratings')
+          setSectionOpen((current) => ({ ...current, ratingsEmojis: true }))
+        }
 
         return <div className='unit lane' key={u.playerNumber}>
         <div className='unit-head'>
@@ -1592,10 +1599,17 @@ function App() {
         </div>
         <div className='meter'>
           <div className='meter-fill' style={{ width: `${percent}%` }} />
-          {raceBeforeStart && !!emojiStats && <div className='pre-race-meta-over-runner' style={{ left: runnerLeft }}>
+          {raceBeforeStart && !!emojiStats && <button
+            type='button'
+            className='pre-race-meta-over-runner pre-race-meta-tooltip'
+            style={{ left: runnerLeft }}
+            data-tooltip={emojiMetaTooltip}
+            title={emojiMetaTooltip}
+            onClick={openEmojiTop}
+          >
             <span className='pre-race-meta-badge'>🏆 #{emojiStats.place}</span>
             {emojiStats.wins > 0 && <span className='pre-race-meta-badge'>✨ {formatStars(emojiStats.wins)}</span>}
-          </div>}
+          </button>}
           <div className='runner' style={{ left: runnerLeft }}>{u.playerName}</div>
           {activeBooster === 'BUST' && <div className='runner-booster runner-booster-bust' style={{ left: runnerLeft }}>
             <span className='runner-booster-icon'>🐇</span>
@@ -1613,9 +1627,9 @@ function App() {
           <div className='finish-line' />
         </div>
         {raceBeforeStart && <div className='vote-inline-wrap'>
-          <div className='vote-caption'>
-            <span>Твой голос: {formatStars(localVotes[u.playerNumber] ?? u.myVotes)}</span>
-          </div>
+          {myVoteAmount > 0 && <div className='vote-caption vote-caption-active'>
+            <span>Твой голос: {formatStars(myVoteAmount)} 💎</span>
+          </div>}
           <div className='vote-inline'>
           <RubyAmountField
             value={voteInputs[u.playerNumber] ?? 1}
