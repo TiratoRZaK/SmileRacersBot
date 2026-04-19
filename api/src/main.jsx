@@ -10,6 +10,7 @@ const POLL_INTERVAL_MS = 1000
 const INTERACTION_PAUSE_MS = 2500
 const MIN_SPLASH_MS = 900
 const BOOTSTRAP_EXTRAS_REFRESH_MS = 15000
+const RESULT_OVERLAY_AUTO_CLOSE_MS = 30000
 const DEFAULT_TRACK_LENGTH = 62
 const REQUEST_TIMEOUT_MS = 15000
 const WEB_AUTH_STORAGE_KEY = 'smile_racers_web_auth_v1'
@@ -43,6 +44,7 @@ const NOTIFICATION_ACTIONS = new Set(['notification/delete', 'notification/clear
 const MAX_SAVED_NOTIFICATIONS = 200
 
 const formatStars = (value) => new Intl.NumberFormat('ru-RU').format(Number(value) || 0)
+const formatChance = (value) => `${(Number(value || 0) * 100).toFixed(1)}%`
 
 const createSeededRandom = (seed) => {
   let value = Math.max(1, Number(seed) || 1)
@@ -255,6 +257,7 @@ function App() {
   const [toasts, setToasts] = useState([])
   const [savedNotifications, setSavedNotifications] = useState([])
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [raceResultOverlay, setRaceResultOverlay] = useState(null)
   const [battleEmoji, setBattleEmoji] = useState('')
   const [battleStakeInput, setBattleStakeInput] = useState(100)
   const [voteInputs, setVoteInputs] = useState({})
@@ -303,6 +306,9 @@ function App() {
   const favoriteRequestRef = useRef(null)
   const localVotesMatchIdRef = useRef(null)
   const swipeStartRef = useRef(null)
+  const raceResultTimerRef = useRef(null)
+  const lastAutoShownResultRef = useRef(null)
+  const previousVisibleRaceRef = useRef(null)
   const deepLinkJoinPromptShownRef = useRef(false)
   const topZoneRef = useRef(null)
   const previousTabRef = useRef(tab)
@@ -1147,6 +1153,16 @@ function App() {
     const index = leaderboards.emojiWinners.findIndex((item) => item.emoji === data.favoriteEmoji)
     return index >= 0 ? index + 1 : null
   }, [leaderboards?.emojiWinners, data?.favoriteEmoji])
+  const emojiRankMap = useMemo(() => {
+    const map = new Map()
+    ;(leaderboards?.emojiWinners || []).forEach((item, index) => {
+      map.set(item.emoji, {
+        place: index + 1,
+        wins: Number(item.wins) || 0
+      })
+    })
+    return map
+  }, [leaderboards?.emojiWinners])
   const accountAvatar = data?.favoriteEmoji || UNKNOWN_AVATAR
   const myBattleCanCancel = !!myBattle && myBattle.status === 'CREATED'
   const canCreateBattle = !myBattle && battleMode !== 'joined'
@@ -1173,6 +1189,49 @@ function App() {
   const raceWinner = raceCompleted ? raceUnits.find((unit) => unit.place === 1) : null
   const racePayout = Number(visibleRace?.myPayout || 0)
   const raceResultTitle = racePayout > 0 ? `Вы выиграли ${formatStars(racePayout)} 💎` : racePayout < 0 ? `Вы проиграли ${formatStars(Math.abs(racePayout))} 💎` : 'Эта гонка без изменения баланса'
+  const winnerTotalVotes = raceWinner ? raceUnits.reduce((sum, unit) => sum + (unit.playerName === raceWinner.playerName ? (Number(unit.myVotes) || 0) : 0), 0) : 0
+  const totalVotesInRace = raceUnits.reduce((sum, unit) => sum + (Number(unit.myVotes) || 0), 0)
+  const winnerWinChance = totalVotesInRace > 0 ? winnerTotalVotes / totalVotesInRace : 0
+  const winnerTotalPayout = winnerTotalVotes > 0 ? winnerTotalVotes * 2 : 0
+  const winnerVictoryCount = Number((leaderboards?.emojiWinners || []).find((item) => item.emoji === raceWinner?.playerName)?.wins || 0)
+
+  const closeRaceResultOverlay = () => {
+    if (raceResultTimerRef.current) {
+      clearTimeout(raceResultTimerRef.current)
+      raceResultTimerRef.current = null
+    }
+    setRaceResultOverlay(null)
+  }
+
+  const openRaceResultOverlay = (result, source = 'race') => {
+    if (!result) return
+    if (raceResultTimerRef.current) {
+      clearTimeout(raceResultTimerRef.current)
+      raceResultTimerRef.current = null
+    }
+    setRaceResultOverlay({ ...result, source })
+    if (source === 'race') {
+      raceResultTimerRef.current = window.setTimeout(() => {
+        setRaceResultOverlay(null)
+        raceResultTimerRef.current = null
+      }, RESULT_OVERLAY_AUTO_CLOSE_MS)
+    }
+  }
+
+  const toOverlayResultFromHistoryItem = (result) => {
+    const winnerUnit = (result?.units || []).find((unit) => unit.playerName === result?.winnerName) || null
+    const allScore = (result?.units || []).reduce((sum, unit) => sum + Math.max(0, Number(unit.score) || 0), 0)
+    const winnerScore = Math.max(0, Number(winnerUnit?.score) || 0)
+    return {
+      matchId: result?.matchId,
+      type: result?.type,
+      winnerName: result?.winnerName || '—',
+      victoryCount: Number((leaderboards?.emojiWinners || []).find((item) => item.emoji === result?.winnerName)?.wins || 0),
+      probability: allScore > 0 ? winnerScore / allScore : 0,
+      totalWinnersPayout: null,
+      myPayout: null
+    }
+  }
 
   const goToTabBySwipe = (direction) => {
     const currentIndex = TAB_ORDER.indexOf(tab)
@@ -1217,6 +1276,50 @@ function App() {
       return { ...current, [keys[0]]: true }
     })
   }, [tab])
+
+  useEffect(() => {
+    if (!raceCompleted || !visibleRace?.matchId || tab !== 'race') return
+    if (lastAutoShownResultRef.current === visibleRace.matchId) return
+    lastAutoShownResultRef.current = visibleRace.matchId
+    openRaceResultOverlay({
+      matchId: visibleRace.matchId,
+      type: visibleRace.type,
+      winnerName: raceWinner?.playerName || '—',
+      victoryCount: winnerVictoryCount,
+      probability: winnerWinChance,
+      totalWinnersPayout: winnerTotalPayout,
+      myPayout: racePayout
+    }, 'race')
+  }, [raceCompleted, visibleRace?.matchId, visibleRace?.type, tab, raceWinner?.playerName, winnerVictoryCount, winnerWinChance, winnerTotalPayout, racePayout])
+
+  useEffect(() => {
+    const previousRace = previousVisibleRaceRef.current
+    const currentRace = visibleRace?.matchId ? { matchId: visibleRace.matchId, type: visibleRace.type } : null
+
+    if (tab === 'race' && previousRace?.matchId && !currentRace?.matchId) {
+      requestApi('recent-results', { fallbackErrorMessage: 'Не удалось загрузить последние гонки.' })
+        .then((recentData) => {
+          const items = recentData?.items || []
+          if (!items.length) return
+          setRecentResults(items)
+          setIsRecentResultsLoaded(true)
+          const latest = items[0]
+          if (Number(latest?.matchId || 0) !== Number(previousRace.matchId || 0)) return
+          if (lastAutoShownResultRef.current === latest.matchId) return
+          lastAutoShownResultRef.current = latest.matchId
+          openRaceResultOverlay(toOverlayResultFromHistoryItem(latest), 'race')
+        })
+        .catch(() => null)
+    }
+
+    previousVisibleRaceRef.current = currentRace
+  }, [visibleRace?.matchId, visibleRace?.type, tab, leaderboards?.emojiWinners])
+
+  useEffect(() => () => {
+    if (raceResultTimerRef.current) {
+      clearTimeout(raceResultTimerRef.current)
+    }
+  }, [])
 
   if (!hasMiniAppAuthContext) return <div className='loading-screen'>
     <div className='loading-orb loading-orb-left' />
@@ -1484,6 +1587,7 @@ function App() {
         const shieldsCount = Math.max(0, Number(u.playerShields) || 0)
         const shieldSlots = 5
         const consumedShields = shieldsCount > shieldSlots ? 0 : shieldSlots - shieldsCount
+        const emojiRank = emojiRankMap.get(u.playerName)?.place || null
 
         return <div className='unit lane' key={u.playerNumber}>
         <div className='unit-head'>
@@ -1491,6 +1595,7 @@ function App() {
         </div>
         <div className='meter'>
           <div className='meter-fill' style={{ width: `${percent}%` }} />
+          {raceBeforeStart && !!emojiRank && <div className='pre-race-rank-over-runner' style={{ left: runnerLeft }}>Топ: #{emojiRank}</div>}
           <div className='runner' style={{ left: runnerLeft }}>{u.playerName}</div>
           {activeBooster === 'BUST' && <div className='runner-booster runner-booster-bust' style={{ left: runnerLeft }}>
             <span className='runner-booster-icon'>🐇</span>
@@ -1559,6 +1664,20 @@ function App() {
         <h3>Гонка завершена</h3>
         <p className='subtitle'>Победитель: {raceWinner?.playerName || '—'}</p>
         <p className='winner-name'>{raceResultTitle}</p>
+        <button
+          className='chip race-result-preview-btn'
+          onClick={() => openRaceResultOverlay({
+            matchId: visibleRace?.matchId,
+            type: visibleRace?.type,
+            winnerName: raceWinner?.playerName || '—',
+            victoryCount: winnerVictoryCount,
+            probability: winnerWinChance,
+            totalWinnersPayout: winnerTotalPayout,
+            myPayout: racePayout
+          }, 'race')}
+        >
+          Открыть экран результата
+        </button>
       </div>}
 
 
@@ -1696,11 +1815,18 @@ function App() {
         {recentResultsLoading && <p className='subtitle'>Загружаем последние гонки…</p>}
         {isRecentResultsLoaded && !recentResults.length && <p className='subtitle'>Пока нет завершённых гонок.</p>}
         <div className='archive-results-list'>
-          {recentResults.map((result) => <div key={result.matchId} className='recent-result-card'>
+          {recentResults.map((result) => <button
+            key={result.matchId}
+            type='button'
+            className='recent-result-card recent-result-card-btn'
+            onClick={() => {
+              openRaceResultOverlay(toOverlayResultFromHistoryItem(result), 'history')
+            }}
+          >
             <div className='recent-result-title'>#{result.matchId} · {getRaceTypeLabel(result.type)}</div>
             <div className='subtitle'>Победитель: {result.winnerName || '—'}</div>
             <div className='subtitle'>Участники: {(result.units || []).map((u) => u.playerName).join(' · ')}</div>
-          </div>)}
+          </button>)}
         </div>
       </>)}
       {renderSection('history', 'История операций', <>
@@ -1822,6 +1948,27 @@ function App() {
         </>)}
       </div>
     </section>}
+
+    {!!raceResultOverlay && <div
+      className={`race-result-overlay ${raceResultOverlay.source === 'history' ? 'race-result-overlay-history' : ''}`}
+      onClick={() => {
+        if (raceResultOverlay.source === 'history') closeRaceResultOverlay()
+      }}
+    >
+      <div className='race-result-card' onClick={(event) => event.stopPropagation()}>
+        <div className='race-result-glow race-result-glow-left' />
+        <div className='race-result-glow race-result-glow-right' />
+        <p className='race-result-kicker'>🏁 Финиш · Гонка #{raceResultOverlay.matchId}</p>
+        <h3>Победил смайл {raceResultOverlay.winnerName}</h3>
+        <div className='race-result-grid'>
+          <div><span>Победа по счёту</span><strong>{formatStars(raceResultOverlay.victoryCount)}-я</strong></div>
+          <div><span>Вероятность победы</span><strong>{formatChance(raceResultOverlay.probability)}</strong></div>
+          <div><span>Выигрыш всех победителей</span><strong>{raceResultOverlay.totalWinnersPayout == null ? '—' : `${formatStars(raceResultOverlay.totalWinnersPayout)} 💎`}</strong></div>
+          <div><span>Твой выигрыш</span><strong>{raceResultOverlay.myPayout == null ? '—' : raceResultOverlay.myPayout > 0 ? `+${formatStars(raceResultOverlay.myPayout)} 💎` : '0 💎'}</strong></div>
+        </div>
+        {raceResultOverlay.source === 'history' && <p className='subtitle'>Нажми в любое место, чтобы закрыть.</p>}
+      </div>
+    </div>}
     </main>
   </div>
 }
