@@ -314,7 +314,6 @@ function App() {
     balance: null,
     freeBoosters: null
   })
-  const authLogoText = 'EMOJI RACE'
 
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams()
@@ -1331,7 +1330,7 @@ function App() {
       <p>Введите логин и пароль для входа в веб-версию.</p>
       <div className='auth-brand'>
         <div className='auth-brand-logo'>
-          <span>{authLogoText}</span>
+          <img src='./emoji-race-logo.svg' alt='Emoji Race logo' className='auth-brand-logo-image' />
         </div>
         <div>
           <strong>Smile Racers</strong>

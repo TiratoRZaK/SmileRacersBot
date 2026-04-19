@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Emoji Race logo">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#2d4fff"/>
+      <stop offset="55%" stop-color="#1a133b"/>
+      <stop offset="100%" stop-color="#05050e"/>
+    </radialGradient>
+    <linearGradient id="orange" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ffd85a"/>
+      <stop offset="100%" stop-color="#ff8a00"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#7de3ff"/>
+      <stop offset="100%" stop-color="#1d8dff"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <circle cx="256" cy="220" r="175" fill="#ff7a0018" filter="url(#glow)"/>
+
+  <text x="86" y="158" font-size="90">🚀</text>
+  <text x="206" y="168" font-size="88">🐢</text>
+  <text x="320" y="166" font-size="86">🐌</text>
+
+  <g transform="translate(64 228)">
+    <rect width="384" height="214" rx="40" fill="#101636" stroke="#ffffff22" stroke-width="3"/>
+    <text x="34" y="92" font-size="86" font-weight="900" fill="url(#orange)" stroke="#5e2f00" stroke-width="5" font-family="Inter,Arial,sans-serif">EMOJI</text>
+    <text x="78" y="176" font-size="78" font-weight="900" fill="url(#blue)" stroke="#003f74" stroke-width="5" font-family="Inter,Arial,sans-serif">RACE</text>
+  </g>
+</svg>
