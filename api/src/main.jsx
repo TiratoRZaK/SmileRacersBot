@@ -1163,18 +1163,6 @@ function App() {
     })
     return map
   }, [leaderboards?.emojiWinners])
-  const raceWinChanceMap = useMemo(() => {
-    const units = raceUnits || []
-    if (!units.length) return new Map()
-    const alpha = 1
-    const sum = units.reduce((acc, unit) => acc + ((emojiRankMap.get(unit.playerName)?.wins || 0) + alpha), 0)
-    const map = new Map()
-    units.forEach((unit) => {
-      const weight = (emojiRankMap.get(unit.playerName)?.wins || 0) + alpha
-      map.set(unit.playerName, sum > 0 ? weight / sum : 0)
-    })
-    return map
-  }, [raceUnits, emojiRankMap])
   const accountAvatar = data?.favoriteEmoji || UNKNOWN_AVATAR
   const myBattleCanCancel = !!myBattle && myBattle.status === 'CREATED'
   const canCreateBattle = !myBattle && battleMode !== 'joined'
@@ -1600,25 +1588,14 @@ function App() {
         const shieldSlots = 5
         const consumedShields = shieldsCount > shieldSlots ? 0 : shieldSlots - shieldsCount
         const emojiRank = emojiRankMap.get(u.playerName)?.place || null
-        const preRaceWinChance = raceWinChanceMap.get(u.playerName) || 0
-        const preRaceHint = `Вероятность победы: ${formatChance(preRaceWinChance)} · Место в топе: ${emojiRank ? `#${emojiRank}` : 'вне топа'}`
 
         return <div className='unit lane' key={u.playerNumber}>
         <div className='unit-head'>
           <div className='score'>{percent}%</div>
-          {raceBeforeStart && <div className='pre-race-meta'>
-            <span className='pre-race-rank'>Топ: {emojiRank ? `#${emojiRank}` : '—'}</span>
-            <span
-              className='pre-race-info booster-display-tooltip'
-              data-tooltip={preRaceHint}
-              tabIndex={0}
-            >
-              ⓘ
-            </span>
-          </div>}
         </div>
         <div className='meter'>
           <div className='meter-fill' style={{ width: `${percent}%` }} />
+          {raceBeforeStart && !!emojiRank && <div className='pre-race-rank-over-runner' style={{ left: runnerLeft }}>Топ: #{emojiRank}</div>}
           <div className='runner' style={{ left: runnerLeft }}>{u.playerName}</div>
           {activeBooster === 'BUST' && <div className='runner-booster runner-booster-bust' style={{ left: runnerLeft }}>
             <span className='runner-booster-icon'>🐇</span>
