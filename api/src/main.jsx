@@ -308,6 +308,7 @@ function App() {
   const swipeStartRef = useRef(null)
   const raceResultTimerRef = useRef(null)
   const lastAutoShownResultRef = useRef(null)
+  const previousVisibleRaceRef = useRef(null)
   const deepLinkJoinPromptShownRef = useRef(false)
   const topZoneRef = useRef(null)
   const previousTabRef = useRef(tab)
@@ -1152,6 +1153,28 @@ function App() {
     const index = leaderboards.emojiWinners.findIndex((item) => item.emoji === data.favoriteEmoji)
     return index >= 0 ? index + 1 : null
   }, [leaderboards?.emojiWinners, data?.favoriteEmoji])
+  const emojiRankMap = useMemo(() => {
+    const map = new Map()
+    ;(leaderboards?.emojiWinners || []).forEach((item, index) => {
+      map.set(item.emoji, {
+        place: index + 1,
+        wins: Number(item.wins) || 0
+      })
+    })
+    return map
+  }, [leaderboards?.emojiWinners])
+  const raceWinChanceMap = useMemo(() => {
+    const units = raceUnits || []
+    if (!units.length) return new Map()
+    const alpha = 1
+    const sum = units.reduce((acc, unit) => acc + ((emojiRankMap.get(unit.playerName)?.wins || 0) + alpha), 0)
+    const map = new Map()
+    units.forEach((unit) => {
+      const weight = (emojiRankMap.get(unit.playerName)?.wins || 0) + alpha
+      map.set(unit.playerName, sum > 0 ? weight / sum : 0)
+    })
+    return map
+  }, [raceUnits, emojiRankMap])
   const accountAvatar = data?.favoriteEmoji || UNKNOWN_AVATAR
   const myBattleCanCancel = !!myBattle && myBattle.status === 'CREATED'
   const canCreateBattle = !myBattle && battleMode !== 'joined'
@@ -1204,6 +1227,21 @@ function App() {
         setRaceResultOverlay(null)
         raceResultTimerRef.current = null
       }, RESULT_OVERLAY_AUTO_CLOSE_MS)
+    }
+  }
+
+  const toOverlayResultFromHistoryItem = (result) => {
+    const winnerUnit = (result?.units || []).find((unit) => unit.playerName === result?.winnerName) || null
+    const allScore = (result?.units || []).reduce((sum, unit) => sum + Math.max(0, Number(unit.score) || 0), 0)
+    const winnerScore = Math.max(0, Number(winnerUnit?.score) || 0)
+    return {
+      matchId: result?.matchId,
+      type: result?.type,
+      winnerName: result?.winnerName || '—',
+      victoryCount: Number((leaderboards?.emojiWinners || []).find((item) => item.emoji === result?.winnerName)?.wins || 0),
+      probability: allScore > 0 ? winnerScore / allScore : 0,
+      totalWinnersPayout: null,
+      myPayout: null
     }
   }
 
@@ -1265,6 +1303,29 @@ function App() {
       myPayout: racePayout
     }, 'race')
   }, [raceCompleted, visibleRace?.matchId, visibleRace?.type, tab, raceWinner?.playerName, winnerVictoryCount, winnerWinChance, winnerTotalPayout, racePayout])
+
+  useEffect(() => {
+    const previousRace = previousVisibleRaceRef.current
+    const currentRace = visibleRace?.matchId ? { matchId: visibleRace.matchId, type: visibleRace.type } : null
+
+    if (tab === 'race' && previousRace?.matchId && !currentRace?.matchId) {
+      requestApi('recent-results', { fallbackErrorMessage: 'Не удалось загрузить последние гонки.' })
+        .then((recentData) => {
+          const items = recentData?.items || []
+          if (!items.length) return
+          setRecentResults(items)
+          setIsRecentResultsLoaded(true)
+          const latest = items[0]
+          if (Number(latest?.matchId || 0) !== Number(previousRace.matchId || 0)) return
+          if (lastAutoShownResultRef.current === latest.matchId) return
+          lastAutoShownResultRef.current = latest.matchId
+          openRaceResultOverlay(toOverlayResultFromHistoryItem(latest), 'race')
+        })
+        .catch(() => null)
+    }
+
+    previousVisibleRaceRef.current = currentRace
+  }, [visibleRace?.matchId, visibleRace?.type, tab, leaderboards?.emojiWinners])
 
   useEffect(() => () => {
     if (raceResultTimerRef.current) {
@@ -1538,10 +1599,23 @@ function App() {
         const shieldsCount = Math.max(0, Number(u.playerShields) || 0)
         const shieldSlots = 5
         const consumedShields = shieldsCount > shieldSlots ? 0 : shieldSlots - shieldsCount
+        const emojiRank = emojiRankMap.get(u.playerName)?.place || null
+        const preRaceWinChance = raceWinChanceMap.get(u.playerName) || 0
+        const preRaceHint = `Вероятность победы: ${formatChance(preRaceWinChance)} · Место в топе: ${emojiRank ? `#${emojiRank}` : 'вне топа'}`
 
         return <div className='unit lane' key={u.playerNumber}>
         <div className='unit-head'>
           <div className='score'>{percent}%</div>
+          {raceBeforeStart && <div className='pre-race-meta'>
+            <span className='pre-race-rank'>Топ: {emojiRank ? `#${emojiRank}` : '—'}</span>
+            <span
+              className='pre-race-info booster-display-tooltip'
+              data-tooltip={preRaceHint}
+              tabIndex={0}
+            >
+              ⓘ
+            </span>
+          </div>}
         </div>
         <div className='meter'>
           <div className='meter-fill' style={{ width: `${percent}%` }} />
@@ -1769,18 +1843,7 @@ function App() {
             type='button'
             className='recent-result-card recent-result-card-btn'
             onClick={() => {
-              const winnerUnit = (result.units || []).find((unit) => unit.playerName === result.winnerName) || null
-              const allScore = (result.units || []).reduce((sum, unit) => sum + Math.max(0, Number(unit.score) || 0), 0)
-              const winnerScore = Math.max(0, Number(winnerUnit?.score) || 0)
-              openRaceResultOverlay({
-                matchId: result.matchId,
-                type: result.type,
-                winnerName: result.winnerName || '—',
-                victoryCount: Number((leaderboards?.emojiWinners || []).find((item) => item.emoji === result.winnerName)?.wins || 0),
-                probability: allScore > 0 ? winnerScore / allScore : 0,
-                totalWinnersPayout: null,
-                myPayout: null
-              }, 'history')
+              openRaceResultOverlay(toOverlayResultFromHistoryItem(result), 'history')
             }}
           >
             <div className='recent-result-title'>#{result.matchId} · {getRaceTypeLabel(result.type)}</div>
