@@ -1325,7 +1325,7 @@ function App() {
         submitAuth(authMode)
       }}
     >
-      <div className='loading-logo'>🔐</div>
+      <div className='loading-logo'><img src='./emoji-race-logo.svg' alt='Emoji Race logo' className='loading-logo-image' /></div>
       <h1>{authMode === 'register' ? 'Регистрация' : authMode === 'setup' ? 'Установка пароля' : 'Вход'}</h1>
       <p>Введите логин и пароль для входа в веб-версию.</p>
       <div className='auth-brand'>
@@ -1356,7 +1356,7 @@ function App() {
     <div className='loading-orb loading-orb-left' />
     <div className='loading-orb loading-orb-right' />
     <div className='loading-card auth-card'>
-      <div className='loading-logo'>⚠️</div>
+      <div className='loading-logo'><img src='./emoji-race-logo.svg' alt='Emoji Race logo' className='loading-logo-image' /></div>
       <h2>MiniApp не загрузился</h2>
       <p className='subtitle'>{bootError}</p>
       <button
@@ -1393,7 +1393,7 @@ function App() {
     <div className='loading-orb loading-orb-left' />
     <div className='loading-orb loading-orb-right' />
     <div className='loading-card'>
-      <div className='loading-logo'>🏁</div>
+      <div className='loading-logo'><img src='./emoji-race-logo.svg' alt='Emoji Race logo' className='loading-logo-image' /></div>
       <h1>Smile Racers</h1>
       <p>Подготавливаем трассу, смайлы и бустеры…</p>
       <div className='loading-bar'>
