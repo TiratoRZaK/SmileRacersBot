@@ -10,7 +10,6 @@ const POLL_INTERVAL_MS = 1000
 const INTERACTION_PAUSE_MS = 2500
 const MIN_SPLASH_MS = 900
 const BOOTSTRAP_EXTRAS_REFRESH_MS = 15000
-const RESULT_OVERLAY_AUTO_CLOSE_MS = 30000
 const DEFAULT_TRACK_LENGTH = 62
 const REQUEST_TIMEOUT_MS = 15000
 const WEB_AUTH_STORAGE_KEY = 'smile_racers_web_auth_v1'
@@ -258,6 +257,7 @@ function App() {
   const [savedNotifications, setSavedNotifications] = useState([])
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [raceResultOverlay, setRaceResultOverlay] = useState(null)
+  const [raceTabLastResult, setRaceTabLastResult] = useState(null)
   const [battleEmoji, setBattleEmoji] = useState('')
   const [battleStakeInput, setBattleStakeInput] = useState(100)
   const [voteInputs, setVoteInputs] = useState({})
@@ -306,8 +306,6 @@ function App() {
   const favoriteRequestRef = useRef(null)
   const localVotesMatchIdRef = useRef(null)
   const swipeStartRef = useRef(null)
-  const raceResultTimerRef = useRef(null)
-  const lastAutoShownResultRef = useRef(null)
   const previousVisibleRaceRef = useRef(null)
   const deepLinkJoinPromptShownRef = useRef(false)
   const topZoneRef = useRef(null)
@@ -1196,26 +1194,12 @@ function App() {
   const winnerVictoryCount = Number((leaderboards?.emojiWinners || []).find((item) => item.emoji === raceWinner?.playerName)?.wins || 0)
 
   const closeRaceResultOverlay = () => {
-    if (raceResultTimerRef.current) {
-      clearTimeout(raceResultTimerRef.current)
-      raceResultTimerRef.current = null
-    }
     setRaceResultOverlay(null)
   }
 
   const openRaceResultOverlay = (result, source = 'race') => {
     if (!result) return
-    if (raceResultTimerRef.current) {
-      clearTimeout(raceResultTimerRef.current)
-      raceResultTimerRef.current = null
-    }
     setRaceResultOverlay({ ...result, source })
-    if (source === 'race') {
-      raceResultTimerRef.current = window.setTimeout(() => {
-        setRaceResultOverlay(null)
-        raceResultTimerRef.current = null
-      }, RESULT_OVERLAY_AUTO_CLOSE_MS)
-    }
   }
 
   const toOverlayResultFromHistoryItem = (result) => {
@@ -1278,25 +1262,10 @@ function App() {
   }, [tab])
 
   useEffect(() => {
-    if (!raceCompleted || !visibleRace?.matchId || tab !== 'race') return
-    if (lastAutoShownResultRef.current === visibleRace.matchId) return
-    lastAutoShownResultRef.current = visibleRace.matchId
-    openRaceResultOverlay({
-      matchId: visibleRace.matchId,
-      type: visibleRace.type,
-      winnerName: raceWinner?.playerName || '—',
-      victoryCount: winnerVictoryCount,
-      probability: winnerWinChance,
-      totalWinnersPayout: winnerTotalPayout,
-      myPayout: racePayout
-    }, 'race')
-  }, [raceCompleted, visibleRace?.matchId, visibleRace?.type, tab, raceWinner?.playerName, winnerVictoryCount, winnerWinChance, winnerTotalPayout, racePayout])
-
-  useEffect(() => {
     const previousRace = previousVisibleRaceRef.current
     const currentRace = visibleRace?.matchId ? { matchId: visibleRace.matchId, type: visibleRace.type } : null
 
-    if (tab === 'race' && previousRace?.matchId && !currentRace?.matchId) {
+    if (previousRace?.matchId && !currentRace?.matchId) {
       requestApi('recent-results', { fallbackErrorMessage: 'Не удалось загрузить последние гонки.' })
         .then((recentData) => {
           const items = recentData?.items || []
@@ -1305,21 +1274,38 @@ function App() {
           setIsRecentResultsLoaded(true)
           const latest = items[0]
           if (Number(latest?.matchId || 0) !== Number(previousRace.matchId || 0)) return
-          if (lastAutoShownResultRef.current === latest.matchId) return
-          lastAutoShownResultRef.current = latest.matchId
-          openRaceResultOverlay(toOverlayResultFromHistoryItem(latest), 'race')
+          setRaceTabLastResult(toOverlayResultFromHistoryItem(latest))
         })
         .catch(() => null)
     }
 
     previousVisibleRaceRef.current = currentRace
-  }, [visibleRace?.matchId, visibleRace?.type, tab, leaderboards?.emojiWinners])
+  }, [visibleRace?.matchId, visibleRace?.type, leaderboards?.emojiWinners])
 
-  useEffect(() => () => {
-    if (raceResultTimerRef.current) {
-      clearTimeout(raceResultTimerRef.current)
+  useEffect(() => {
+    if (raceBeforeStart || raceLive) {
+      setRaceTabLastResult(null)
     }
-  }, [])
+  }, [raceBeforeStart, raceLive])
+
+  const renderRaceResultCard = (result) => {
+    if (!result) return null
+    return <div className='race-result-card'>
+      <div className='race-result-glow race-result-glow-left' />
+      <div className='race-result-glow race-result-glow-right' />
+      <div className='race-result-confetti' aria-hidden='true'>
+        <span>🎉</span><span>✨</span><span>🏆</span><span>💎</span><span>🎊</span>
+      </div>
+      <p className='race-result-kicker'>🏁 Финиш · Гонка #{result.matchId}</p>
+      <h3>Победил смайл {result.winnerName}</h3>
+      <div className='race-result-grid'>
+        <div><span>Победа по счёту</span><strong>{formatStars(result.victoryCount)}-я</strong></div>
+        <div><span>Вероятность победы</span><strong>{formatChance(result.probability)}</strong></div>
+        <div><span>Выигрыш всех победителей</span><strong>{result.totalWinnersPayout == null ? '—' : `${formatStars(result.totalWinnersPayout)} 💎`}</strong></div>
+        <div><span>Твой выигрыш</span><strong>{result.myPayout == null ? '—' : result.myPayout > 0 ? `+${formatStars(result.myPayout)} 💎` : '0 💎'}</strong></div>
+      </div>
+    </div>
+  }
 
   if (!hasMiniAppAuthContext) return <div className='loading-screen'>
     <div className='loading-orb loading-orb-left' />
@@ -1564,6 +1550,10 @@ function App() {
       <div className='race-scale-content' style={{ transform: `scale(${raceScale})`, width: `${100 / raceScale}%` }}>
       <h2>{visibleRace ? `Гонка #${visibleRace.matchId} · ${getRaceTypeLabel(visibleRace.type)}` : 'Нет активной гонки'}</h2>
       {!visibleRace && <p className='subtitle'>Скоро начнётся новая гонка или создайте батл (вкладка «Батл»).</p>}
+      {!visibleRace && !!raceTabLastResult && <div className='race-last-result-wrap'>
+        <p className='subtitle race-last-result-hint'>Результаты прошедшей гонки</p>
+        {renderRaceResultCard(raceTabLastResult)}
+      </div>}
 
       {!!visibleRace && raceLive && <div className='booster-legend'>
         <button type='button' onClick={() => setBoosterHint('BUST')}><b>🐇</b> ускорить · 10💎</button>
@@ -1955,17 +1945,8 @@ function App() {
         if (raceResultOverlay.source === 'history') closeRaceResultOverlay()
       }}
     >
-      <div className='race-result-card' onClick={(event) => event.stopPropagation()}>
-        <div className='race-result-glow race-result-glow-left' />
-        <div className='race-result-glow race-result-glow-right' />
-        <p className='race-result-kicker'>🏁 Финиш · Гонка #{raceResultOverlay.matchId}</p>
-        <h3>Победил смайл {raceResultOverlay.winnerName}</h3>
-        <div className='race-result-grid'>
-          <div><span>Победа по счёту</span><strong>{formatStars(raceResultOverlay.victoryCount)}-я</strong></div>
-          <div><span>Вероятность победы</span><strong>{formatChance(raceResultOverlay.probability)}</strong></div>
-          <div><span>Выигрыш всех победителей</span><strong>{raceResultOverlay.totalWinnersPayout == null ? '—' : `${formatStars(raceResultOverlay.totalWinnersPayout)} 💎`}</strong></div>
-          <div><span>Твой выигрыш</span><strong>{raceResultOverlay.myPayout == null ? '—' : raceResultOverlay.myPayout > 0 ? `+${formatStars(raceResultOverlay.myPayout)} 💎` : '0 💎'}</strong></div>
-        </div>
+      <div onClick={(event) => event.stopPropagation()}>
+        {renderRaceResultCard(raceResultOverlay)}
         {raceResultOverlay.source === 'history' && <p className='subtitle'>Нажми в любое место, чтобы закрыть.</p>}
       </div>
     </div>}
