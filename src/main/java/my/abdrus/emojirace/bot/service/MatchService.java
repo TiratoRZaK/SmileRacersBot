@@ -23,12 +23,14 @@ import my.abdrus.emojirace.bot.entity.MatchPlayer;
 import my.abdrus.emojirace.bot.entity.PaymentRequest;
 import my.abdrus.emojirace.bot.entity.Player;
 import my.abdrus.emojirace.bot.entity.ScoreMessage;
+import my.abdrus.emojirace.bot.entity.BalanceTopup;
 import my.abdrus.emojirace.bot.enumeration.BusterType;
 import my.abdrus.emojirace.bot.enumeration.MatchStatus;
 import my.abdrus.emojirace.bot.enumeration.MatchType;
 import my.abdrus.emojirace.bot.enumeration.PaymentRequestStatus;
 import my.abdrus.emojirace.bot.exception.PaymentException;
 import my.abdrus.emojirace.bot.repository.AccountRepository;
+import my.abdrus.emojirace.bot.repository.BalanceTopupRepository;
 import my.abdrus.emojirace.bot.repository.MatchPlayerRepository;
 import my.abdrus.emojirace.bot.repository.MatchRepository;
 import my.abdrus.emojirace.bot.repository.PaymentRequestRepository;
@@ -70,6 +72,8 @@ public class MatchService {
     private PaymentRequestRepository paymentRequestRepository;
     @Autowired
     private AccountRepository accountRepository;
+    @Autowired
+    private BalanceTopupRepository balanceTopupRepository;
     @Autowired
     private UserService userService;
     @Autowired
@@ -519,6 +523,7 @@ public class MatchService {
             }
 
             if (accountService.addBalance(userId, sum * 2)) {
+                saveWinTopup(userId, sum * 2, "match_win_" + match.getId());
                 String text = "Поздравляю с победой!\n\n" +
                         "Баланс успешно пополнен на " + sum * 2 + " ⭐.\n\n\uD83C\uDF40 " +
                         "Удача любит смелых! Скорее возвращайтесь в новых гонках!";
@@ -569,6 +574,7 @@ public class MatchService {
 
         Long winnerUserChatId = winner.getOwnerUserChatId();
         if (accountService.addBalance(winnerUserChatId, winnerAmount)) {
+            saveWinTopup(winnerUserChatId, winnerAmount, "battle_win_" + match.getId());
             SendMessage winnerMessage = new SendMessage(
                     winnerUserChatId.toString(),
                     "🏆 Вы победили в батле #" + match.getId() + "!\n\n" +
@@ -598,6 +604,15 @@ public class MatchService {
                     loseMessage.setReplyMarkup(InlineKeyboardMarkup.builder().keyboard(List.of(List.of(createMatchLinkButton(match)))).build());
                     bot.saveUserNotification(loseMessage, bot.execute(loseMessage));
                 });
+    }
+
+    private void saveWinTopup(Long userId, Long amount, String source) {
+        BalanceTopup topup = new BalanceTopup();
+        topup.setUserChatId(userId);
+        topup.setSum(amount);
+        topup.setSource(source);
+        topup.setCreatedDate(new Date());
+        balanceTopupRepository.save(topup);
     }
 
 

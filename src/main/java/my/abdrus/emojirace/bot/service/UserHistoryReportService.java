@@ -13,7 +13,6 @@ import my.abdrus.emojirace.bot.entity.BalanceTopup;
 import my.abdrus.emojirace.bot.entity.BotUser;
 import my.abdrus.emojirace.bot.entity.PaymentRequest;
 import my.abdrus.emojirace.bot.entity.WithdrawRequest;
-import my.abdrus.emojirace.bot.enumeration.PaymentRequestStatus;
 import my.abdrus.emojirace.bot.enumeration.WithdrawRequestStatus;
 import my.abdrus.emojirace.bot.repository.BalanceTopupRepository;
 import my.abdrus.emojirace.bot.repository.PaymentRequestRepository;
@@ -125,11 +124,32 @@ public class UserHistoryReportService {
         }
 
         for (BalanceTopup topup : balanceTopupRepository.findAllByUserChatIdOrderByCreatedDateDesc(userId)) {
-            result.add(new HistoryItem(topup.getCreatedDate(), "Пополнение", topup.getSum(), "Источник: " + topup.getSource()));
+            result.add(mapTopupHistoryItem(topup));
         }
 
         result.sort(Comparator.comparing((HistoryItem h) -> h.createdDate).reversed());
         return result;
+    }
+
+    private HistoryItem mapTopupHistoryItem(BalanceTopup topup) {
+        String source = topup.getSource() == null ? "" : topup.getSource();
+        if (source.startsWith("match_win_")) {
+            return new HistoryItem(
+                    topup.getCreatedDate(),
+                    "Начисление выигрыша",
+                    topup.getSum(),
+                    "Матч #" + source.substring("match_win_".length())
+            );
+        }
+        if (source.startsWith("battle_win_")) {
+            return new HistoryItem(
+                    topup.getCreatedDate(),
+                    "Начисление выигрыша",
+                    topup.getSum(),
+                    "Батл #" + source.substring("battle_win_".length())
+            );
+        }
+        return new HistoryItem(topup.getCreatedDate(), "Пополнение", topup.getSum(), "Источник: " + source);
     }
 
     private void sendExcel(Long requesterChatId, Long userId, String userLabel, List<HistoryItem> history, EmojiRaceBot bot) {
