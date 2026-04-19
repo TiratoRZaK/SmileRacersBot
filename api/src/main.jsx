@@ -238,10 +238,24 @@ function App() {
   const [authUsername, setAuthUsername] = useState('')
   const [authPassword, setAuthPassword] = useState('')
   const [authPasswordConfirm, setAuthPasswordConfirm] = useState('')
+  const telegramInitData = useMemo(() => {
+    const value = String(tg?.initData || '').trim()
+    return value || null
+  }, [])
+  const telegramLaunchUser = useMemo(() => {
+    const user = tg?.initDataUnsafe?.user
+    const userId = Number(user?.id || 0)
+    if (!Number.isFinite(userId) || userId < 1) return null
+    return {
+      userId,
+      accountLabel: user?.username ? `@${user.username}` : [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim() || `ID ${userId}`
+    }
+  }, [])
   const userId = useMemo(() => {
     if (webAuth?.userId) return webAuth.userId
+    if (telegramLaunchUser?.userId) return telegramLaunchUser.userId
     return Number.isFinite(queryUserId) && queryUserId > 0 ? queryUserId : null
-  }, [webAuth?.userId])
+  }, [webAuth?.userId, telegramLaunchUser?.userId])
   const [data, setData] = useState(null)
   const [activeWithdraws, setActiveWithdraws] = useState([])
   const [historyItems, setHistoryItems] = useState([])
@@ -319,17 +333,20 @@ function App() {
     const params = new URLSearchParams()
     if (userId != null) params.set('userId', String(userId))
     if (webAuth?.authToken) params.set('authToken', webAuth.authToken)
+    if (telegramInitData) params.set('tgWebAppData', telegramInitData)
     return params.toString()
-  }, [userId, webAuth?.authToken])
+  }, [userId, webAuth?.authToken, telegramInitData])
   const requestHeaders = useMemo(() => {
     const headers = {}
     if (webAuth?.authToken) headers['X-Web-Auth-Token'] = webAuth.authToken
+    if (telegramInitData) headers['X-Telegram-Init-Data'] = telegramInitData
     return headers
-  }, [webAuth?.authToken])
+  }, [webAuth?.authToken, telegramInitData])
   const hasMiniAppAuthContext = useMemo(
-    () => Boolean(userId != null && webAuth?.authToken),
-    [userId, webAuth?.authToken]
+    () => Boolean(userId != null && (webAuth?.authToken || telegramInitData)),
+    [userId, webAuth?.authToken, telegramInitData]
   )
+  const accountLabel = webAuth?.accountLabel || telegramLaunchUser?.accountLabel || (data?.userId ? `ID ${data.userId}` : 'Игрок')
 
   const parseResponsePayload = async (response) => {
     const text = await response.text()
@@ -499,8 +516,8 @@ function App() {
     }
   }
 
-  const loadHistory = async () => {
-    if (historyLoading || isHistoryLoaded) return
+  const loadHistory = async ({ force = false } = {}) => {
+    if (historyLoading || (isHistoryLoaded && !force)) return
     setHistoryLoading(true)
     try {
       const historyData = await requestApi('history', { fallbackErrorMessage: 'Не удалось загрузить историю операций.' })
@@ -511,8 +528,8 @@ function App() {
     }
   }
 
-  const loadRecentResults = async () => {
-    if (recentResultsLoading || isRecentResultsLoaded) return
+  const loadRecentResults = async ({ force = false } = {}) => {
+    if (recentResultsLoading || (isRecentResultsLoaded && !force)) return
     setRecentResultsLoading(true)
     try {
       const recentData = await requestApi('recent-results', { fallbackErrorMessage: 'Не удалось загрузить последние гонки.' })
@@ -1015,10 +1032,10 @@ function App() {
     setSectionOpen((current) => {
       const nextOpen = !current[key]
       if (nextOpen && key === 'history') {
-        loadHistory().catch(() => notify('Не удалось загрузить историю операций.'))
+        loadHistory({ force: true }).catch(() => notify('Не удалось загрузить историю операций.'))
       }
       if (nextOpen && key === 'recentRaces') {
-        loadRecentResults().catch(() => notify('Не удалось загрузить последние гонки.'))
+        loadRecentResults({ force: true }).catch(() => notify('Не удалось загрузить последние гонки.'))
       }
       if (!nextOpen) {
         return { ...current, [key]: false }
@@ -1045,6 +1062,14 @@ function App() {
     </button>
     {sectionOpen[key] && <div className='accordion-content'>{content}</div>}
   </div>
+
+  const refreshHistory = () => {
+    loadHistory({ force: true }).catch(() => notify('Не удалось загрузить историю операций.'))
+  }
+
+  const refreshRecentRaces = () => {
+    loadRecentResults({ force: true }).catch(() => notify('Не удалось загрузить последние гонки.'))
+  }
 
   const formatPeriodDate = (value) => {
     if (!value) return '—'
@@ -1356,7 +1381,6 @@ function App() {
     <div className='loading-orb loading-orb-left' />
     <div className='loading-orb loading-orb-right' />
     <div className='loading-card auth-card'>
-      <div className='loading-logo'><img src='./emoji-race-logo.svg' alt='Emoji Race logo' className='loading-logo-image' /></div>
       <h2>MiniApp не загрузился</h2>
       <p className='subtitle'>{bootError}</p>
       <button
@@ -1393,7 +1417,6 @@ function App() {
     <div className='loading-orb loading-orb-left' />
     <div className='loading-orb loading-orb-right' />
     <div className='loading-card'>
-      <div className='loading-logo'><img src='./emoji-race-logo.svg' alt='Emoji Race logo' className='loading-logo-image' /></div>
       <h1>Emoji Race</h1>
       <p>Подготавливаем трассу, смайлы и бустеры…</p>
       <div className='loading-bar'>
@@ -1426,7 +1449,7 @@ function App() {
                 type='button'
                 onClick={() => setTab('account')}
               >
-                <b>{String(webAuth?.accountLabel || `ID ${data.userId}`).replace(/^@/, '')}</b>
+                <b>{String(accountLabel).replace(/^@/, '')}</b>
               </button>
               <button
                 className='chip icon-btn logout-btn'
@@ -1743,7 +1766,7 @@ function App() {
     {tab === 'account' && <section className='panel tab-panel account-panel'>
       {renderSection('account', 'Данные об аккаунте', <>
         <p className='subtitle'>
-          {webAuth?.accountLabel || 'Веб-аккаунт'}
+          {accountLabel}
         </p>
         <p className='subtitle'>
           {data.localTestMode
@@ -1827,6 +1850,9 @@ function App() {
 
     {tab === 'archive' && <section className='panel tab-panel account-panel'>
       {renderSection('recentRaces', 'История гонок', <>
+        <button className='chip' type='button' onClick={refreshRecentRaces} disabled={recentResultsLoading}>
+          {recentResultsLoading ? 'Обновляем…' : 'Обновить'}
+        </button>
         {recentResultsLoading && <p className='subtitle'>Загружаем последние гонки…</p>}
         {isRecentResultsLoaded && !recentResults.length && <p className='subtitle'>Пока нет завершённых гонок.</p>}
         <div className='archive-results-list'>
@@ -1845,6 +1871,9 @@ function App() {
         </div>
       </>)}
       {renderSection('history', 'История операций', <>
+        <button className='chip' type='button' onClick={refreshHistory} disabled={historyLoading}>
+          {historyLoading ? 'Обновляем…' : 'Обновить'}
+        </button>
         {historyLoading && <p className='subtitle'>Загружаем историю операций…</p>}
         {!!historyItems.length && <div className='history-table-wrap'>
           <table className='history-table'>
