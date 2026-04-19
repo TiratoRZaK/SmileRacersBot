@@ -1290,6 +1290,7 @@ function App() {
 
   const renderRaceResultCard = (result) => {
     if (!result) return null
+    const victoryCount = Math.max(1, Number(result.victoryCount) || 0)
     const openRaceHistory = () => {
       setTab('archive')
       setSectionOpen((current) => ({ ...current, recentRaces: true }))
@@ -1303,6 +1304,7 @@ function App() {
       <p className='race-result-kicker'>🏁 Финиш · Гонка #{result.matchId}</p>
       <h3>Победил {result.winnerName}</h3>
       <div className='race-result-grid'>
+        <div><span>Общее количество побед</span><strong>{formatStars(victoryCount)}</strong></div>
         <div><span>🏆 Общий выигрыш победителей</span><strong>{result.totalWinnersPayout == null ? '—' : `${formatStars(result.totalWinnersPayout)} 💎`}</strong></div>
         <div><span>✨ Твой выигрыш</span><strong>{result.myPayout == null ? '—' : result.myPayout > 0 ? `+${formatStars(result.myPayout)} 💎` : '0 💎'}</strong></div>
       </div>
@@ -1603,12 +1605,10 @@ function App() {
             type='button'
             className='pre-race-meta-over-runner pre-race-meta-tooltip'
             style={{ left: runnerLeft }}
-            data-tooltip={emojiMetaTooltip}
             title={emojiMetaTooltip}
             onClick={openEmojiTop}
           >
             <span className='pre-race-meta-badge'>🏆 #{emojiStats.place}</span>
-            {emojiStats.wins > 0 && <span className='pre-race-meta-badge'>✨ {formatStars(emojiStats.wins)}</span>}
           </button>}
           <div className='runner' style={{ left: runnerLeft }}>{u.playerName}</div>
           {activeBooster === 'BUST' && <div className='runner-booster runner-booster-bust' style={{ left: runnerLeft }}>

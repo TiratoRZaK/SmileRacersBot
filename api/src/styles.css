@@ -678,34 +678,6 @@ h3 {
   position: absolute;
 }
 
-.pre-race-meta-tooltip::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 8px);
-  transform: translateX(-50%) translateY(4px);
-  width: min(240px, 72vw);
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, .2);
-  background: rgba(7, 12, 30, .96);
-  color: rgba(230, 239, 255, .95);
-  font-size: 11px;
-  line-height: 1.35;
-  opacity: 0;
-  pointer-events: none;
-  white-space: normal;
-  text-align: left;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, .32);
-  transition: opacity .16s ease, transform .16s ease;
-}
-
-.pre-race-meta-tooltip:hover::after,
-.pre-race-meta-tooltip:focus-visible::after {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-
 .pre-race-meta-tooltip:focus-visible {
   outline: 2px solid rgba(191, 219, 254, .72);
   outline-offset: 4px;
@@ -1817,7 +1789,7 @@ select:focus {
 }
 
 .race-before-start {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .race-before-start .race-scale-content {
