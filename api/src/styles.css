@@ -1500,6 +1500,7 @@ select:focus {
   margin: 8px 0 0;
   font-size: 28px;
   line-height: 1.18;
+  text-align: center;
   text-shadow: 0 8px 30px rgba(0, 0, 0, .35);
 }
 
@@ -1552,6 +1553,18 @@ select:focus {
 
 .race-result-grid strong {
   font-size: 17px;
+}
+
+.race-result-actions {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.race-result-actions .chip {
+  width: 100%;
+  justify-content: center;
 }
 
 .race-result-glow {
