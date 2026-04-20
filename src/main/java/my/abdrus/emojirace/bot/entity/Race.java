@@ -175,7 +175,7 @@ public class Race {
 
     public String getRaceStateMessage() {
         StringBuilder text = new StringBuilder();
-        String eventName = match.getType() == MatchType.BATTLE ? "Батл" : "Гонка";
+        String eventName = getEventName(match.getType());
         text
                 .append("\uD83D\uDD25 ").append(eventName).append(" №").append(match.getId()).append(" в самом разгаре! \uD83D\uDD25\n")
                 .append("Помоги своему фавориту придти на 🏁 первым!\n")
@@ -208,7 +208,7 @@ public class Race {
                 .max(Comparator.comparingDouble(player -> getScoreByNumber(player.getNumber())))
                 .ifPresent(matchPlayer ->  {
                     match.setWinner(matchPlayer.getNumber());
-                    String eventName = match.getType() == MatchType.BATTLE ? "Батл" : "Гонка";
+                    String eventName = getEventName(match.getType());
                     text.append("🏁 ").append(eventName).append(" №")
                             .append(match.getId())
                             .append(" завершен").append(match.getType() == MatchType.BATTLE ? "" : "а").append("! 🏁\n")
@@ -244,6 +244,14 @@ public class Race {
 
     public BusterType getLastAppliedBusterByNumber(Integer number) {
         return lastAppliedBusters.get(number - 1);
+    }
+
+    private String getEventName(MatchType type) {
+        return switch (type) {
+            case BATTLE -> "Батл";
+            case DRAG_RACING -> "Драг-рейсинг";
+            default -> "Гонка";
+        };
     }
 
     private boolean isTopPaymentPlayerNumber(int number) {

@@ -46,6 +46,7 @@ import my.abdrus.emojirace.bot.repository.UserRepository;
 import my.abdrus.emojirace.bot.service.AccountService;
 import my.abdrus.emojirace.bot.service.InvoiceService;
 import my.abdrus.emojirace.bot.service.LeaderboardService;
+import my.abdrus.emojirace.bot.service.DragRacingService;
 import my.abdrus.emojirace.bot.service.MatchGenerationService;
 import my.abdrus.emojirace.bot.service.MatchService;
 import my.abdrus.emojirace.bot.service.RaceService;
@@ -96,6 +97,7 @@ public class MiniAppController {
     private final PaymentRequestRepository paymentRequestRepository;
     private final MatchGenerationService matchGenerationService;
     private final MatchService matchService;
+    private final DragRacingService dragRacingService;
     private final WithdrawService withdrawService;
     private final InvoiceService invoiceService;
     private final LeaderboardService leaderboardService;
@@ -763,6 +765,38 @@ public class MiniAppController {
             return new MiniAppDtos.ActionResponse(false, "Отмена недоступна.");
         }
         return new MiniAppDtos.ActionResponse(true, "Батл отменён.");
+    }
+
+    @PostMapping("/drag-racing/start")
+    public MiniAppDtos.DragRaceStateResponse startDragRacing(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.DragRaceStartRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        return dragRacingService.start(userId, request);
+    }
+
+    @GetMapping("/drag-racing/state")
+    public MiniAppDtos.DragRaceStateResponse dragRacingState(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        return dragRacingService.getState(userId);
+    }
+
+    @PostMapping("/drag-racing/choice")
+    public MiniAppDtos.DragRaceStateResponse dragRacingChoice(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.DragRaceChoiceRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || !StringUtils.hasText(request.branchId())) {
+            return MiniAppDtos.DragRaceStateResponse.error("Выберите вариант действия.");
+        }
+        return dragRacingService.applyChoice(userId, request.branchId());
     }
 
     @GetMapping("/recent-results")
