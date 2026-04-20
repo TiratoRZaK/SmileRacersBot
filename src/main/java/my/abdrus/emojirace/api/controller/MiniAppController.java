@@ -765,6 +765,26 @@ public class MiniAppController {
         return new MiniAppDtos.ActionResponse(true, "Батл отменён.");
     }
 
+    @PostMapping("/drag-racing/start")
+    public MiniAppDtos.ActionResponse startDragRacing(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.DragRaceStartRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || request.stake() == null || request.stake() < 1 || !StringUtils.hasText(request.difficulty())) {
+            return new MiniAppDtos.ActionResponse(false, "Некорректные параметры для старта драг-рейсинга.");
+        }
+        if ("FREE_BUSTS".equalsIgnoreCase(request.buyAirbagBy())
+                && accountService.getByUserId(userId).getFreeBustCount() < 5) {
+            return new MiniAppDtos.ActionResponse(false, "Недостаточно бесплатных бустеров для покупки подушки.");
+        }
+        if ("RUBIES".equalsIgnoreCase(request.buyAirbagBy()) && accountService.getByUserId(userId).getBalance() < 100) {
+            return new MiniAppDtos.ActionResponse(false, "Недостаточно рубинов для покупки подушки.");
+        }
+        return new MiniAppDtos.ActionResponse(false, "Режим драг-рейсинга добавлен в интерфейс. Игровая логика будет подключена следующим релизом.");
+    }
+
     @GetMapping("/recent-results")
     public MiniAppDtos.RecentResultsResponse recentResults(
             @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
