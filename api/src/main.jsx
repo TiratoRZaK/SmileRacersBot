@@ -67,6 +67,12 @@ const MODE_HELP_CONTENT = {
     ]
   }
 }
+const DRAG_DIFFICULTY_OPTIONS = [
+  { value: 'EASY', label: 'Лёгкий' },
+  { value: 'NORMAL', label: 'Нормальный' },
+  { value: 'HARD', label: 'Сложный' },
+  { value: 'EXTREME', label: 'Экстрим' }
+]
 const UNKNOWN_AVATAR = '❔'
 
 const TOAST_AUTO_CLOSE_MS = 1500
@@ -1298,6 +1304,9 @@ function App() {
   const canCreateBattle = !myBattle && battleMode !== 'joined'
   const canManageBattle = !!myBattle && isMyBattleOwner
   const canJoinBattle = !myBattle || (!!myBattle && !isMyBattleOwner)
+  const dragRunActive = !!dragState?.runId && !dragState?.finished
+  const dragHasAirbagSelected = dragAirbagBuyBy !== 'NONE'
+  const canBuyAirbagByBoosters = Number(data?.freeBoosters || 0) >= 5
   const joinedBattle = !!myBattle && !isMyBattleOwner ? myBattle : null
   const joinedBattleIsLive = joinedBattle?.status === 'LIVE'
   const canLeaveJoinedBattle = !!joinedBattle && !joinedBattleIsLive
@@ -2135,8 +2144,9 @@ function App() {
             ?
           </button>
         </div>
-        <p className='subtitle'>
-          Соло-режим с выбором сложности и риска. Чем выше взнос, тем сложнее скрытые проверки.
+        <p className='subtitle drag-hero-text'>
+          ⚡ Уличная дуэль с трассой: ловите момент, рискуйте с умом и выжимайте максимум из каждого ивента.
+          Чем дальше заходите — тем злее препятствия и вкуснее потенциальная награда.
         </p>
         <div className='drag-state-card'>
           <p className='subtitle'>{dragState?.message || 'Нет активного забега.'}</p>
@@ -2158,10 +2168,7 @@ function App() {
           <label className='field-label'>
             Сложность
             <select value={dragDifficulty} onChange={(e) => setDragDifficulty(e.target.value)}>
-              <option value='EASY'>EASY</option>
-              <option value='NORMAL'>NORMAL</option>
-              <option value='HARD'>HARD</option>
-              <option value='EXTREME'>EXTREME</option>
+              {DRAG_DIFFICULTY_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
           </label>
           <label className='field-label'>
@@ -2173,19 +2180,35 @@ function App() {
               onChange={setDragStake}
             />
           </label>
-          <label className='field-label'>
+          <div className='field-label'>
             Подушка безопасности
-            <select value={dragAirbagBuyBy} onChange={(e) => setDragAirbagBuyBy(e.target.value)}>
-              <option value='NONE'>Без подушки</option>
-              <option value='RUBIES'>Купить за 100 💎</option>
-              <option value='FREE_BUSTS'>Обменять 5 бесплатных бустеров</option>
-            </select>
-          </label>
+            {!dragHasAirbagSelected && <div className='airbag-buy-row'>
+              <button type='button' className='chip' onClick={() => setDragAirbagBuyBy('RUBIES')}>
+                Купить за 100 💎
+              </button>
+              {canBuyAirbagByBoosters && <button type='button' className='chip' onClick={() => setDragAirbagBuyBy('FREE_BUSTS')}>
+                Обменять 5 бустеров
+              </button>}
+            </div>}
+            {dragHasAirbagSelected && <div className='airbag-active-chip'>
+              🛟 Подушка включена: {dragAirbagBuyBy === 'RUBIES' ? 'покупка за 100 💎' : 'обмен на 5 бустеров'}
+            </div>}
+            {dragHasAirbagSelected && <button type='button' className='chip' onClick={() => setDragAirbagBuyBy('NONE')}>
+              Убрать подушку
+            </button>}
+            <span
+              className='airbag-hint-badge'
+              title='Подушка безопасности один раз спасает от фатального провала и превращает его в штраф.'
+            >
+              ⓘ
+            </span>
+          </div>
         </div>
         <div className='row'>
-          <button onClick={startDragRaceFromUi} disabled={dragStateLoading}>Старт драг-рейсинга</button>
-          <button className='chip' onClick={loadDragState} disabled={dragStateLoading}>Обновить</button>
-          <button className='chip' onClick={() => openHelpTab('drag')}>Как это работает?</button>
+          {!dragRunActive && <button onClick={startDragRaceFromUi} disabled={dragStateLoading || Number(dragStake || 0) > Number(data?.balance || 0)}>
+            Старт драг-рейсинга
+          </button>}
+          {dragRunActive && <div className='drag-run-lock'>Новый старт будет доступен после завершения текущего забега.</div>}
         </div>
         {!!dragState?.currentEvent && !dragState?.finished && <div className='drag-event-card'>
           <h3>{dragState.currentEvent.title}</h3>
@@ -2199,7 +2222,10 @@ function App() {
               onClick={() => chooseDragBranch(branch.branchId)}
             >
               <span>{branch.title}</span>
-              <small>{branch.hint} · шанс ~{formatChance(branch.previewSuccessChance)}</small>
+              <small>{branch.hint}</small>
+              <small>Шанс успеха: {formatChance(branch.previewSuccessChance)} · шанс фатала при провале: {formatChance(branch.previewFatalChanceOnFail)}</small>
+              <small>Если успех: {branch.successOutcome} · прогноз банка: {formatStars(branch.projectedRewardOnSuccess)} 💎</small>
+              <small>Если провал: {branch.failOutcome} · прогноз банка: {formatStars(branch.projectedRewardOnFail)} 💎</small>
             </button>)}
           </div>
         </div>}

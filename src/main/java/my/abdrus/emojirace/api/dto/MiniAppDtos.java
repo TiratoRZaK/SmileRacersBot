@@ -130,7 +130,12 @@ public class MiniAppDtos {
             String branchId,
             String title,
             String hint,
-            Double previewSuccessChance
+            Double previewSuccessChance,
+            Double previewFatalChanceOnFail,
+            Long projectedRewardOnSuccess,
+            Long projectedRewardOnFail,
+            String successOutcome,
+            String failOutcome
     ) {}
 
     public record DragRaceEventCard(

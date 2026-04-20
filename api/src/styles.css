@@ -395,9 +395,17 @@ h2 {
   padding: 10px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, .18);
-  background: rgba(10, 18, 38, .45);
+  background: linear-gradient(140deg, rgba(52, 22, 95, .42), rgba(16, 89, 173, .34));
   display: grid;
   gap: 8px;
+}
+
+.drag-hero-text {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(250, 204, 21, .2);
+  background: linear-gradient(135deg, rgba(250, 204, 21, .12), rgba(236, 72, 153, .10));
 }
 
 .drag-stats-inline {
@@ -421,7 +429,7 @@ h2 {
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, .18);
   padding: 12px;
-  background: rgba(255, 255, 255, .04);
+  background: linear-gradient(135deg, rgba(30, 64, 175, .24), rgba(124, 58, 237, .20));
   display: grid;
   gap: 10px;
 }
@@ -441,6 +449,40 @@ h2 {
 .drag-branch-btn small {
   opacity: .78;
   font-size: 11px;
+}
+
+.airbag-buy-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.airbag-active-chip {
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(16, 185, 129, .22);
+  border: 1px solid rgba(16, 185, 129, .38);
+  font-size: 12px;
+}
+
+.airbag-hint-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .16);
+  font-size: 12px;
+  cursor: help;
+}
+
+.drag-run-lock {
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(251, 191, 36, .14);
+  border: 1px solid rgba(251, 191, 36, .3);
+  font-size: 12px;
 }
 
 .auth-card {

@@ -40,11 +40,18 @@ public class DragRacingService {
 
         AirbagSource airbagSource = AirbagSource.fromCode(request.buyAirbagBy());
         Account account = accountService.getByUserId(userId);
+        long balance = account.getBalance() == null ? 0L : account.getBalance();
+        if (request.stake() > balance) {
+            return MiniAppDtos.DragRaceStateResponse.error("Ставка не может быть больше вашего баланса.");
+        }
         if (airbagSource == AirbagSource.FREE_BUSTS && (account.getFreeBustCount() == null || account.getFreeBustCount() < AIRBAG_BUSTERS_COST)) {
             return MiniAppDtos.DragRaceStateResponse.error("Недостаточно бесплатных бустеров для покупки подушки.");
         }
 
         long totalCost = request.stake() + (airbagSource == AirbagSource.RUBIES ? AIRBAG_RUBIES_COST : 0L);
+        if (totalCost > balance) {
+            return MiniAppDtos.DragRaceStateResponse.error("Недостаточно баланса для старта с выбранной подушкой.");
+        }
         try {
             accountService.pay(userId, totalCost);
         } catch (PaymentException e) {
@@ -104,9 +111,10 @@ public class DragRacingService {
             return MiniAppDtos.DragRaceStateResponse.error("Ветка действия не найдена.");
         }
 
+        double stageProgress = run.events.size() <= 1 ? 0d : (double) run.currentEventIndex / (double) (run.events.size() - 1);
         double stakePenalty = stakePenalty(run.stake);
-        double successChance = clamp(selectedBranch.successChance - stakePenalty * selectedBranch.stakePressureCoeff, 0.05, 0.99);
-        double fatalChance = clamp(selectedBranch.fatalOnFailChance + stakePenalty * selectedBranch.fatalPressureCoeff, 0d, 0.95);
+        double successChance = getEffectiveSuccessChance(selectedBranch, stageProgress, stakePenalty);
+        double fatalChance = getEffectiveFatalChance(selectedBranch, stakePenalty);
         boolean success = ThreadLocalRandom.current().nextDouble() <= successChance;
 
         if (success) {
@@ -153,6 +161,8 @@ public class DragRacingService {
         MiniAppDtos.DragRaceEventCard currentEvent = null;
         if (!run.finished && run.currentEventIndex < run.events.size()) {
             DragEventDefinition event = run.events.get(run.currentEventIndex);
+            double stageProgress = run.events.size() <= 1 ? 0d : (double) run.currentEventIndex / (double) (run.events.size() - 1);
+            double stakePenalty = stakePenalty(run.stake);
             currentEvent = new MiniAppDtos.DragRaceEventCard(
                     event.code,
                     event.title,
@@ -162,7 +172,12 @@ public class DragRacingService {
                                     branch.id,
                                     branch.title,
                                     branch.hint,
-                                    branch.previewSuccessChance
+                                    getEffectiveSuccessChance(branch, stageProgress, stakePenalty),
+                                    getEffectiveFatalChance(branch, stakePenalty),
+                                    computeProjectedReward(run, run.multiplier * branch.multiplierOnSuccess),
+                                    computeProjectedReward(run, run.multiplier * branch.multiplierOnFail),
+                                    branch.successText,
+                                    branch.failText
                             ))
                             .toList()
             );
@@ -202,6 +217,19 @@ public class DragRacingService {
         if (stake >= 150) return 0.06;
         if (stake >= 50) return 0.03;
         return 0d;
+    }
+
+    private static double getEffectiveSuccessChance(DragBranchDefinition branch, double stageProgress, double stakePenalty) {
+        double stagePenalty = "A".equalsIgnoreCase(branch.id) ? stageProgress * 0.34 : stageProgress * 0.10;
+        return clamp(branch.successChance - stagePenalty - (stakePenalty * branch.stakePressureCoeff), 0.05, 0.99);
+    }
+
+    private static double getEffectiveFatalChance(DragBranchDefinition branch, double stakePenalty) {
+        return clamp(branch.fatalOnFailChance + (stakePenalty * branch.fatalPressureCoeff), 0d, 0.95);
+    }
+
+    private static long computeProjectedReward(DragRun run, double targetMultiplier) {
+        return Math.max(0L, Math.round(run.stake * run.difficulty.baseMultiplier * targetMultiplier));
     }
 
     private enum Difficulty {
@@ -348,9 +376,9 @@ public class DragRacingService {
                     new DragBranchDefinition("A", "Стоп-проверка", "Теряете секунды", 0.99, 0.99, 0.00, 0.40, 0.10, 0.96, 0.96, "Аккуратно проскочили.", "Небольшая задержка."),
                     new DragBranchDefinition("B", "На удачу", "Рандомный приоритет", 0.53, 0.53, 0.28, 1.00, 1.20, 1.20, 0.78, "Успели до потока!", "Подрезали вас на перекрёстке.")
             )),
-            new DragEventDefinition("E12", "Финальный серпантин", "Последняя секция перед финишем.", List.of(
+            new DragEventDefinition("E12", "Горный серпантин", "Крутой серпантинный участок трассы.", List.of(
                     new DragBranchDefinition("A", "Аккуратно", "Почти гарантированно", 0.99, 0.99, 0.00, 0.40, 0.10, 0.92, 0.92, "Выдержали траекторию.", "Немного потеряли темп."),
-                    new DragBranchDefinition("B", "Ва-банк", "Максимальный риск", 0.42, 0.42, 0.45, 1.00, 1.20, 1.35, 0.70, "Финишный рывок удался!", "Финиш сорван из-за ошибки.")
+                    new DragBranchDefinition("B", "Ва-банк", "Максимальный риск", 0.42, 0.42, 0.45, 1.00, 1.20, 1.35, 0.70, "Рывок удался!", "Манёвр сорван из-за ошибки.")
             ))
     );
 }
