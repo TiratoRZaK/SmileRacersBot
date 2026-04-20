@@ -19,6 +19,7 @@ public class DragRacingService {
 
     private static final long AIRBAG_RUBIES_COST = 100L;
     private static final int AIRBAG_BUSTERS_COST = 5;
+    private static final double SAFE_CHOICE_PENALTY = 0.06d;
     private final ConcurrentHashMap<Long, DragRun> runsByUserId = new ConcurrentHashMap<>();
 
     private final AccountService accountService;
@@ -69,6 +70,7 @@ public class DragRacingService {
                 events,
                 0,
                 1d,
+                0,
                 0L
         );
         runsByUserId.put(userId, run);
@@ -112,9 +114,15 @@ public class DragRacingService {
         if (success) {
             run.multiplier *= selectedBranch.multiplierOnSuccess;
             run.message = "✅ " + selectedBranch.successText;
+            if (selectedBranch.safeBranch) {
+                run.safeChoices += 1;
+            }
             run.currentEventIndex += 1;
         } else {
             run.multiplier *= selectedBranch.multiplierOnFail;
+            if (selectedBranch.safeBranch) {
+                run.safeChoices += 1;
+            }
             boolean fatal = ThreadLocalRandom.current().nextDouble() <= fatalChance;
             if (fatal) {
                 if (run.airbagAvailable) {
@@ -138,7 +146,7 @@ public class DragRacingService {
         if (!run.finished && run.currentEventIndex >= run.events.size()) {
             run.finished = true;
             run.success = true;
-            long payout = Math.max(0L, Math.round(run.stake * run.difficulty.baseMultiplier * run.multiplier));
+            long payout = Math.max(0L, Math.round(run.stake * computePayoutFactor(run)));
             run.payout = payout;
             if (payout > 0) {
                 accountService.addBalance(userId, payout);
@@ -168,7 +176,7 @@ public class DragRacingService {
             );
         }
 
-        long projectedReward = Math.max(0L, Math.round(run.stake * run.difficulty.baseMultiplier * run.multiplier));
+        long projectedReward = Math.max(0L, Math.round(run.stake * computePayoutFactor(run)));
         return new MiniAppDtos.DragRaceStateResponse(
                 success,
                 run.message,
@@ -202,6 +210,11 @@ public class DragRacingService {
         if (stake >= 150) return 0.06;
         if (stake >= 50) return 0.03;
         return 0d;
+    }
+
+    private static double computePayoutFactor(DragRun run) {
+        double safePenaltyFactor = Math.max(0.55d, 1d - (run.safeChoices * SAFE_CHOICE_PENALTY));
+        return run.difficulty.baseMultiplier * run.multiplier * safePenaltyFactor;
     }
 
     private enum Difficulty {
@@ -256,6 +269,7 @@ public class DragRacingService {
         private final List<DragEventDefinition> events;
         private int currentEventIndex;
         private double multiplier;
+        private int safeChoices;
         private long payout;
 
         private DragRun(
@@ -271,6 +285,7 @@ public class DragRacingService {
                 List<DragEventDefinition> events,
                 int currentEventIndex,
                 double multiplier,
+                int safeChoices,
                 long payout
         ) {
             this.runId = runId;
@@ -285,6 +300,7 @@ public class DragRacingService {
             this.events = events;
             this.currentEventIndex = currentEventIndex;
             this.multiplier = multiplier;
+            this.safeChoices = safeChoices;
             this.payout = payout;
         }
     }
@@ -300,6 +316,7 @@ public class DragRacingService {
             String id,
             String title,
             String hint,
+            boolean safeBranch,
             double previewSuccessChance,
             double successChance,
             double fatalOnFailChance,
@@ -313,44 +330,44 @@ public class DragRacingService {
 
     private static final List<DragEventDefinition> DEFAULT_EVENTS = List.of(
             new DragEventDefinition("E01", "Резкий поворот", "Впереди крутой вираж.", List.of(
-                    new DragBranchDefinition("A", "Притормозить", "Безопасно, но медленнее", 0.99, 0.99, 0.00, 0.40, 0.10, 0.92, 0.92, "Поворот пройден аккуратно.", "Вы сбавили темп."),
-                    new DragBranchDefinition("B", "Дрифт на ручнике", "Риск ради темпа", 0.62, 0.62, 0.22, 1.00, 1.20, 1.14, 0.78, "Идеальный дрифт!", "Машину сорвало на обочину.")
+                    new DragBranchDefinition("A", "Притормозить", "Безопасно, но медленнее", true, 0.99, 0.99, 0.00, 0.40, 0.10, 0.92, 0.92, "Поворот пройден аккуратно.", "Вы сбавили темп."),
+                    new DragBranchDefinition("B", "Дрифт на ручнике", "Риск ради темпа", false, 0.62, 0.62, 0.22, 1.00, 1.20, 1.14, 0.78, "Идеальный дрифт!", "Машину сорвало на обочину.")
             )),
             new DragEventDefinition("E02", "Олень на дороге", "Дикая природа не предупредила о вашем забеге.", List.of(
-                    new DragBranchDefinition("A", "Тормозить", "Надёжно", 0.99, 0.99, 0.00, 0.40, 0.10, 0.94, 0.94, "Олень цел, вы тоже.", "Потеря времени на торможении."),
-                    new DragBranchDefinition("B", "Проскочить", "Ставка на реакцию", 0.57, 0.57, 0.26, 1.00, 1.20, 1.16, 0.80, "Проскочили в сантиметрах!", "Олень запаниковал и выбежал обратно.")
+                    new DragBranchDefinition("A", "Тормозить", "Надёжно", true, 0.99, 0.99, 0.00, 0.40, 0.10, 0.94, 0.94, "Олень цел, вы тоже.", "Потеря времени на торможении."),
+                    new DragBranchDefinition("B", "Проскочить", "Ставка на реакцию", false, 0.57, 0.57, 0.26, 1.00, 1.20, 1.16, 0.80, "Проскочили в сантиметрах!", "Олень запаниковал и выбежал обратно.")
             )),
             new DragEventDefinition("E03", "Семья ежей", "Маленькие, но очень колючие препятствия.", List.of(
-                    new DragBranchDefinition("A", "Объехать", "Почти безопасно", 0.99, 0.99, 0.00, 0.40, 0.10, 0.97, 0.97, "Аккуратно объехали.", "Сбавили темп."),
-                    new DragBranchDefinition("B", "Пронестись", "Риск ради ускорения", 0.54, 0.54, 0.30, 1.00, 1.20, 1.20, 0.74, "Ежи остались позади.", "Медведь-товарищ не оценил манёвр.")
+                    new DragBranchDefinition("A", "Объехать", "Почти безопасно", true, 0.99, 0.99, 0.00, 0.40, 0.10, 0.97, 0.97, "Аккуратно объехали.", "Сбавили темп."),
+                    new DragBranchDefinition("B", "Пронестись", "Риск ради ускорения", false, 0.54, 0.54, 0.30, 1.00, 1.20, 1.20, 0.74, "Ежи остались позади.", "Медведь-товарищ не оценил манёвр.")
             )),
             new DragEventDefinition("E04", "Трамплин", "Есть шанс красиво улететь... или неудачно приземлиться.", List.of(
-                    new DragBranchDefinition("A", "Сбросить скорость", "Контроль", 0.99, 0.99, 0.00, 0.40, 0.10, 0.93, 0.93, "Ровное приземление.", "Слишком осторожный заход."),
-                    new DragBranchDefinition("B", "Полный прыжок", "Шоу и риск", 0.56, 0.56, 0.28, 1.00, 1.20, 1.21, 0.76, "Эпичный прыжок!", "Жёсткая посадка.")
+                    new DragBranchDefinition("A", "Сбросить скорость", "Контроль", true, 0.99, 0.99, 0.00, 0.40, 0.10, 0.93, 0.93, "Ровное приземление.", "Слишком осторожный заход."),
+                    new DragBranchDefinition("B", "Полный прыжок", "Шоу и риск", false, 0.56, 0.56, 0.28, 1.00, 1.20, 1.21, 0.76, "Эпичный прыжок!", "Жёсткая посадка.")
             )),
             new DragEventDefinition("E05", "Песчаная буря", "Видимость почти нулевая.", List.of(
-                    new DragBranchDefinition("A", "По приборам", "Стабильно", 0.99, 0.99, 0.00, 0.40, 0.10, 0.94, 0.94, "Сохранили контроль.", "Темп упал."),
-                    new DragBranchDefinition("B", "Газ в пол", "Ва-банк", 0.50, 0.50, 0.33, 1.00, 1.20, 1.23, 0.75, "Пронеслись сквозь бурю!", "Песок полностью ослепил.")
+                    new DragBranchDefinition("A", "По приборам", "Стабильно", true, 0.99, 0.99, 0.00, 0.40, 0.10, 0.94, 0.94, "Сохранили контроль.", "Темп упал."),
+                    new DragBranchDefinition("B", "Газ в пол", "Ва-банк", false, 0.50, 0.50, 0.33, 1.00, 1.20, 1.23, 0.75, "Пронеслись сквозь бурю!", "Песок полностью ослепил.")
             )),
             new DragEventDefinition("E06", "Масло на трассе", "Покрытие стало как лёд.", List.of(
-                    new DragBranchDefinition("A", "Объезд", "Потеряете темп", 0.99, 0.99, 0.00, 0.40, 0.10, 0.95, 0.95, "Ушли от скольжения.", "Медленный объезд."),
-                    new DragBranchDefinition("B", "Контр-руление на грани", "Нужны нервы", 0.52, 0.52, 0.31, 1.00, 1.20, 1.22, 0.74, "Вытащили занос!", "Машину развернуло.")
+                    new DragBranchDefinition("A", "Объезд", "Потеряете темп", true, 0.99, 0.99, 0.00, 0.40, 0.10, 0.95, 0.95, "Ушли от скольжения.", "Медленный объезд."),
+                    new DragBranchDefinition("B", "Контр-руление на грани", "Нужны нервы", false, 0.52, 0.52, 0.31, 1.00, 1.20, 1.22, 0.74, "Вытащили занос!", "Машину развернуло.")
             )),
             new DragEventDefinition("E07", "Яма на трассе", "Слева барьер, справа яма.", List.of(
-                    new DragBranchDefinition("A", "Обрулить", "Надёжный выбор", 0.99, 0.99, 0.00, 0.40, 0.10, 0.95, 0.95, "Аккуратный объезд.", "Скорость просела."),
-                    new DragBranchDefinition("B", "Перелететь", "Риск ради времени", 0.49, 0.49, 0.34, 1.00, 1.20, 1.24, 0.72, "Перелёт получился.", "Приземление оказалось провальным.")
+                    new DragBranchDefinition("A", "Обрулить", "Надёжный выбор", true, 0.99, 0.99, 0.00, 0.40, 0.10, 0.95, 0.95, "Аккуратный объезд.", "Скорость просела."),
+                    new DragBranchDefinition("B", "Перелететь", "Риск ради времени", false, 0.49, 0.49, 0.34, 1.00, 1.20, 1.24, 0.72, "Перелёт получился.", "Приземление оказалось провальным.")
             )),
             new DragEventDefinition("E08", "Фура закрыла обзор", "Перед вами медленная фура и слепая зона.", List.of(
-                    new DragBranchDefinition("A", "Держать дистанцию", "Минимум риска", 0.99, 0.99, 0.00, 0.40, 0.10, 0.94, 0.94, "Безопасно переждали момент.", "Потеряли время."),
-                    new DragBranchDefinition("B", "Обгон вслепую", "Самый опасный манёвр", 0.46, 0.46, 0.39, 1.00, 1.20, 1.28, 0.70, "Обгон удался чудом!", "Встретили встречный поток.")
+                    new DragBranchDefinition("A", "Держать дистанцию", "Минимум риска", true, 0.99, 0.99, 0.00, 0.40, 0.10, 0.94, 0.94, "Безопасно переждали момент.", "Потеряли время."),
+                    new DragBranchDefinition("B", "Обгон вслепую", "Самый опасный манёвр", false, 0.46, 0.46, 0.39, 1.00, 1.20, 1.28, 0.70, "Обгон удался чудом!", "Встретили встречный поток.")
             )),
             new DragEventDefinition("E09", "Сломанный светофор", "Никто не понимает, кому ехать первым.", List.of(
-                    new DragBranchDefinition("A", "Стоп-проверка", "Теряете секунды", 0.99, 0.99, 0.00, 0.40, 0.10, 0.96, 0.96, "Аккуратно проскочили.", "Небольшая задержка."),
-                    new DragBranchDefinition("B", "На удачу", "Рандомный приоритет", 0.53, 0.53, 0.28, 1.00, 1.20, 1.20, 0.78, "Успели до потока!", "Подрезали вас на перекрёстке.")
+                    new DragBranchDefinition("A", "Стоп-проверка", "Теряете секунды", true, 0.99, 0.99, 0.00, 0.40, 0.10, 0.96, 0.96, "Аккуратно проскочили.", "Небольшая задержка."),
+                    new DragBranchDefinition("B", "На удачу", "Рандомный приоритет", false, 0.53, 0.53, 0.28, 1.00, 1.20, 1.20, 0.78, "Успели до потока!", "Подрезали вас на перекрёстке.")
             )),
             new DragEventDefinition("E12", "Финальный серпантин", "Последняя секция перед финишем.", List.of(
-                    new DragBranchDefinition("A", "Аккуратно", "Почти гарантированно", 0.99, 0.99, 0.00, 0.40, 0.10, 0.92, 0.92, "Выдержали траекторию.", "Немного потеряли темп."),
-                    new DragBranchDefinition("B", "Ва-банк", "Максимальный риск", 0.42, 0.42, 0.45, 1.00, 1.20, 1.35, 0.70, "Финишный рывок удался!", "Финиш сорван из-за ошибки.")
+                    new DragBranchDefinition("A", "Аккуратно", "Почти гарантированно", true, 0.99, 0.99, 0.00, 0.40, 0.10, 0.92, 0.92, "Выдержали траекторию.", "Немного потеряли темп."),
+                    new DragBranchDefinition("B", "Ва-банк", "Максимальный риск", false, 0.42, 0.42, 0.45, 1.00, 1.20, 1.35, 0.70, "Финишный рывок удался!", "Финиш сорван из-за ошибки.")
             ))
     );
 }
