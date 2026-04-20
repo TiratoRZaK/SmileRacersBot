@@ -55,7 +55,7 @@ public class DragRacingService {
             accountRepository.addFreeBustCount(userId, -AIRBAG_BUSTERS_COST);
         }
 
-        List<DragEventDefinition> events = generateEventSequence(difficulty.eventsCount());
+        List<DragEventDefinition> events = generateEventSequence(difficulty.eventsCount);
         DragRun run = new DragRun(
                 UUID.randomUUID().toString(),
                 userId,
