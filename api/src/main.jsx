@@ -17,7 +17,8 @@ const WEB_AUTH_STORAGE_KEY = 'smile_racers_web_auth_v1'
 const RACE_TYPE_LABELS = {
   REGULAR: 'Обычная',
   SPRINT: 'Спринт',
-  MARATHON: 'Марафон'
+  MARATHON: 'Марафон',
+  DRAG_RACING: 'Драг-рейсинг'
 }
 
 const TRACK_THEMES = ['asphalt', 'grass', 'desert']
@@ -27,13 +28,44 @@ const TRACK_THEME_BACKGROUNDS = {
   grass: ['#2f7d4f', '#1f5938'],
   desert: ['#c9a363', '#9d7040']
 }
-const TAB_ORDER = ['race', 'battle', 'ratings', 'account', 'archive']
+const TAB_ORDER = ['race', 'battle', 'drag', 'help', 'ratings', 'account', 'archive']
 const TAB_TITLES = {
   race: 'Гонка',
   battle: 'Батлы',
+  drag: 'Драг',
+  help: 'Помощь',
   ratings: 'Рейтинги',
   account: 'Аккаунт',
   archive: 'Архив'
+}
+const MODE_HELP_CONTENT = {
+  race: {
+    title: 'Гонки',
+    description: 'Классический режим: выбирайте смайл и ставьте голоса, а в live-режиме применяйте бустеры.',
+    bullets: [
+      'До старта можно распределять голоса между участниками.',
+      'Во время гонки работают бустеры: ускорение, замедление, защита.',
+      'Выигрыш зависит от итоговой позиции выбранного смайла.'
+    ]
+  },
+  battle: {
+    title: 'Батлы',
+    description: 'Приватные матчи между игроками с одинаковой ставкой на вход.',
+    bullets: [
+      'Создатель задаёт ставку и приглашает участников.',
+      'Для запуска нужно минимум 2 участника.',
+      'Победитель забирает банк батла.'
+    ]
+  },
+  drag: {
+    title: 'Драг-рейсинг',
+    description: 'Соло-режим: выбираете сложность и взнос, проходите цепочку событий с безопасными и рискованными решениями.',
+    bullets: [
+      'Сложность выбирает игрок, но большой взнос скрыто увеличивает риск.',
+      'На старте можно купить подушку безопасности: 100 💎 или 5 бесплатных бустеров.',
+      'Рискованные ветки дают выше множитель, но могут закончить забег раньше.'
+    ]
+  }
 }
 const UNKNOWN_AVATAR = '❔'
 
@@ -267,6 +299,7 @@ function App() {
   const [leaderboards, setLeaderboards] = useState(null)
   const [leaderboardsLoading, setLeaderboardsLoading] = useState(false)
   const [tab, setTab] = useState('race')
+  const [helpMode, setHelpMode] = useState('race')
   const [toasts, setToasts] = useState([])
   const [savedNotifications, setSavedNotifications] = useState([])
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
@@ -281,6 +314,11 @@ function App() {
   const [joinBattleId, setJoinBattleId] = useState('')
   const [joinBattleEmoji, setJoinBattleEmoji] = useState('')
   const [inviteUsername, setInviteUsername] = useState('')
+  const [dragDifficulty, setDragDifficulty] = useState('NORMAL')
+  const [dragStake, setDragStake] = useState(100)
+  const [dragAirbagBuyBy, setDragAirbagBuyBy] = useState('NONE')
+  const [dragState, setDragState] = useState(null)
+  const [dragStateLoading, setDragStateLoading] = useState(false)
   const [localVotes, setLocalVotes] = useState({})
   const [isAppReady, setIsAppReady] = useState(false)
   const [bootProgress, setBootProgress] = useState(14)
@@ -308,6 +346,7 @@ function App() {
     battleCreate: true,
     battleManage: false,
     battleJoin: false,
+    helpModes: true,
     adminWithdraws: false,
     adminBalance: false
   })
@@ -754,6 +793,9 @@ function App() {
     if (tab === 'archive' && sectionOpen.history) {
       loadHistory().catch(() => notify('Не удалось загрузить историю операций.'))
     }
+    if (tab === 'drag') {
+      loadDragState().catch(() => null)
+    }
   }, [tab, sectionOpen.recentRaces, sectionOpen.history])
 
   useEffect(() => {
@@ -999,6 +1041,63 @@ function App() {
     }
   }
 
+  const loadDragState = async () => {
+    if (!hasMiniAppAuthContext) return
+    setDragStateLoading(true)
+    try {
+      const payload = await requestApi('drag-racing/state', {
+        fallbackErrorMessage: 'Не удалось загрузить состояние драг-рейсинга.'
+      })
+      setDragState(payload || null)
+    } catch (error) {
+      notify(error?.message || 'Не удалось загрузить состояние драг-рейсинга.')
+    } finally {
+      setDragStateLoading(false)
+    }
+  }
+
+  const startDragRaceFromUi = async () => {
+    const payload = {
+      difficulty: dragDifficulty,
+      stake: Math.max(1, Number(dragStake) || 1),
+      buyAirbagBy: dragAirbagBuyBy
+    }
+    setDragStateLoading(true)
+    try {
+      const response = await requestApi('drag-racing/start', {
+        method: 'POST',
+        body: payload,
+        fallbackErrorMessage: 'Не удалось начать драг-рейсинг.'
+      })
+      setDragState(response || null)
+      notify(response?.message || 'Драг-рейсинг запущен.')
+      await refresh(true)
+    } catch (error) {
+      notify(error?.message || 'Не удалось начать драг-рейсинг.')
+    } finally {
+      setDragStateLoading(false)
+    }
+  }
+
+  const chooseDragBranch = async (branchId) => {
+    if (!branchId) return
+    setDragStateLoading(true)
+    try {
+      const response = await requestApi('drag-racing/choice', {
+        method: 'POST',
+        body: { branchId },
+        fallbackErrorMessage: 'Не удалось применить выбор.'
+      })
+      setDragState(response || null)
+      notify(response?.message || 'Ход выполнен.')
+      await refresh(true)
+    } catch (error) {
+      notify(error?.message || 'Не удалось применить выбор.')
+    } finally {
+      setDragStateLoading(false)
+    }
+  }
+
   const openHelp = async () => {
     try {
       const payload = await requestApi('help', {
@@ -1015,6 +1114,13 @@ function App() {
       return
     }
     notify('Ссылка на поддержку временно недоступна.')
+  }
+
+  const openHelpTab = (mode = 'race') => {
+    const normalizedMode = ['race', 'battle', 'drag'].includes(mode) ? mode : 'race'
+    setHelpMode(normalizedMode)
+    setTab('help')
+    setSectionOpen((current) => ({ ...current, helpModes: true }))
   }
 
   const requestWithdrawFromUi = async () => {
@@ -1579,7 +1685,18 @@ function App() {
     {tab === 'race' && <section className={`panel tab-panel race-panel race-theme-${trackTheme} ${raceBeforeStart ? 'race-before-start' : ''}`}>
       <div className='race-scale-shell'>
       <div className='race-scale-content' style={{ transform: `scale(${raceScale})`, width: `${100 / raceScale}%` }}>
-      <h2>{visibleRace ? `Гонка #${visibleRace.matchId} · ${getRaceTypeLabel(visibleRace.type)}` : 'Нет активной гонки'}</h2>
+      <div className='mode-title-row'>
+        <h2>{visibleRace ? `Гонка #${visibleRace.matchId} · ${getRaceTypeLabel(visibleRace.type)}` : 'Нет активной гонки'}</h2>
+        <button
+          type='button'
+          className='subtle-help-btn'
+          title='Подсказка по гонкам'
+          aria-label='Подсказка по гонкам'
+          onClick={() => openHelpTab('race')}
+        >
+          ?
+        </button>
+      </div>
       {!visibleRace && <p className='subtitle'>Скоро начнётся новая гонка или создайте батл (вкладка «Батл»).</p>}
       {!visibleRace && !!raceTabLastResult && <div className='race-last-result-wrap'>
         <p className='subtitle race-last-result-hint'>Результаты прошедшей гонки:</p>
@@ -1904,7 +2021,18 @@ function App() {
 
     {tab === 'battle' && <section className='panel tab-panel account-panel'>
       <div className='battle-section'>
-        <h3>Батлы</h3>
+        <div className='mode-title-row'>
+          <h3>Батлы</h3>
+          <button
+            type='button'
+            className='subtle-help-btn'
+            title='Подсказка по батлам'
+            aria-label='Подсказка по батлам'
+            onClick={() => openHelpTab('battle')}
+          >
+            ?
+          </button>
+        </div>
         {renderSection('battleCreate', 'Создание нового батла', <>
           {!canCreateBattle && <p className='subtitle'>Создание недоступно, пока активен ваш или уже подключённый батл.</p>}
           {canCreateBattle && <>
@@ -1991,6 +2119,116 @@ function App() {
           </div>}
         </>)}
       </div>
+    </section>}
+
+    {tab === 'drag' && <section className='panel tab-panel account-panel'>
+      <div className='battle-section'>
+        <div className='mode-title-row'>
+          <h3>Драг-рейсинг</h3>
+          <button
+            type='button'
+            className='subtle-help-btn'
+            title='Подсказка по драг-рейсингу'
+            aria-label='Подсказка по драг-рейсингу'
+            onClick={() => openHelpTab('drag')}
+          >
+            ?
+          </button>
+        </div>
+        <p className='subtitle'>
+          Соло-режим с выбором сложности и риска. Чем выше взнос, тем сложнее скрытые проверки.
+        </p>
+        <div className='drag-state-card'>
+          <p className='subtitle'>{dragState?.message || 'Нет активного забега.'}</p>
+          <div className='drag-stats-inline'>
+            <span>Сложность: <b>{dragState?.difficulty || dragDifficulty}</b></span>
+            <span>Этап: <b>{dragState?.currentEventIndex || 0}/{dragState?.totalEvents || 0}</b></span>
+          </div>
+          <div className='drag-stats-inline'>
+            <span>Прогноз награды: <b>{formatStars(dragState?.projectedReward || 0)} 💎</b></span>
+            <span>Подушка: <b>{dragState?.airbagAvailable ? 'готова' : dragState?.airbagConsumed ? 'использована' : 'нет'}</b></span>
+          </div>
+          {dragState?.finished && <div className='drag-finish-banner'>
+            {dragState?.runSuccess
+              ? `🏁 Финиш! Получено ${formatStars(dragState?.payout || 0)} 💎`
+              : '💥 Забег завершён неудачно. Попробуйте ещё раз.'}
+          </div>}
+        </div>
+        <div className='drag-config-grid'>
+          <label className='field-label'>
+            Сложность
+            <select value={dragDifficulty} onChange={(e) => setDragDifficulty(e.target.value)}>
+              <option value='EASY'>EASY</option>
+              <option value='NORMAL'>NORMAL</option>
+              <option value='HARD'>HARD</option>
+              <option value='EXTREME'>EXTREME</option>
+            </select>
+          </label>
+          <label className='field-label'>
+            Взнос
+            <RubyAmountField
+              value={dragStake}
+              min={1}
+              max={Math.max(1, data.balance || 1)}
+              onChange={setDragStake}
+            />
+          </label>
+          <label className='field-label'>
+            Подушка безопасности
+            <select value={dragAirbagBuyBy} onChange={(e) => setDragAirbagBuyBy(e.target.value)}>
+              <option value='NONE'>Без подушки</option>
+              <option value='RUBIES'>Купить за 100 💎</option>
+              <option value='FREE_BUSTS'>Обменять 5 бесплатных бустеров</option>
+            </select>
+          </label>
+        </div>
+        <div className='row'>
+          <button onClick={startDragRaceFromUi} disabled={dragStateLoading}>Старт драг-рейсинга</button>
+          <button className='chip' onClick={loadDragState} disabled={dragStateLoading}>Обновить</button>
+          <button className='chip' onClick={() => openHelpTab('drag')}>Как это работает?</button>
+        </div>
+        {!!dragState?.currentEvent && !dragState?.finished && <div className='drag-event-card'>
+          <h3>{dragState.currentEvent.title}</h3>
+          <p className='subtitle'>{dragState.currentEvent.description}</p>
+          <div className='drag-branches'>
+            {(dragState.currentEvent.branches || []).map((branch) => <button
+              key={branch.branchId}
+              type='button'
+              className='drag-branch-btn'
+              disabled={dragStateLoading}
+              onClick={() => chooseDragBranch(branch.branchId)}
+            >
+              <span>{branch.title}</span>
+              <small>{branch.hint} · шанс ~{formatChance(branch.previewSuccessChance)}</small>
+            </button>)}
+          </div>
+        </div>}
+      </div>
+    </section>}
+
+    {tab === 'help' && <section className='panel tab-panel account-panel'>
+      <div className='mode-title-row'>
+        <h3>Помощь по режимам</h3>
+      </div>
+      <p className='subtitle'>Краткие правила всех игровых режимов. Нажимай «?» в игре, чтобы быстро открыть нужный раздел.</p>
+      <div className='help-mode-tabs'>
+        {Object.entries(MODE_HELP_CONTENT).map(([modeKey, mode]) => <button
+          key={modeKey}
+          type='button'
+          className={`chip ${helpMode === modeKey ? 'help-chip-active' : ''}`}
+          onClick={() => setHelpMode(modeKey)}
+        >
+          {mode.title}
+        </button>)}
+      </div>
+      <div className='help-mode-card'>
+        <h3>{MODE_HELP_CONTENT[helpMode].title}</h3>
+        <p className='subtitle'>{MODE_HELP_CONTENT[helpMode].description}</p>
+        <ul className='help-list'>
+          {MODE_HELP_CONTENT[helpMode].bullets.map((item) => <li key={item}>{item}</li>)}
+        </ul>
+      </div>
+      <button className='help-btn' onClick={openHelp}>Связаться с поддержкой</button>
     </section>}
 
     {!!raceResultOverlay && <div

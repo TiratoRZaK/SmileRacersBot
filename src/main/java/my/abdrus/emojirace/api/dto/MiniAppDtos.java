@@ -118,6 +118,53 @@ public class MiniAppDtos {
 
     public record CancelBattleRequest(Long matchId) {}
 
+    public record DragRaceStartRequest(
+            String difficulty,
+            Long stake,
+            String buyAirbagBy
+    ) {}
+
+    public record DragRaceChoiceRequest(String branchId) {}
+
+    public record DragRaceBranchCard(
+            String branchId,
+            String title,
+            String hint,
+            Double previewSuccessChance
+    ) {}
+
+    public record DragRaceEventCard(
+            String code,
+            String title,
+            String description,
+            List<DragRaceBranchCard> branches
+    ) {}
+
+    public record DragRaceStateResponse(
+            boolean success,
+            String message,
+            String runId,
+            String difficulty,
+            Long stake,
+            Integer currentEventIndex,
+            Integer totalEvents,
+            boolean finished,
+            boolean runSuccess,
+            boolean airbagAvailable,
+            boolean airbagConsumed,
+            Long projectedReward,
+            Long payout,
+            DragRaceEventCard currentEvent
+    ) {
+        public static DragRaceStateResponse error(String message) {
+            return new DragRaceStateResponse(false, message, null, null, null, null, null, false, false, false, false, 0L, 0L, null);
+        }
+
+        public static DragRaceStateResponse empty(String message) {
+            return new DragRaceStateResponse(true, message, null, null, null, null, null, false, false, false, false, 0L, 0L, null);
+        }
+    }
+
     public record DeleteNotificationRequest(Long notificationId) {}
 
     public record TelegramAuthConfigResponse(String botUsername) {}
