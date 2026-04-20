@@ -118,6 +118,12 @@ public class MiniAppDtos {
 
     public record CancelBattleRequest(Long matchId) {}
 
+    public record DragRaceStartRequest(
+            String difficulty,
+            Long stake,
+            String buyAirbagBy
+    ) {}
+
     public record DeleteNotificationRequest(Long notificationId) {}
 
     public record TelegramAuthConfigResponse(String botUsername) {}

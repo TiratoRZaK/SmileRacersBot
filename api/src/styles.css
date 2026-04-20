@@ -198,7 +198,7 @@ b {
 
 .tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
   margin: 0;
   padding: 2px 2px 4px;
@@ -247,7 +247,7 @@ button:disabled {
 
 .tabs button {
   padding: 7px 5px;
-  font-size: 11px;
+  font-size: 10px;
   border-radius: 12px;
   position: relative;
   display: inline-flex;
@@ -321,6 +321,73 @@ h2 {
   margin-top: 6px;
   opacity: .78;
   font-size: 12px;
+}
+
+.mode-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.subtle-help-btn {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 0;
+  font-size: 12px;
+  opacity: .72;
+  background: rgba(255, 255, 255, .08);
+  box-shadow: none;
+}
+
+.subtle-help-btn:hover:not(:disabled) {
+  opacity: .95;
+}
+
+.drag-config-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.field-label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  opacity: .92;
+}
+
+.help-mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.help-chip-active {
+  background: linear-gradient(115deg, #7c4dff, #24b0ff);
+}
+
+.help-mode-card {
+  border-radius: 14px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(255, 255, 255, .04);
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.help-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
 }
 
 .auth-card {

@@ -2,6 +2,6 @@ package my.abdrus.emojirace.bot.enumeration;
 
 public enum MatchType {
     REGULAR,
-    BATTLE
+    BATTLE,
+    DRAG_RACING
 }
-
