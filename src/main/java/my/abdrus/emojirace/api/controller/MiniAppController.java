@@ -46,6 +46,7 @@ import my.abdrus.emojirace.bot.repository.UserRepository;
 import my.abdrus.emojirace.bot.service.AccountService;
 import my.abdrus.emojirace.bot.service.InvoiceService;
 import my.abdrus.emojirace.bot.service.LeaderboardService;
+import my.abdrus.emojirace.bot.service.DragRacingService;
 import my.abdrus.emojirace.bot.service.MatchGenerationService;
 import my.abdrus.emojirace.bot.service.MatchService;
 import my.abdrus.emojirace.bot.service.RaceService;
@@ -96,6 +97,7 @@ public class MiniAppController {
     private final PaymentRequestRepository paymentRequestRepository;
     private final MatchGenerationService matchGenerationService;
     private final MatchService matchService;
+    private final DragRacingService dragRacingService;
     private final WithdrawService withdrawService;
     private final InvoiceService invoiceService;
     private final LeaderboardService leaderboardService;
@@ -766,23 +768,35 @@ public class MiniAppController {
     }
 
     @PostMapping("/drag-racing/start")
-    public MiniAppDtos.ActionResponse startDragRacing(
+    public MiniAppDtos.DragRaceStateResponse startDragRacing(
             @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
             @RequestParam(value = "userId", required = false) Long userIdParam,
             @RequestBody MiniAppDtos.DragRaceStartRequest request
     ) {
         Long userId = resolveUserId(headerUserId, userIdParam);
-        if (request == null || request.stake() == null || request.stake() < 1 || !StringUtils.hasText(request.difficulty())) {
-            return new MiniAppDtos.ActionResponse(false, "Некорректные параметры для старта драг-рейсинга.");
+        return dragRacingService.start(userId, request);
+    }
+
+    @GetMapping("/drag-racing/state")
+    public MiniAppDtos.DragRaceStateResponse dragRacingState(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        return dragRacingService.getState(userId);
+    }
+
+    @PostMapping("/drag-racing/choice")
+    public MiniAppDtos.DragRaceStateResponse dragRacingChoice(
+            @RequestHeader(value = "X-Telegram-User-Id", required = false) Long headerUserId,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestBody MiniAppDtos.DragRaceChoiceRequest request
+    ) {
+        Long userId = resolveUserId(headerUserId, userIdParam);
+        if (request == null || !StringUtils.hasText(request.branchId())) {
+            return MiniAppDtos.DragRaceStateResponse.error("Выберите вариант действия.");
         }
-        if ("FREE_BUSTS".equalsIgnoreCase(request.buyAirbagBy())
-                && accountService.getByUserId(userId).getFreeBustCount() < 5) {
-            return new MiniAppDtos.ActionResponse(false, "Недостаточно бесплатных бустеров для покупки подушки.");
-        }
-        if ("RUBIES".equalsIgnoreCase(request.buyAirbagBy()) && accountService.getByUserId(userId).getBalance() < 100) {
-            return new MiniAppDtos.ActionResponse(false, "Недостаточно рубинов для покупки подушки.");
-        }
-        return new MiniAppDtos.ActionResponse(false, "Режим драг-рейсинга добавлен в интерфейс. Игровая логика будет подключена следующим релизом.");
+        return dragRacingService.applyChoice(userId, request.branchId());
     }
 
     @GetMapping("/recent-results")

@@ -317,6 +317,8 @@ function App() {
   const [dragDifficulty, setDragDifficulty] = useState('NORMAL')
   const [dragStake, setDragStake] = useState(100)
   const [dragAirbagBuyBy, setDragAirbagBuyBy] = useState('NONE')
+  const [dragState, setDragState] = useState(null)
+  const [dragStateLoading, setDragStateLoading] = useState(false)
   const [localVotes, setLocalVotes] = useState({})
   const [isAppReady, setIsAppReady] = useState(false)
   const [bootProgress, setBootProgress] = useState(14)
@@ -791,6 +793,9 @@ function App() {
     if (tab === 'archive' && sectionOpen.history) {
       loadHistory().catch(() => notify('Не удалось загрузить историю операций.'))
     }
+    if (tab === 'drag') {
+      loadDragState().catch(() => null)
+    }
   }, [tab, sectionOpen.recentRaces, sectionOpen.history])
 
   useEffect(() => {
@@ -1036,13 +1041,61 @@ function App() {
     }
   }
 
+  const loadDragState = async () => {
+    if (!hasMiniAppAuthContext) return
+    setDragStateLoading(true)
+    try {
+      const payload = await requestApi('drag-racing/state', {
+        fallbackErrorMessage: 'Не удалось загрузить состояние драг-рейсинга.'
+      })
+      setDragState(payload || null)
+    } catch (error) {
+      notify(error?.message || 'Не удалось загрузить состояние драг-рейсинга.')
+    } finally {
+      setDragStateLoading(false)
+    }
+  }
+
   const startDragRaceFromUi = async () => {
     const payload = {
       difficulty: dragDifficulty,
       stake: Math.max(1, Number(dragStake) || 1),
       buyAirbagBy: dragAirbagBuyBy
     }
-    await act('drag-racing/start', payload)
+    setDragStateLoading(true)
+    try {
+      const response = await requestApi('drag-racing/start', {
+        method: 'POST',
+        body: payload,
+        fallbackErrorMessage: 'Не удалось начать драг-рейсинг.'
+      })
+      setDragState(response || null)
+      notify(response?.message || 'Драг-рейсинг запущен.')
+      await refresh(true)
+    } catch (error) {
+      notify(error?.message || 'Не удалось начать драг-рейсинг.')
+    } finally {
+      setDragStateLoading(false)
+    }
+  }
+
+  const chooseDragBranch = async (branchId) => {
+    if (!branchId) return
+    setDragStateLoading(true)
+    try {
+      const response = await requestApi('drag-racing/choice', {
+        method: 'POST',
+        body: { branchId },
+        fallbackErrorMessage: 'Не удалось применить выбор.'
+      })
+      setDragState(response || null)
+      notify(response?.message || 'Ход выполнен.')
+      await refresh(true)
+    } catch (error) {
+      notify(error?.message || 'Не удалось применить выбор.')
+    } finally {
+      setDragStateLoading(false)
+    }
   }
 
   const openHelp = async () => {
@@ -2085,6 +2138,22 @@ function App() {
         <p className='subtitle'>
           Соло-режим с выбором сложности и риска. Чем выше взнос, тем сложнее скрытые проверки.
         </p>
+        <div className='drag-state-card'>
+          <p className='subtitle'>{dragState?.message || 'Нет активного забега.'}</p>
+          <div className='drag-stats-inline'>
+            <span>Сложность: <b>{dragState?.difficulty || dragDifficulty}</b></span>
+            <span>Этап: <b>{dragState?.currentEventIndex || 0}/{dragState?.totalEvents || 0}</b></span>
+          </div>
+          <div className='drag-stats-inline'>
+            <span>Прогноз награды: <b>{formatStars(dragState?.projectedReward || 0)} 💎</b></span>
+            <span>Подушка: <b>{dragState?.airbagAvailable ? 'готова' : dragState?.airbagConsumed ? 'использована' : 'нет'}</b></span>
+          </div>
+          {dragState?.finished && <div className='drag-finish-banner'>
+            {dragState?.runSuccess
+              ? `🏁 Финиш! Получено ${formatStars(dragState?.payout || 0)} 💎`
+              : '💥 Забег завершён неудачно. Попробуйте ещё раз.'}
+          </div>}
+        </div>
         <div className='drag-config-grid'>
           <label className='field-label'>
             Сложность
@@ -2114,9 +2183,26 @@ function App() {
           </label>
         </div>
         <div className='row'>
-          <button onClick={startDragRaceFromUi}>Старт драг-рейсинга</button>
+          <button onClick={startDragRaceFromUi} disabled={dragStateLoading}>Старт драг-рейсинга</button>
+          <button className='chip' onClick={loadDragState} disabled={dragStateLoading}>Обновить</button>
           <button className='chip' onClick={() => openHelpTab('drag')}>Как это работает?</button>
         </div>
+        {!!dragState?.currentEvent && !dragState?.finished && <div className='drag-event-card'>
+          <h3>{dragState.currentEvent.title}</h3>
+          <p className='subtitle'>{dragState.currentEvent.description}</p>
+          <div className='drag-branches'>
+            {(dragState.currentEvent.branches || []).map((branch) => <button
+              key={branch.branchId}
+              type='button'
+              className='drag-branch-btn'
+              disabled={dragStateLoading}
+              onClick={() => chooseDragBranch(branch.branchId)}
+            >
+              <span>{branch.title}</span>
+              <small>{branch.hint} · шанс ~{formatChance(branch.previewSuccessChance)}</small>
+            </button>)}
+          </div>
+        </div>}
       </div>
     </section>}
 

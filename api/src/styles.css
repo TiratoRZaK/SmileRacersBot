@@ -390,6 +390,59 @@ h2 {
   font-size: 13px;
 }
 
+.drag-state-card {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(10, 18, 38, .45);
+  display: grid;
+  gap: 8px;
+}
+
+.drag-stats-inline {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.drag-finish-banner {
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(16, 185, 129, .18);
+  border: 1px solid rgba(16, 185, 129, .35);
+  font-size: 12px;
+}
+
+.drag-event-card {
+  margin-top: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  padding: 12px;
+  background: rgba(255, 255, 255, .04);
+  display: grid;
+  gap: 10px;
+}
+
+.drag-branches {
+  display: grid;
+  gap: 8px;
+}
+
+.drag-branch-btn {
+  display: grid;
+  justify-items: start;
+  text-align: left;
+  gap: 4px;
+}
+
+.drag-branch-btn small {
+  opacity: .78;
+  font-size: 11px;
+}
+
 .auth-card {
   display: grid;
   gap: 10px;
