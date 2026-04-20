@@ -2164,7 +2164,7 @@ function App() {
               : '💥 Забег завершён неудачно. Попробуйте ещё раз.'}
           </div>}
         </div>
-        <div className='drag-config-grid'>
+        {!dragRunActive && <div className='drag-config-grid'>
           <label className='field-label'>
             Сложность
             <select value={dragDifficulty} onChange={(e) => setDragDifficulty(e.target.value)}>
@@ -2182,14 +2182,14 @@ function App() {
           </label>
           <div className='field-label'>
             Подушка безопасности
-            {!dragHasAirbagSelected && <div className='airbag-buy-row'>
-              <button type='button' className='chip' onClick={() => setDragAirbagBuyBy('RUBIES')}>
-                Купить за 100 💎
-              </button>
-              {canBuyAirbagByBoosters && <button type='button' className='chip' onClick={() => setDragAirbagBuyBy('FREE_BUSTS')}>
-                Обменять 5 бустеров
-              </button>}
-            </div>}
+              {!dragHasAirbagSelected && <div className='airbag-buy-row'>
+                <button type='button' className='chip' onClick={() => setDragAirbagBuyBy('RUBIES')}>
+                  Купить подушку за 100 💎
+                </button>
+                {canBuyAirbagByBoosters && <button type='button' className='chip' onClick={() => setDragAirbagBuyBy('FREE_BUSTS')}>
+                  Обменять подушку за 5 бустеров
+                </button>}
+              </div>}
             {dragHasAirbagSelected && <div className='airbag-active-chip'>
               🛟 Подушка включена: {dragAirbagBuyBy === 'RUBIES' ? 'покупка за 100 💎' : 'обмен на 5 бустеров'}
             </div>}
@@ -2203,29 +2203,32 @@ function App() {
               ⓘ
             </span>
           </div>
-        </div>
-        <div className='row'>
-          {!dragRunActive && <button onClick={startDragRaceFromUi} disabled={dragStateLoading || Number(dragStake || 0) > Number(data?.balance || 0)}>
+        </div>}
+        {!dragRunActive && <div className='row'>
+          <button onClick={startDragRaceFromUi} disabled={dragStateLoading || Number(dragStake || 0) > Number(data?.balance || 0)}>
             Старт драг-рейсинга
-          </button>}
-          {dragRunActive && <div className='drag-run-lock'>Новый старт будет доступен после завершения текущего забега.</div>}
-        </div>
+          </button>
+        </div>}
         {!!dragState?.currentEvent && !dragState?.finished && <div className='drag-event-card'>
           <h3>{dragState.currentEvent.title}</h3>
           <p className='subtitle'>{dragState.currentEvent.description}</p>
+          <div className='drag-choices-summary'>
+            {(dragState.currentEvent.branches || []).map((branch, index) => <p key={branch.branchId}>
+              {index === 0 ? 'Вариант 1 (безопаснее):' : index === 1 ? 'Вариант 2 (рискованнее):' : `Вариант ${index + 1}:`} {branch.successOutcome}
+            </p>)}
+          </div>
           <div className='drag-branches'>
-            {(dragState.currentEvent.branches || []).map((branch) => <button
+            {(dragState.currentEvent.branches || []).map((branch, index) => <button
               key={branch.branchId}
               type='button'
-              className='drag-branch-btn'
+              className={`drag-branch-btn ${index === 0 ? 'drag-branch-btn-safe' : index === 1 ? 'drag-branch-btn-risk' : ''}`}
               disabled={dragStateLoading}
               onClick={() => chooseDragBranch(branch.branchId)}
             >
               <span>{branch.title}</span>
-              <small>{branch.hint}</small>
-              <small>Шанс успеха: {formatChance(branch.previewSuccessChance)} · шанс фатала при провале: {formatChance(branch.previewFatalChanceOnFail)}</small>
-              <small>Если успех: {branch.successOutcome} · прогноз банка: {formatStars(branch.projectedRewardOnSuccess)} 💎</small>
-              <small>Если провал: {branch.failOutcome} · прогноз банка: {formatStars(branch.projectedRewardOnFail)} 💎</small>
+              <small>{index === 0
+                ? `Выигрыш уменьшится до ${formatStars(branch.projectedRewardOnFail)} 💎`
+                : `С вероятностью ${formatChance(branch.previewSuccessChance)} увеличить до ${formatStars(branch.projectedRewardOnSuccess)} 💎`}</small>
             </button>)}
           </div>
         </div>}
