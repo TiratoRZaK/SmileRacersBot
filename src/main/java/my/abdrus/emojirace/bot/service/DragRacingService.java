@@ -113,8 +113,8 @@ public class DragRacingService {
 
         double stageProgress = run.events.size() <= 1 ? 0d : (double) run.currentEventIndex / (double) (run.events.size() - 1);
         double stakePenalty = stakePenalty(run.stake);
-        double successChance = getEffectiveSuccessChance(selectedBranch, stageProgress, stakePenalty);
-        double fatalChance = getEffectiveFatalChance(selectedBranch, stakePenalty);
+        double successChance = getEffectiveSuccessChance(selectedBranch, stageProgress, stakePenalty, run.difficulty);
+        double fatalChance = getEffectiveFatalChance(selectedBranch, stakePenalty, run.difficulty);
         boolean success = ThreadLocalRandom.current().nextDouble() <= successChance;
 
         if (success) {
@@ -172,8 +172,8 @@ public class DragRacingService {
                                     branch.id,
                                     branch.title,
                                     branch.hint,
-                                    getEffectiveSuccessChance(branch, stageProgress, stakePenalty),
-                                    getEffectiveFatalChance(branch, stakePenalty),
+                                    getEffectiveSuccessChance(branch, stageProgress, stakePenalty, run.difficulty),
+                                    getEffectiveFatalChance(branch, stakePenalty, run.difficulty),
                                     computeProjectedReward(run, run.multiplier * branch.multiplierOnSuccess),
                                     computeProjectedReward(run, run.multiplier * branch.multiplierOnFail),
                                     branch.successText,
@@ -219,13 +219,26 @@ public class DragRacingService {
         return 0d;
     }
 
-    private static double getEffectiveSuccessChance(DragBranchDefinition branch, double stageProgress, double stakePenalty) {
+    private static double getEffectiveSuccessChance(DragBranchDefinition branch, double stageProgress, double stakePenalty, Difficulty difficulty) {
         double stagePenalty = "A".equalsIgnoreCase(branch.id) ? stageProgress * 0.34 : stageProgress * 0.10;
-        return clamp(branch.successChance - stagePenalty - (stakePenalty * branch.stakePressureCoeff), 0.05, 0.99);
+        return clamp(
+                branch.successChance
+                        - stagePenalty
+                        - (stakePenalty * branch.stakePressureCoeff)
+                        + difficulty.successChanceBonus,
+                0.05,
+                0.99
+        );
     }
 
-    private static double getEffectiveFatalChance(DragBranchDefinition branch, double stakePenalty) {
-        return clamp(branch.fatalOnFailChance + (stakePenalty * branch.fatalPressureCoeff), 0d, 0.95);
+    private static double getEffectiveFatalChance(DragBranchDefinition branch, double stakePenalty, Difficulty difficulty) {
+        return clamp(
+                branch.fatalOnFailChance
+                        + (stakePenalty * branch.fatalPressureCoeff)
+                        + difficulty.fatalChanceBonus,
+                0d,
+                0.95
+        );
     }
 
     private static long computeProjectedReward(DragRun run, double targetMultiplier) {
@@ -233,19 +246,23 @@ public class DragRacingService {
     }
 
     private enum Difficulty {
-        EASY("EASY", 4, 1.55),
-        NORMAL("NORMAL", 5, 1.75),
-        HARD("HARD", 6, 2.10),
-        EXTREME("EXTREME", 7, 2.60);
+        EASY("EASY", 4, 1.40, 0.09, -0.05),
+        NORMAL("NORMAL", 5, 1.75, 0.00, 0.00),
+        HARD("HARD", 6, 2.35, -0.06, 0.05),
+        EXTREME("EXTREME", 7, 2.90, -0.10, 0.08);
 
         private final String code;
         private final int eventsCount;
         private final double baseMultiplier;
+        private final double successChanceBonus;
+        private final double fatalChanceBonus;
 
-        Difficulty(String code, int eventsCount, double baseMultiplier) {
+        Difficulty(String code, int eventsCount, double baseMultiplier, double successChanceBonus, double fatalChanceBonus) {
             this.code = code;
             this.eventsCount = eventsCount;
             this.baseMultiplier = baseMultiplier;
+            this.successChanceBonus = successChanceBonus;
+            this.fatalChanceBonus = fatalChanceBonus;
         }
 
         private static Difficulty fromCode(String raw) {
